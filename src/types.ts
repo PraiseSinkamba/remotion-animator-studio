@@ -20,7 +20,11 @@ export type ElementType =
   | 'sunMoon'
   | 'ridge'
   | 'commitGraph'
-  | 'nodeTrail';
+  | 'nodeTrail'
+  /** First-party trading component (Chart Studio). */
+  | 'candlestickChart'
+  /** Source-owned Remocn motion component adapted to the registry. */
+  | 'remocnMarkerHighlight';
 
 export type EffectType =
   | 'fadeIn'
