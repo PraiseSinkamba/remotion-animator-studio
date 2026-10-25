@@ -735,11 +735,13 @@ export const computeEffectStyle = (
           );
           const pt = getPointAtLength(d, t * length);
           const start = getPointAtLength(d, 0);
-          out.translateX += pt.x - start.x;
-          out.translateY += pt.y - start.y;
-          if (p.orient === 'yes') {
-            const tan = getTangentAtLength(d, t * length);
-            out.rotate += (Math.atan2(tan.y, tan.x) * 180) / Math.PI;
+          if (pt && start) {
+            out.translateX += pt.x - start.x;
+            out.translateY += pt.y - start.y;
+            if (p.orient === 'yes') {
+              const tan = getTangentAtLength(d, t * length);
+              if (tan) out.rotate += (Math.atan2(tan.y, tan.x) * 180) / Math.PI;
+            }
           }
         } catch {
           /* invalid SVG path — ignore until it parses */
