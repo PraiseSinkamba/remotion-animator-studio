@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { EFFECTS } from '../effects';
-import { ELEMENTS } from '../elements';
+import { CATEGORY_LABELS, CATEGORY_ORDER, listComponentsByCategory } from '../registry';
 import { PRESETS } from '../presets';
 import { useStore } from '../store';
-import type { EffectType, ElementType } from '../types';
+import type { EffectType } from '../types';
 
 export const ELEMENT_MIME = 'application/x-animator-element';
 export const EFFECT_MIME = 'application/x-animator-effect';
@@ -23,9 +23,12 @@ export const Library: React.FC = () => {
     q === '' || label.toLowerCase().includes(q) || description.toLowerCase().includes(q);
 
   const presetEntries = Object.entries(PRESETS).filter(([, p]) => matches(p.label, p.description));
-  const elementKeys = (Object.keys(ELEMENTS) as ElementType[]).filter((k) =>
-    matches(ELEMENTS[k].label, ELEMENTS[k].description),
-  );
+  const componentGroups = CATEGORY_ORDER.map((category) => ({
+    category,
+    label: CATEGORY_LABELS[category],
+    components: listComponentsByCategory(category).filter((d) => matches(d.label, d.description)),
+  })).filter((group) => group.components.length > 0);
+  const componentCount = componentGroups.reduce((total, group) => total + group.components.length, 0);
   const effectKeys = (Object.keys(EFFECTS) as EffectType[]).filter((k) =>
     matches(EFFECTS[k].label, EFFECTS[k].description),
   );
@@ -49,7 +52,7 @@ export const Library: React.FC = () => {
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
-      {presetEntries.length + elementKeys.length + effectKeys.length === 0 ? (
+      {presetEntries.length + componentCount + effectKeys.length === 0 ? (
         <div className="library-hint">Nothing matches “{query}”.</div>
       ) : null}
       {presetEntries.length > 0 ? (
@@ -77,35 +80,37 @@ export const Library: React.FC = () => {
         ))}
       </div>
 
-      {elementKeys.length > 0 ? (
-        <>
+      {componentGroups.map((group, groupIndex) => (
+        <React.Fragment key={group.category}>
           <div className="panel-title" style={{ marginTop: 18 }}>
-            Elements
+            {group.label}
           </div>
-          <div className="library-hint">Drag onto a timeline track, or double-click to add</div>
-        </>
-      ) : null}
-      <div className="library-grid">
-        {elementKeys.map((key) => (
-          <div
-            key={key}
-            className="library-item"
-            draggable
-            title={ELEMENTS[key].description}
-            onDragStart={(e) => {
-              e.dataTransfer.setData(ELEMENT_MIME, key);
-              e.dataTransfer.effectAllowed = 'copy';
-            }}
-            onDoubleClick={() => {
-              const track = project.tracks[0];
-              if (track) addClip(key, track.id, currentFrame);
-            }}
-          >
-            <span className="library-icon">{ELEMENTS[key].icon}</span>
-            <span>{ELEMENTS[key].label}</span>
+          {groupIndex === 0 ? (
+            <div className="library-hint">Drag onto a timeline track, or double-click to add</div>
+          ) : null}
+          <div className="library-grid">
+            {group.components.map((definition) => (
+              <div
+                key={definition.type}
+                className="library-item"
+                draggable
+                title={definition.description}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(ELEMENT_MIME, definition.type);
+                  e.dataTransfer.effectAllowed = 'copy';
+                }}
+                onDoubleClick={() => {
+                  const track = project.tracks[0];
+                  if (track) addClip(definition.type, track.id, currentFrame);
+                }}
+              >
+                <span className="library-icon">{definition.icon}</span>
+                <span>{definition.label}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </React.Fragment>
+      ))}
 
       {effectKeys.length > 0 ? (
         <>

@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { ELEMENTS } from '../elements';
+import { getComponent } from '../registry';
 import { seekTo } from '../playerRef';
 import { useStore } from '../store';
 import type { Clip, Track } from '../types';
@@ -128,7 +128,7 @@ const ClipView: React.FC<{ clip: Clip; trackId: string }> = ({ clip, trackId }) 
       <div className="clip-handle clip-handle-l" onPointerDown={onPointerDown('resize-l')} />
       <span className="clip-label">
         {clip.groupId ? '⛓ ' : ''}
-        {ELEMENTS[clip.element].icon} {clip.name}
+        {getComponent(clip.element)?.icon ?? '❓'} {clip.name}
         {clip.effects.length > 0 ? <span className="clip-fx-badge">{clip.effects.length}fx</span> : null}
       </span>
       <div className="clip-handle clip-handle-r" onPointerDown={onPointerDown('resize-r')} />

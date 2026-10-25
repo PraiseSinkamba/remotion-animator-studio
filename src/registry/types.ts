@@ -33,6 +33,8 @@ export interface ComponentInspectorContext {
   props: ComponentProps;
   /** Merge a partial prop patch into the clip. */
   onChange: (patch: ComponentProps) => void;
+  /** Change the clip's timing or name. */
+  updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) => void;
   /** Push an undo snapshot before a discrete edit. */
   commit: () => void;
 }
@@ -62,8 +64,11 @@ export interface VideoComponentDefinition {
   render: React.FC<ComponentRenderContext>;
   /** Optional custom inspector panel, rendered below the generated params. */
   inspector?: React.FC<ComponentInspectorContext>;
-  /** Frames a newly created instance occupies. */
-  defaultDuration?: number;
+  /**
+   * Frames a newly created instance occupies. A function derives the length
+   * from the instance's own props (a chart fits its series, for example).
+   */
+  defaultDuration?: number | ((props: ComponentProps) => number);
   /** Version of this component's props schema. Bump on breaking prop changes. */
   propsVersion?: number;
   /** Set when the implementation is adapted third-party source. */

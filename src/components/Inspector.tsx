@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import { EFFECTS, getEasing } from '../effects';
-import { ELEMENTS } from '../elements';
+import { getComponent } from '../registry';
 import { findClip, useStore } from '../store';
-import type { ParamDef } from '../types';
+import type { Clip, ParamDef } from '../types';
 
 /** Very small HTML pretty-printer for the 🧩 HTML element's textarea. */
 const formatHtml = (src: string): string => {
@@ -192,7 +192,7 @@ export const Inspector: React.FC = () => {
           {clips.map((c) => (
             <div key={c!.id}>
               {c!.groupId ? '⛓ ' : ''}
-              {ELEMENTS[c!.element].icon} {c!.name}
+              {getComponent(c!.element)?.icon ?? '❓'} {c!.name}
             </div>
           ))}
         </div>
@@ -243,12 +243,20 @@ export const Inspector: React.FC = () => {
     );
   }
 
-  const elDef = ELEMENTS[clip.element];
+  const definition = getComponent(clip.element);
+  if (!definition) {
+    return (
+      <aside className="inspector">
+        <div className="panel-title">Inspector</div>
+        <div className="inspector-empty">Unknown component type “{clip.element}”.</div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="inspector">
       <div className="panel-title">
-        {elDef.icon} {clip.name}
+        {definition.icon} {clip.name}
       </div>
 
       <div className="param-row">
@@ -287,7 +295,7 @@ export const Inspector: React.FC = () => {
       </div>
 
       <div className="section-title">Properties</div>
-      {elDef.params.map((def) => (
+      {definition.params.map((def) => (
         <React.Fragment key={def.key}>
           <ParamControl
             def={def}
@@ -323,6 +331,17 @@ export const Inspector: React.FC = () => {
           ) : null}
         </React.Fragment>
       ))}
+
+      {definition.inspector
+        ? React.createElement(definition.inspector, {
+            clip,
+            props: clip.props,
+            onChange: (patch: Record<string, any>) => updateClipProps(clip.id, patch),
+            updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) =>
+              updateClip(clip.id, patch),
+            commit,
+          })
+        : null}
 
       <div className="section-title">
         Effects <span className="dim">({clip.effects.length})</span>

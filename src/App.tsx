@@ -5,6 +5,7 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { togglePlay } from './playerRef';
+import { migrateProject } from './project/migrate';
 import { useStore } from './store';
 
 const AUTOSAVE_KEY = 'remotion-animator-autosave';
@@ -66,7 +67,7 @@ export const App: React.FC = () => {
     try {
       const saved = localStorage.getItem(AUTOSAVE_KEY);
       if (saved) {
-        const p = JSON.parse(saved);
+        const p = migrateProject(JSON.parse(saved));
         if (p?.tracks && p?.fps) useStore.getState().hydrate(p);
       }
     } catch {

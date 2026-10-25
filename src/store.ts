@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { EFFECTS } from './effects';
-import { ELEMENTS } from './elements';
+import { buildComponentProps, getComponent } from './registry';
 import { buildPresetClips, PRESETS } from './presets';
 import { sampleProject } from './sampleProject';
 import type { Clip, EffectType, ElementType, Project, Track } from './types';
@@ -301,22 +301,22 @@ export const useStore = create<EditorState>((set, get) => ({
     }));
   },
   addClip: (element, trackId, atFrame) => {
+    const def = getComponent(element);
+    if (!def) return;
     get().commit();
     set((s) => {
-      const def = ELEMENTS[element];
       const total = s.project.durationInFrames;
       const from = Math.max(0, Math.min(atFrame, total - 10));
+      const props = buildComponentProps(def, s.project);
+      const wanted =
+        typeof def.defaultDuration === 'function' ? def.defaultDuration(props) : (def.defaultDuration ?? 90);
       const clip: Clip = {
         id: uid('c'),
         name: def.label,
         element,
         from,
-        durationInFrames: Math.min(90, total - from),
-        props: {
-          ...def.defaults,
-          // Center new elements on the current canvas size
-          ...('x' in def.defaults ? { x: s.project.width / 2, y: s.project.height / 2 } : {}),
-        },
+        durationInFrames: Math.min(wanted, total - from),
+        props,
         effects: [],
       };
       return {

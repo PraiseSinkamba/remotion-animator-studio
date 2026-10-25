@@ -1,12 +1,38 @@
-import type { ElementType, ParamDef } from './types';
-
-export interface ElementDef {
-  label: string;
-  icon: string;
-  description: string;
-  defaults: Record<string, any>;
-  params: ParamDef[];
-}
+/**
+ * The 22 generic elements inherited from the upstream editor, expressed as
+ * registry definitions. Importing this module registers all of them.
+ *
+ * Labels, icons, descriptions, defaults and params are copied verbatim from the
+ * original `src/elements.ts` catalog so that existing project files, presets and
+ * saved scenes keep rendering exactly the same.
+ */
+import type { ParamDef } from '../types';
+import {
+  AudioAdapter,
+  BlobAdapter,
+  BackgroundAdapter,
+  CommitGraphAdapter,
+  CounterAdapter,
+  CursorAdapter,
+  EmojiAdapter,
+  GifAdapter,
+  HtmlAdapter,
+  ImageAdapter,
+  IsoCityAdapter,
+  NeonSunAdapter,
+  NodeTrailAdapter,
+  ParticlesAdapter,
+  RidgeAdapter,
+  ShapeAdapter,
+  SkyCycleAdapter,
+  SunMoonAdapter,
+  SynthGridAdapter,
+  TextAdapter,
+  VideoAdapter,
+  WaveAdapter,
+} from '../remotion/legacy-elements';
+import { registerComponent } from './registry';
+import type { VideoComponentDefinition } from './types';
 
 const FONTS = [
   'Helvetica, Arial, sans-serif',
@@ -22,11 +48,14 @@ const POSITION: ParamDef[] = [
   { key: 'y', label: 'Y', kind: 'number', min: -1000, max: 4000, step: 1 },
 ];
 
-export const ELEMENTS: Record<ElementType, ElementDef> = {
-  text: {
+const definitions: VideoComponentDefinition[] = [
+  {
+    type: 'text',
     label: 'Text',
     icon: '🅣',
     description: 'A text layer',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       text: 'Hello world',
       fontSize: 90,
@@ -47,11 +76,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'textureSrc', label: 'Letter fill — image URL or CSS gradient(…)', kind: 'text' },
       ...POSITION,
     ],
+    render: TextAdapter,
   },
-  counter: {
+  {
+    type: 'counter',
     label: 'Counter',
     icon: '🔢',
     description: 'A number that counts from A to B over the clip',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       from: 0,
       to: 100,
@@ -77,11 +110,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'fontWeight', label: 'Weight', kind: 'select', options: ['300', '400', '500', '700', '900'] },
       ...POSITION,
     ],
+    render: CounterAdapter,
   },
-  shape: {
+  {
+    type: 'shape',
     label: 'Shape',
     icon: '⬛',
     description: 'Rect, circle, ellipse, triangle, star, polygon or pie',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       kind: 'rect',
       width: 300,
@@ -116,11 +153,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: ShapeAdapter,
   },
-  image: {
+  {
+    type: 'image',
     label: 'Image',
     icon: '🖼️',
     description: 'An image from a URL',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       src: 'https://picsum.photos/seed/remotion/800/600',
       width: 600,
@@ -140,11 +181,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: ImageAdapter,
   },
-  video: {
+  {
+    type: 'video',
     label: 'Video',
     icon: '🎥',
     description: 'A video from a URL (mp4/webm)',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       src: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
       width: 960,
@@ -172,11 +217,16 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: VideoAdapter,
   },
-  audio: {
+  {
+    type: 'audio',
     label: 'Audio',
     icon: '🎵',
     description: 'Music or sound from a URL (mp3/wav)',
+    category: 'generic',
+    propsVersion: 1,
+    renderMode: 'audio',
     defaults: {
       src: '',
       volume: 1,
@@ -189,11 +239,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'playbackRate', label: 'Speed', kind: 'number', min: 0.25, max: 4, step: 0.05 },
       { key: 'startFrom', label: 'Trim start (frames)', kind: 'number', min: 0, max: 100000, step: 1 },
     ],
+    render: AudioAdapter,
   },
-  gif: {
+  {
+    type: 'gif',
     label: 'GIF',
     icon: '🎞️',
     description: 'An animated GIF, synced to the timeline',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       src: 'https://media.giphy.com/media/3o7aCSPqXE5C6T8tBC/giphy.gif',
       width: 480,
@@ -211,11 +265,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: GifAdapter,
   },
-  html: {
+  {
+    type: 'html',
     label: 'HTML',
     icon: '🧩',
     description: 'Any HTML + inline CSS — chat mockups, app windows, cards (HyperFrames-style)',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       html: '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1c1f28;border:1px solid #333;border-radius:24px;color:#fff;font-family:Helvetica,Arial,sans-serif;font-size:42px">Paste any HTML here</div>',
       width: 800,
@@ -233,22 +291,30 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: HtmlAdapter,
   },
-  cursor: {
+  {
+    type: 'cursor',
     label: 'Cursor',
     icon: '🖱️',
     description: 'A mouse pointer for UI-demo storytelling — pair with Motion Path + Click Pulse',
+    category: 'generic',
+    propsVersion: 1,
     defaults: { size: 56, color: '#ffffff', x: 960, y: 540 },
     params: [
       { key: 'size', label: 'Size', kind: 'number', min: 12, max: 300, step: 1 },
       { key: 'color', label: 'Fill', kind: 'color' },
       ...POSITION,
     ],
+    render: CursorAdapter,
   },
-  wave: {
+  {
+    type: 'wave',
     label: 'Wave',
     icon: '🌊',
     description: 'Layered animated sine waves — great for footers and water',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       width: 1920,
       height: 400,
@@ -272,11 +338,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: WaveAdapter,
   },
-  blob: {
+  {
+    type: 'blob',
     label: 'Blob',
     icon: '🫧',
     description: 'Organic morphing blob — stack a few for a fluid / splat look',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       size: 420,
       color: '#7c5cff',
@@ -298,11 +368,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: BlobAdapter,
   },
-  particles: {
+  {
+    type: 'particles',
     label: 'Particles',
     icon: '🎊',
     description: 'Confetti, snow, rain, sparkles, bubbles or embers',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       kind: 'confetti',
       count: 80,
@@ -337,11 +411,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: ParticlesAdapter,
   },
-  synthGrid: {
+  {
+    type: 'synthGrid',
     label: 'Synth Grid',
     icon: '🛣️',
     description: 'Endless-outrun perspective grid floor, scrolling forever',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       width: 1920,
       height: 520,
@@ -365,11 +443,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: SynthGridAdapter,
   },
-  neonSun: {
+  {
+    type: 'neonSun',
     label: 'Neon Sun',
     icon: '🌅',
     description: 'Striped retro sun with glow — the outrun horizon centerpiece',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       size: 620,
       colorTop: '#ffe94d',
@@ -389,11 +471,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: NeonSunAdapter,
   },
-  isoCity: {
+  {
+    type: 'isoCity',
     label: 'Iso City',
     icon: '🏙️',
     description: 'Generative isometric city that grows building by building',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       gridSize: 5,
       tileSize: 70,
@@ -417,11 +503,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: IsoCityAdapter,
   },
-  skyCycle: {
+  {
+    type: 'skyCycle',
     label: 'Day/Night Sky',
     icon: '🌗',
     description: 'Morphing sky gradient + stars, one full day per clip — pair with Sun & Moon and Ridge',
+    category: 'generic',
+    propsVersion: 1,
     defaults: { width: 1920, height: 1080, stars: 90, seed: 'sky', opacity: 1, x: 960, y: 540 },
     params: [
       { key: 'width', label: 'Width', kind: 'number', min: 200, max: 8000, step: 10 },
@@ -431,11 +521,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: SkyCycleAdapter,
   },
-  sunMoon: {
+  {
+    type: 'sunMoon',
     label: 'Sun & Moon',
     icon: '🌞',
     description: 'Sun and moon arcing across the clip — same day-cycle timing as the Day/Night Sky',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       width: 1920,
       height: 1080,
@@ -455,11 +549,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: SunMoonAdapter,
   },
-  ridge: {
+  {
+    type: 'ridge',
     label: 'Ridge',
     icon: '⛰️',
     description: 'One seeded mountain silhouette; fill blends day→night over the clip. Stack a few',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       width: 1920,
       height: 500,
@@ -485,11 +583,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: RidgeAdapter,
   },
-  commitGraph: {
+  {
+    type: 'commitGraph',
     label: 'Commit Graph',
     icon: '🌿',
     description: 'Animated git history — glowing nodes, branch lanes, typing messages',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       data: '[{"m":"init repo","b":0,"a":120,"d":0},{"m":"add auth","b":0,"a":340,"d":12},{"m":"feature/timeline","b":1,"a":560,"d":40},{"m":"fix drag bug","b":1,"a":80,"d":22},{"m":"merge timeline","b":0,"a":610,"d":58},{"m":"ship v2.0 🚀","b":0,"a":0,"d":0}]',
       speed: 0.6,
@@ -511,11 +613,15 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: CommitGraphAdapter,
   },
-  nodeTrail: {
+  {
+    type: 'nodeTrail',
     label: 'Story Trail',
     icon: '📍',
     description: 'Glowing waypoint trail — nodes pop along a route you draw on the canvas',
+    category: 'generic',
+    propsVersion: 1,
     defaults: {
       data: '[{"x":0,"y":0,"label":"Start"},{"x":320,"y":-140,"label":"Research","color":"#35c4ff"},{"x":700,"y":60,"label":"Prototype"},{"x":1040,"y":-80,"label":"Launch","color":"#ffd166"},{"x":700,"y":260,"label":"Pivot","color":"#ff5c6c","from":2},{"x":1380,"y":40,"label":"Scale","from":3}]',
       color: '#6ee7a8',
@@ -547,22 +653,31 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    render: NodeTrailAdapter,
   },
-  emoji: {
+  {
+    type: 'emoji',
     label: 'Emoji',
     icon: '😀',
     description: 'A big emoji sticker',
+    category: 'generic',
+    propsVersion: 1,
     defaults: { char: '🚀', size: 160, x: 960, y: 540 },
     params: [
       { key: 'char', label: 'Emoji', kind: 'text' },
       { key: 'size', label: 'Size', kind: 'number', min: 16, max: 1200, step: 1 },
       ...POSITION,
     ],
+    render: EmojiAdapter,
   },
-  background: {
+  {
+    type: 'background',
     label: 'Background',
     icon: '🎨',
     description: 'Full-frame solid or gradient fill',
+    category: 'generic',
+    propsVersion: 1,
+    renderMode: 'background',
     defaults: { fillType: 'linear', colorA: '#1a1040', colorB: '#4f2d8f', angle: 135 },
     params: [
       { key: 'fillType', label: 'Type', kind: 'select', options: ['solid', 'linear', 'radial'] },
@@ -570,5 +685,8 @@ export const ELEMENTS: Record<ElementType, ElementDef> = {
       { key: 'colorB', label: 'Color B', kind: 'color' },
       { key: 'angle', label: 'Angle', kind: 'number', min: 0, max: 360, step: 1 },
     ],
+    render: BackgroundAdapter,
   },
-};
+];
+
+definitions.forEach(registerComponent);

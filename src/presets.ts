@@ -1,5 +1,5 @@
 import type { Clip, EffectInstance, ElementType } from './types';
-import { ELEMENTS } from './elements';
+import { getComponent } from './registry';
 
 let n = 0;
 const pid = (p: string) => `${p}-${Date.now().toString(36)}-${n++}`;
@@ -34,7 +34,7 @@ export const buildPresetClips = (preset: PresetDef, w: number, h: number, atFram
     element: spec.element,
     from: atFrame + spec.offset,
     durationInFrames: spec.duration,
-    props: { ...ELEMENTS[spec.element].defaults, ...spec.props },
+    props: { ...(getComponent(spec.element)?.defaults ?? {}), ...spec.props },
     effects: spec.effects.map((e) => ({
       id: pid('e'),
       type: e.type,

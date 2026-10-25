@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { playerRef, seekTo, togglePlay } from '../playerRef';
+import { migrateProject } from '../project/migrate';
 import { useStore } from '../store';
 import type { Project } from '../types';
 import { HelpModal } from './HelpModal';
@@ -134,11 +135,9 @@ export const TopBar: React.FC = () => {
   const loadJson = (file: File) => {
     file.text().then((text) => {
       try {
-        const p = JSON.parse(text) as Project;
-        if (!p.tracks || !p.fps) throw new Error('bad file');
-        replaceProject(p);
-      } catch {
-        alert('That file does not look like a saved project.');
+        replaceProject(migrateProject(JSON.parse(text)));
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'That file does not look like a saved project.');
       }
     });
   };
