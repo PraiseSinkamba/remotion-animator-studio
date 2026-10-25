@@ -80,6 +80,8 @@ export interface Clip {
   effects: EffectInstance[];
   /** Clips sharing a groupId select and move as one */
   groupId?: string;
+  /** Props schema version of the component this clip was authored against. */
+  propsVersion?: number;
 }
 
 export interface Track {
@@ -97,6 +99,8 @@ export interface Project {
   backgroundColor: string;
   /** tracks[0] renders on top (like layers) */
   tracks: Track[];
+  /** Document schema version. Absent means legacy (version 1). */
+  schemaVersion?: number;
 }
 
 export interface ParamDef {
