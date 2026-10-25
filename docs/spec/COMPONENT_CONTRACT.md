@@ -28,7 +28,7 @@ Machine-readable form: `src/registry/types.ts`. The registry implementation live
 | `category` | yes | `generic` \| `trading` \| `motion`. |
 | `defaults` | yes | Props applied to a new instance. Must be JSON-serialisable. |
 | `params` | yes | Inspector controls generated from `ParamDef`s. |
-| `render` | yes | Deterministic render adapter, `(clip, props, frame) => ReactNode`. |
+| `render` | yes | Deterministic render adapter, `(clip, props, frame, fps) => ReactNode`. |
 | `inspector` | no | Custom inspector panel, rendered below the generated params. |
 | `defaultDuration` | no | Frames a new instance occupies. |
 | `propsVersion` | no | Version of the component's props schema. Bump on breaking prop changes. |
@@ -62,9 +62,11 @@ frame access keep working unchanged.
 
 ## 4. Rules
 
-1. **Adapters are pure.** `render` receives `(clip, props, frame)` and nothing else. It must
+1. **Adapters are pure.** `render` receives `(clip, props, frame, fps)` and nothing else. It must
    not read editor state, the DOM, the wall clock, or unseeded randomness. Deterministic output
-   for a given `(project, frame)` is a release gate, not a nicety.
+   for a given `(project, frame)` is a release gate, not a nicety. The single documented exception
+   is a component that analyses a media asset (for example an audio-reactive wave), which may use
+   Remotion's media hooks.
 2. **No future data leakage.** A chart component may only draw data that exists at the current
    market time. Later bars must not influence the price scale or the visible series.
 3. **Provenance stays visible.** Synthetic series, simulated intrabar paths and adapted

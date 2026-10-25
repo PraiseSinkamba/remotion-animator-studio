@@ -24,6 +24,8 @@ export interface ComponentRenderContext {
   props: ComponentProps;
   /** Clip-relative frame: 0 is the clip's first frame. */
   frame: number;
+  /** Project frame rate — constant for the whole composition. */
+  fps: number;
 }
 
 export interface ComponentInspectorContext {
