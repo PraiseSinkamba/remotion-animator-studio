@@ -106,7 +106,7 @@ export interface Project {
 export interface ParamDef {
   key: string;
   label: string;
-  kind: 'number' | 'color' | 'text' | 'textarea' | 'select';
+  kind: 'number' | 'color' | 'text' | 'textarea' | 'select' | 'boolean';
   min?: number;
   max?: number;
   step?: number;

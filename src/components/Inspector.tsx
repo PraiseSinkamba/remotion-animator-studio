@@ -173,6 +173,18 @@ const ParamControl: React.FC<{
           />
         </div>
       );
+    case 'boolean':
+      return (
+        <div className="param-row">
+          <label>{def.label}</label>
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onPointerDown={onCommit}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+        </div>
+      );
   }
 };
 
