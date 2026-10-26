@@ -1,69 +1,90 @@
-# Remotion Animator
+# Chart Studio
 
-A web-based, drag-and-drop animation maker built on [Remotion](https://remotion.dev). Compose animations visually — timeline, tracks, presets, effects, live preview — then render real MP4s (up to 4K60) with Remotion's renderer.
+> **Status:** Design and planning only — no application code has been implemented.  
+> **Working design edition:** 1.2-draft, 2026-10-24. Requires product-owner approval before implementation.  
+> **Mission:** A local-first, trading-native video studio for creating engaging, accurate market-structure, SMT-divergence and multi-timeframe breakdowns.
 
-**Full documentation: [DOCS.md](DOCS.md)**
+Chart Studio is an independent application inspired by existing chart animation products. It is **not** a clone of their proprietary assets or code. Unlike screen-recording-based editing, each chart, candle series, drawing, SMT relationship, caption and audio clip is a typed, editable video object with a timeline lifecycle. The output can show HTF/LTF charts individually, side-by-side or in animated layouts; candles can reveal as complete bars or evolve along clearly labeled OHLC-consistent simulated paths.
 
-## Quick start
+## What v1 aims to do
 
-```bash
-npm install
-npm run dev        # editor at http://localhost:5173 + local render server
+Create a complete annotated trading video using manual and imported OHLC data, 2–3-asset user-confirmed SMT observations, independently displayed or synchronized HTF/LTF charts, lines/zones/position and text tools, animated candles, captions, images, basic audio, multi-scene timelines, offline autosave, portable project files and local video export.
+
+## Read this first
+
+| Document | Purpose |
+|---|---|
+| [Product design](docs/design/PRODUCT_DESIGN.md) | User experience, principles, information architecture, interaction models, scene lifecycles |
+| [Functional specification](docs/spec/FUNCTIONAL_SPEC.md) | Canonical feature behavior, object contracts, user-visible requirements and acceptance IDs |
+| [Technical architecture](docs/architecture/TECHNICAL_ARCHITECTURE.md) | Remotion-first rendering, scene graph, SQLite WASM/OPFS, import and data integrity, export interfaces |
+| [Feature catalogue](docs/features/FEATURE_CATALOG.md) | Full MVP and deferred inventory; expected behavior and acceptance mapping |
+| [Video scenarios](docs/scenarios/VIDEO_SCENARIOS.md) | Storyboards, concrete creator journeys, scene/object/timeline recipes, test expectations |
+| [Roadmap](docs/roadmap/ROADMAP.md) | Validation spikes, vertical slices, dependencies, deliverables, release gates and agent handoffs |
+| [Architecture decisions](docs/decisions/ADR-001-VIDEO-STACK.md) | Video framework, framecn/remocn and rendering decision |
+| [Dependency shortlist](docs/decisions/ADR-002-DEPENDENCY-ADOPTION.md) | Reuse existing libraries for timeline, import, archive, panels and exports |
+| [Component architecture ADR](docs/decisions/ADR-003-COMPONENT-SYSTEM.md) | First-party trading components from day one; source-owned Remocn components; typed editor/video contract |
+| [Test strategy](docs/quality/TEST_STRATEGY.md) | Test pyramid, fixtures, performance/error budgets, no-lookahead and render parity |
+| [AGENTS.md](AGENTS.md) | Nonnegotiable guardrails and task workflow for coding agents |
+| [Documentation index](docs/README.md) | Reading guide and status |
+| [v1.1 design snapshot](docs/reference/chart-studio-design-v1.1.md) | Predecessor design preserved for traceability |
+
+**Document authority:** `FUNCTIONAL_SPEC.md` is the canonical statement of observable v1 behavior; `TECHNICAL_ARCHITECTURE.md` defines interfaces and boundaries; `ADR-001-VIDEO-STACK.md` records dependency choices; `ROADMAP.md` sequences implementation. When docs conflict, raise a design issue rather than guess or silently invent behavior.
+
+## Architecture at a glance
+
+```
+Next.js / React application + shadcn/ui editor
+  ├── dashboard, inspector, canvas interactions, hierarchical timeline
+  ├── project commands / Zod-validated domain model
+  ├── chart and market data engine (custom, source-aware)
+  ├── SMT + MTF engine (custom, no-lookahead)
+  ├── first-party trading video objects + source-owned Remocn motion library
+  ├── React / SVG scene elements rendered with Remotion
+  │     ├── Remotion Player (preview)
+  │     └── Remotion web renderer (local export, compatibility-gated)
+  └── SQLite WASM worker (OPFS) + OPFS asset store
+
+Optional future: versioned sync API + cloud storage + Remotion server renderer
 ```
 
-## Highlights
+**Do not confuse similarly named projects:** `remocn.dev` is a library of shadcn-installable *Remotion* motion components; `remotion.dev` is the video framework; `framecn.dev` is built on *Editframe*. **Remotion is our video runtime, Remocn our primary source-owned generic motion component framework, and our custom trading component library is foundational from the first slice.** Install/adapt Remocn source as needed instead of blindly importing the entire registry. See [the ADR](docs/decisions/ADR-001-VIDEO-STACK.md).
 
-- **Elements**: text, counters, SVG shapes, images, video, audio, GIFs, emoji, gradient backgrounds
-- **25+ drag-on effects** including the fiddly-in-DaVinci ones: glitch, RGB split, camera shake, ken burns, light sweep, glow, wipes, letter-pop, typewriter
-- **Preset library**: lower thirds, title intros, glitch titles, news tickers, stat counters, end cards…
-- **One-click MP4 export** from the UI with progress — any aspect ratio, up to 4K60
-- **Autosave** + JSON save/open, undo/redo, keyboard shortcuts
+## Project structure (planned, not created)
 
-## Using the editor
+```
+apps/studio/
+packages/domain/
+packages/market-data/
+packages/smt-mtf/
+packages/chart-renderer/
+packages/trading-components/  # custom chart, drawing and SMT/MTF video objects (P0)
+packages/motion-components/   # adapted, source-owned Remocn motion pieces
+packages/scene-compositor/
+packages/editor-core/
+packages/timeline/
+packages/storage-sqlite/
+packages/project-archive/
+packages/export/
+packages/ui/
+tests/fixtures/
+docs/
+```
 
-- **Elements** (left panel): drag Text / Shape / Image / Emoji / Background onto a timeline track, or double-click to add at the playhead.
-- **Effects** (left panel): drag onto a clip in the timeline, or double-click to apply to the selected clip. Includes fade, slide, zoom, spring pop, spin, rotate, pulse, wiggle, blur, and typewriter.
-- **Timeline** (bottom): drag clips to move them, drag their edges to trim, click/drag the ruler to scrub. Shift-click a lane to move the selected clip to that track. Zoom slider on the right.
-- **Inspector** (right panel): every parameter of the selected clip and its effects — sliders, color pickers, dropdowns.
-- **Canvas**: with a clip selected, drag anywhere on the preview to reposition it.
-- **Shortcuts**: `Space` play/pause · `Delete` remove selected clip · `⌘Z` / `⇧⌘Z` undo/redo.
-- **Save / Open**: projects serialize to JSON.
+## Tooling (proposed)
 
-## Rendering an MP4
+Node.js LTS, pnpm, Turborepo, Next.js, TypeScript (strict), React, Tailwind CSS, shadcn/ui, Zod, Zustand, Remotion (`remotion`, `@remotion/player`, `@remotion/web-renderer`), `@sqlite.org/sqlite-wasm` in worker + OPFS, dnd-kit, Vitest, React Testing Library and Playwright. Versions must be checked and pinned together during the first technical spike; this documentation does not assert that any dependency is currently installed.
 
-Rendering uses Remotion's server-side renderer (Chrome + FFmpeg, handled automatically):
+After the project is scaffolded, expected scripts will be `pnpm dev`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build`. **These commands are a contract for the future repository; they do not run in this docs-only package.**
 
-1. In the editor, click **Save** to download `project.json` and place it in this folder.
-2. Run:
+## Licensing and data integrity
 
-   ```bash
-   npm run render                                # renders ./project.json → out/animation.mp4
-   npm run render -- my-project.json out/my.mp4  # custom paths
-   ```
+Remotion's license is not universally MIT; check eligibility before commercial distribution or team growth. Paid Remotion Timeline and Editor Starter are optional purchases, not bundled. Market-provider data redistribution rights require review. Synthetic OHLC paths, modified historical bars and hypothetical branches must remain recognizable as such. No financial signals, brokerage connections or profitability claims are part of v1.
 
-## Architecture
+## Current status
 
-| Path | Purpose |
-| --- | --- |
-| `src/types.ts` | Project/track/clip/effect data model |
-| `src/effects.ts` | Effect registry + the math that turns effects into styles |
-| `src/elements.ts` | Element registry (defaults + inspector schema) |
-| `src/store.ts` | Zustand store: tracks, clips, selection, undo/redo |
-| `src/remotion/MainComposition.tsx` | The actual Remotion composition (shared by preview + render) |
-| `src/components/` | Editor UI: TopBar, Library, PreviewPanel, Timeline, Inspector |
-| `remotion/` | Entry point for the server-side renderer |
-| `render.mjs` | `npm run render` script (`@remotion/bundler` + `@remotion/renderer`) |
-
-The same `MainComposition` powers the in-browser `<Player>` preview and the MP4 render, so what you see is exactly what you get.
-
-### Adding a new effect
-
-1. Add its name to `EffectType` in `src/types.ts`.
-2. Register label/params/defaults in `EFFECTS` in `src/effects.ts`.
-3. Implement its math in `computeEffectStyle` (same file).
-
-It automatically appears in the library and inspector — the UI is schema-driven.
-
-### Adding a new element
-
-Same idea: extend `ElementType`, register it in `src/elements.ts`, and render it in `ElementContent` in `src/remotion/MainComposition.tsx`.
+- [x] Product direction, source workflows, SMT/MTF, hierarchical scenes and file workflow selected
+- [x] Expanded v1.2 design/spec/roadmap and agent guidance prepared for review
+- [ ] Approve v1.2 design and library licensing decisions
+- [ ] Run viability spikes (Remotion browser export + SQLite OPFS + chart-object interaction)
+- [ ] Convert roadmap slices into Superpowers task-level implementation plans
+- [ ] Implement, verify, and release creator-ready MVP
