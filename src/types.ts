@@ -24,7 +24,11 @@ export type ElementType =
   /** First-party trading component (Chart Studio). */
   | 'candlestickChart'
   /** Source-owned Remocn motion component adapted to the registry. */
-  | 'remocnMarkerHighlight';
+  | 'remocnMarkerHighlight'
+  /** Source-owned Remocn motion component adapted to the registry. */
+  | 'remocnSoftBlurIn'
+  /** Source-owned Remocn motion component adapted to the registry. */
+  | 'remocnTypewriter';
 
 export type EffectType =
   | 'fadeIn'

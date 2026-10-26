@@ -12,6 +12,8 @@ import './legacy';
 // Trading components (Chart Studio first-party) register here:
 import '../trading/definition';
 import '../motion-components/definition';
+import '../motion-components/definitions/soft-blur-in';
+import '../motion-components/definitions/typewriter';
 
 export * from './registry';
 export * from './types';
