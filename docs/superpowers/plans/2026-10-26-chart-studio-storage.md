@@ -45,9 +45,11 @@ archive format, market-data import.
   not install in this build; the SAH pool does, but only when `installOpfsSAHPoolVfs` is called
   explicitly, and the database must be opened as a URI (`file:/workspace.sqlite3?vfs=opfs-sahpool`)
   — a plain path fails with `SQLITE_CANTOPEN`.
-- **Cross-origin isolation is a deployment requirement.** The Vite dev server and `vite preview`
-  send the COOP/COEP headers; any host serving `dist/` must send them too, or the app falls
-  back and says so.
+- **Cross-origin isolation is the documented configuration, not a hard requirement.** The Vite
+  dev server and `vite preview` send the COOP/COEP headers; a host serving `dist/` should too.
+  The embedder policy is `credentialless`, because `require-corp` blocks the cross-origin media
+  the editor supports. On Chromium 155 the durable backend also runs without the headers, so
+  the earlier claim that it was required was too strong.
 - **Degradation is visible.** The status carries a `problem` and a readable `detail`, and the
   chip never claims the work is saved when it is not.
 - **The old `localStorage` autosave is gone.** The editor autosaves into the workspace; the
@@ -65,6 +67,8 @@ archive format, market-data import.
 | Editor, dev server | browser against `npm run dev:web` | the chip reads "Saved locally"; the durable backend is really in use (the `chart-studio` directory appears in OPFS, and no `chart-studio*` key appears in `localStorage`); a renamed project is restored after a reload |
 | Editor, production build | browser against `npm run preview` | the same: the project is autosaved and restored after a reload, no console errors |
 | One writer per workspace | two tabs on the same origin | the first tab keeps "Saved locally"; the second reads "Read-only — another tab owns this workspace" |
+| Fallback | the database worker request blocked in the browser | the chip reads "Storage degraded — The local database could not be opened (…). Projects are saved in this browser's storage instead." and the project lands in `localStorage` under `chart-studio:workspace` |
+| Cross-origin media | a cross-origin image on a page served with the isolation headers | blocked under `require-corp`, loads under `credentialless` — the embedder policy was changed to `credentialless` for this reason |
 | Render path | `npm run render -- project.json out/baseline-legacy.mp4` | the CLI export still renders 240 frames — the storage layer does not touch the video path |
 
 ## 5. What R2 deliberately does not do

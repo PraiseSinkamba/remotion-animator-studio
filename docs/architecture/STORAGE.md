@@ -224,18 +224,28 @@ The namespace maps to the OPFS directory `/chart-studio/<namespace>`, and the da
 inside it is always `workspace.sqlite3`. A namespace has to be a plain name; anything outside
 `[A-Za-z0-9._-]` is refused.
 
-### Cross-origin isolation is required
+### Cross-origin isolation
 
 The Vite dev server and `vite preview` send:
 
 ```
 Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Embedder-Policy: credentialless
 ```
 
-**Any host that serves the built app must send these headers too.** Without cross-origin
-isolation the durable backend cannot run, and the app falls back to `local-storage` or
-`memory`. This is a deployment requirement, not a development convenience.
+The SQLite WASM documentation prescribes these headers for the worker-and-OPFS path, because the
+SAH pool uses a `SharedArrayBuffer`. The app sends `credentialless` rather than `require-corp`:
+it keeps the page cross-origin isolated, and it still lets the editor load media from another
+origin, which `require-corp` blocks unless the other server opts in.
+
+**Any host that serves the built app should send these headers too.** On Chromium 155 the pool
+also installs and persists without any isolation headers, so this is the documented
+configuration rather than a hard requirement — but it is the configuration the upstream
+documentation prescribes, and it is the one that gives the worker a `SharedArrayBuffer`.
+
+Without cross-origin
+isolation the durable backend may not run, and the app falls back to `local-storage` or
+`memory` and says so in the top bar.
 
 ### Bundle
 

@@ -15,15 +15,21 @@ no account and no network call in the editing path.
 ## Hosting the built app
 
 The app stores projects in a SQLite database that lives in the browser's origin private file
-system. That needs **cross-origin isolation**, so the host that serves `dist/` must send:
+system. The SQLite WASM documentation prescribes **cross-origin isolation** for that path, so
+the host that serves `dist/` should send:
 
 ```
 Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Embedder-Policy: credentialless
 ```
 
-`npm run dev` and `npm run preview` already send them. Without them the app still runs, but it
-falls back to browser storage that cannot hold a SQLite database, and the top bar says so.
+`npm run dev` and `npm run preview` already send them. `credentialless` rather than
+`require-corp`: the editor can hold media from another origin, and `require-corp` blocks those
+unless the other server opts in.
+
+Without the headers the app still runs, and on Chromium 155 the database still persists — but a
+browser that cannot provide them falls back to ordinary browser storage, and the top bar says
+so.
 
 ## Install
 
@@ -103,6 +109,9 @@ The last command is the only one that proves the change reaches the *video* path
 Remotion entry and renders PNG stills through the same pipeline the export uses. Stills land in
 `out/verify/`.
 
+For the things a test suite cannot check — the storage in a real browser, the one-writer rule,
+the fallback — follow [`docs/quality/MANUAL_TEST_FLOWS.md`](quality/MANUAL_TEST_FLOWS.md).
+
 ## Documents
 
 | Document | Purpose |
@@ -113,4 +122,5 @@ Remotion entry and renders PNG stills through the same pipeline the export uses.
 | [docs/decisions/ADR-004-STORAGE-PORT.md](decisions/ADR-004-STORAGE-PORT.md) | why persistence sits behind an interface, and what the SQLite backend costs |
 | [docs/decisions/ADR-003-COMPONENT-SYSTEM.md](decisions/ADR-003-COMPONENT-SYSTEM.md) | why the component system exists and what it must guarantee |
 | [docs/roadmap/ROADMAP.md](roadmap/ROADMAP.md) | the delivery sequence |
+| [docs/quality/MANUAL_TEST_FLOWS.md](quality/MANUAL_TEST_FLOWS.md) | what to click in the browser to check the editor, the chart and the storage |
 | [docs/superpowers/plans/2026-10-25-chart-studio-scaffold.md](superpowers/plans/2026-10-25-chart-studio-scaffold.md) | the R0/R1 scaffold plan and what it actually produced |

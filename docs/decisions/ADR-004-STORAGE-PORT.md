@@ -47,10 +47,13 @@ replaced later without touching a caller".
    plain `opfs` VFS does not install in this build, and a plain path fails with
    `SQLITE_CANTOPEN`.
 
-5. **Cross-origin isolation is a deployment requirement.** The app needs
-   `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`.
-   The Vite dev server and `vite preview` send them; any host that serves the built app must as
-   well, or the durable backend cannot run.
+5. **Cross-origin isolation is the documented configuration.** The app sends
+   `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless`.
+   The Vite dev server and `vite preview` send them, and a host that serves the built app should
+   as well. `credentialless` rather than `require-corp`, because the editor can hold media from
+   another origin and `require-corp` blocks those. On Chromium 155 the durable backend also
+   runs without the headers, so they are the supported configuration rather than a hard
+   requirement.
 
 6. **One writer per workspace.** The backend takes an exclusive Web Locks API lock named
    `chart-studio-workspace`. The tab that holds it writes; every other tab is read-only and is
@@ -70,10 +73,9 @@ replaced later without touching a caller".
 editor cannot grow a storage dependency by accident; revisions and conflict detection replace
 the autosave string; durability is reported honestly; the SQL stays in one directory.
 
-**Costs:** a new runtime dependency and a wasm asset; a deployment requirement for
-cross-origin isolation headers; a worker and an RPC protocol to maintain; the durable backend
-does not run in every browser, so two fallbacks must be maintained and the fallback path is
-exercised in real use.
+**Costs:** a new runtime dependency and a wasm asset; a worker and an RPC protocol to
+maintain; the durable backend does not run in every browser, so two fallbacks must be maintained
+and the fallback path is exercised in real use.
 
 **Limits accepted for now:** only the project document is stored. Binary assets in OPFS, quota
 reporting, project thumbnails, a dashboard of recent projects, a portable `.chartstudio` archive
@@ -86,9 +88,10 @@ Required by `AGENTS.md` for a new runtime package.
 
 - **Exact package and version:** `@sqlite.org/sqlite-wasm@3.54.1-build1`.
 - **Licence:** Apache-2.0 for the WASM wrapper. The SQLite library itself is public domain.
-- **Runtime and browser support:** needs WebAssembly, Web Workers, OPFS
-  (`navigator.storage.getDirectory`) and cross-origin isolation. Verified on Chromium 155 on
-  Windows. Browsers that cannot provide these fall back to `local-storage` or memory.
+- **Runtime and browser support:** needs WebAssembly, Web Workers and OPFS
+  (`navigator.storage.getDirectory`). Verified on Chromium 155 on Windows, with and without
+  cross-origin isolation. Browsers that cannot provide these fall back to `local-storage` or
+  memory.
 - **Bundle consequences:** a 879 kB wasm asset emitted once as a hashed asset, and a separate
   worker chunk. Both are loaded on demand; the main bundle is unaffected.
 - **Security posture:** no network access, no `eval`, everything local to the origin. The
