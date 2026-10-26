@@ -1,4 +1,12 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { EFFECTS, getEasing } from '../effects';
 import { getComponent } from '../registry';
 import { findClip, useStore } from '../store';
@@ -51,9 +59,10 @@ const FileUpload: React.FC<{ accept: string; onLoad: (dataUrl: string) => void }
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <button className="btn btn-small" onClick={() => ref.current?.click()}>
-        📁 Upload file…
-      </button>
+      <Button variant="outline" size="sm" onClick={() => ref.current?.click()}>
+        <FolderOpen data-icon="inline-start" />
+        Upload file…
+      </Button>
       <input
         ref={ref}
         type="file"
@@ -76,52 +85,129 @@ const FileUpload: React.FC<{ accept: string; onLoad: (dataUrl: string) => void }
   );
 };
 
+/** The value kinds a parameter can hold. */
+type ParamValue = string | number | boolean | undefined;
+
+/**
+ * A number parameter that has a range: a Radix slider that keeps a local draft
+ * while dragging and only writes to the store when the drag is released, next
+ * to a number input that writes through as you type.
+ */
+const NumberRangeControl: React.FC<{
+  def: ParamDef;
+  value: ParamValue;
+  id: string;
+  onChange: (v: ParamValue) => void;
+  onCommit: () => void;
+}> = ({ def, value, id, onChange, onCommit }) => {
+  const min = def.min ?? 0;
+  const max = def.max ?? 100;
+  const num = Number(value);
+  const safeNum = Number.isFinite(num) ? num : min;
+  const [draft, setDraft] = useState(safeNum);
+
+  // The slider writes to the store on release only, so the store value can only
+  // change from the outside — follow it whenever it does.
+  useEffect(() => {
+    setDraft(safeNum);
+  }, [safeNum]);
+
+  const clamp = (n: number) => (Number.isFinite(n) ? Math.min(Math.max(n, min), max) : min);
+
+  return (
+    <div className="param-number">
+      <Slider
+        value={[clamp(draft)]}
+        min={min}
+        max={max}
+        step={def.step}
+        className="min-w-0 flex-1"
+        role="group"
+        aria-label={def.label}
+        onValueChange={(v) => {
+          setDraft(v[0]);
+        }}
+        onValueCommit={(v) => {
+          setDraft(v[0]);
+          onCommit();
+          onChange(v[0]);
+        }}
+      />
+      <Input
+        id={id}
+        type="number"
+        className="w-16"
+        min={min}
+        max={max}
+        step={def.step}
+        value={draft}
+        onFocus={onCommit}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          setDraft(n);
+          onChange(n);
+        }}
+      />
+    </div>
+  );
+};
+
 const ParamControl: React.FC<{
   def: ParamDef;
-  value: any;
-  onChange: (v: any) => void;
+  value: ParamValue;
+  /** Prefix of the control ids — the clip id for clip props, the effect id for effect params. */
+  idPrefix: string;
+  onChange: (v: ParamValue) => void;
   onCommit: () => void;
-}> = ({ def, value, onChange, onCommit }) => {
+}> = ({ def, value, idPrefix, onChange, onCommit }) => {
+  const id = `${idPrefix}-${def.key}`;
+  const label = (
+    <Label htmlFor={id} className="text-xs text-muted-foreground">
+      {def.label}
+    </Label>
+  );
   switch (def.kind) {
     case 'number':
-      return (
-        <div className="param-row">
-          <label>{def.label}</label>
-          <div className="param-number">
-            <input
-              type="range"
-              min={def.min}
-              max={def.max}
-              step={def.step}
-              value={Number(value)}
-              onPointerDown={onCommit}
-              onChange={(e) => onChange(Number(e.target.value))}
-            />
-            <input
+      if (def.min === undefined || def.max === undefined) {
+        return (
+          <div className="param-row">
+            {label}
+            <Input
+              id={id}
               type="number"
               min={def.min}
               max={def.max}
               step={def.step}
-              value={Number(value)}
+              value={Number.isFinite(Number(value)) ? Number(value) : ''}
               onFocus={onCommit}
               onChange={(e) => onChange(Number(e.target.value))}
             />
           </div>
+        );
+      }
+      return (
+        <div className="param-row">
+          {label}
+          <NumberRangeControl def={def} value={value} id={id} onChange={onChange} onCommit={onCommit} />
         </div>
       );
     case 'color':
       return (
         <div className="param-row">
-          <label>{def.label}</label>
+          {label}
           <div className="param-color">
-            <input
+            <Input
               type="color"
+              aria-label={`${def.label} picker`}
+              className="w-12 shrink-0 p-1"
               value={String(value)}
               onFocus={onCommit}
               onChange={(e) => onChange(e.target.value)}
             />
-            <input
+            <Input
+              id={id}
               type="text"
+              className="flex-1"
               value={String(value)}
               onFocus={onCommit}
               onChange={(e) => onChange(e.target.value)}
@@ -132,27 +218,35 @@ const ParamControl: React.FC<{
     case 'select':
       return (
         <div className="param-row">
-          <label>{def.label}</label>
-          <select
+          {label}
+          <Select
             value={String(value)}
-            onChange={(e) => {
+            onValueChange={(v) => {
               onCommit();
-              onChange(e.target.value);
+              onChange(v);
             }}
           >
-            {def.options?.map((o) => (
-              <option key={o} value={o}>
-                {o.includes(',') ? o.split(',')[0].replace(/"/g, '') : o}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id={id} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {def.options?.map((o) => (
+                  <SelectItem key={o} value={o}>
+                    {o.includes(',') ? o.split(',')[0].replace(/"/g, '') : o}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
       );
     case 'text':
       return (
         <div className="param-row">
-          <label>{def.label}</label>
-          <input
+          {label}
+          <Input
+            id={id}
             type="text"
             value={String(value)}
             onFocus={onCommit}
@@ -163,8 +257,9 @@ const ParamControl: React.FC<{
     case 'textarea':
       return (
         <div className="param-row">
-          <label>{def.label}</label>
-          <textarea
+          {label}
+          <Textarea
+            id={id}
             rows={8}
             value={String(value)}
             onFocus={onCommit}
@@ -176,12 +271,12 @@ const ParamControl: React.FC<{
     case 'boolean':
       return (
         <div className="param-row">
-          <label>{def.label}</label>
-          <input
-            type="checkbox"
+          {label}
+          <Switch
+            id={id}
             checked={Boolean(value)}
             onPointerDown={onCommit}
-            onChange={(e) => onChange(e.target.checked)}
+            onCheckedChange={(checked) => onChange(checked)}
           />
         </div>
       );
@@ -209,28 +304,34 @@ export const Inspector: React.FC = () => {
           ))}
         </div>
         {grouped ? (
-          <button
-            className="btn"
-            style={{ width: '100%', marginTop: 12 }}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3"
             onClick={() => useStore.getState().ungroupSelection()}
           >
-            ⛓️‍💥 Ungroup (⇧⌘G)
-          </button>
+            <Unlink data-icon="inline-start" />
+            Ungroup (⇧⌘G)
+          </Button>
         ) : (
-          <button
-            className="btn"
-            style={{ width: '100%', marginTop: 12 }}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3"
             onClick={() => useStore.getState().groupSelection()}
           >
-            ⛓ Group — select & move as one (⌘G)
-          </button>
+            <Link2 data-icon="inline-start" />
+            Group — select &amp; move as one (⌘G)
+          </Button>
         )}
-        <button className="btn" style={{ width: '100%', marginTop: 8 }} onClick={duplicateSelection}>
-          ⧉ Duplicate all (⌘D)
-        </button>
-        <button className="btn btn-danger" style={{ marginTop: 8 }} onClick={() => removeClips(selectedClipIds)}>
+        <Button variant="outline" size="sm" className="w-full mt-2" onClick={duplicateSelection}>
+          <Copy data-icon="inline-start" />
+          Duplicate all (⌘D)
+        </Button>
+        <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => removeClips(selectedClipIds)}>
+          <Trash2 data-icon="inline-start" />
           Delete {selectedClipIds.length} clips
-        </button>
+        </Button>
         <div className="inspector-empty" style={{ marginTop: 12 }}>
           Drag any selected clip in the timeline to move the whole group. ⌘C / ⌘V copies and pastes them at
           the playhead.
@@ -272,8 +373,11 @@ export const Inspector: React.FC = () => {
       </div>
 
       <div className="param-row">
-        <label>Name</label>
-        <input
+        <Label htmlFor={`${clip.id}-name`} className="text-xs text-muted-foreground">
+          Name
+        </Label>
+        <Input
+          id={`${clip.id}-name`}
           type="text"
           value={clip.name}
           onFocus={commit}
@@ -281,8 +385,11 @@ export const Inspector: React.FC = () => {
         />
       </div>
       <div className="param-row">
-        <label>Start (frame)</label>
-        <input
+        <Label htmlFor={`${clip.id}-from`} className="text-xs text-muted-foreground">
+          Start (frame)
+        </Label>
+        <Input
+          id={`${clip.id}-from`}
           type="number"
           min={0}
           max={project.durationInFrames - 1}
@@ -296,8 +403,11 @@ export const Inspector: React.FC = () => {
         />
       </div>
       <div className="param-row">
-        <label>Length (frames)</label>
-        <input
+        <Label htmlFor={`${clip.id}-length`} className="text-xs text-muted-foreground">
+          Length (frames)
+        </Label>
+        <Input
+          id={`${clip.id}-length`}
           type="number"
           min={2}
           value={clip.durationInFrames}
@@ -312,6 +422,7 @@ export const Inspector: React.FC = () => {
           <ParamControl
             def={def}
             value={clip.props[def.key]}
+            idPrefix={clip.id}
             onCommit={commit}
             onChange={(v) => updateClipProps(clip.id, { [def.key]: v })}
           />
@@ -326,20 +437,23 @@ export const Inspector: React.FC = () => {
             />
           ) : null}
           {def.key === 'data' && clip.element === 'nodeTrail' ? (
-            <button className="btn btn-small" onClick={() => useStore.getState().startDrawingTrail(clip.id)}>
-              ✏️ Draw waypoints on canvas
-            </button>
+            <Button variant="outline" size="sm" onClick={() => useStore.getState().startDrawingTrail(clip.id)}>
+              <Pencil data-icon="inline-start" />
+              Draw waypoints on canvas
+            </Button>
           ) : null}
           {def.key === 'html' && clip.element === 'html' ? (
-            <button
-              className="btn btn-small"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 commit();
                 updateClipProps(clip.id, { html: formatHtml(String(clip.props.html ?? '')) });
               }}
             >
-              ✨ Format HTML
-            </button>
+              <Wand2 data-icon="inline-start" />
+              Format HTML
+            </Button>
           ) : null}
         </React.Fragment>
       ))}
@@ -384,6 +498,7 @@ export const Inspector: React.FC = () => {
                     <ParamControl
                       def={framed}
                       value={fx.params[def.key] ?? fxDef.defaults[def.key]}
+                      idPrefix={`${clip.id}-fx-${fx.id}`}
                       onCommit={commit}
                       onChange={(v) => updateEffectParams(clip.id, fx.id, { [def.key]: v })}
                     />
@@ -397,24 +512,28 @@ export const Inspector: React.FC = () => {
                 );
               })}
               {fx.type === 'motionPath' ? (
-                <button
-                  className="btn btn-small"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => useStore.getState().startDrawingPath(clip.id, fx.id)}
                 >
-                  ✏️ Draw path on canvas
-                </button>
+                  <Pencil data-icon="inline-start" />
+                  Draw path on canvas
+                </Button>
               ) : null}
             </div>
           );
         })
       )}
 
-      <button className="btn" style={{ width: '100%', marginTop: 16 }} onClick={duplicateSelection}>
-        ⧉ Duplicate (⌘D)
-      </button>
-      <button className="btn btn-danger" style={{ marginTop: 8 }} onClick={() => removeClips([clip.id])}>
+      <Button variant="outline" size="sm" className="w-full mt-4" onClick={duplicateSelection}>
+        <Copy data-icon="inline-start" />
+        Duplicate (⌘D)
+      </Button>
+      <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => removeClips([clip.id])}>
+        <Trash2 data-icon="inline-start" />
         Delete clip
-      </button>
+      </Button>
     </aside>
   );
 };
