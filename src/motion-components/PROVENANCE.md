@@ -26,7 +26,10 @@ Third-party source adapted into Chart Studio is vendored, never fetched at runti
    composition owns the background, so the component must not paint over the frame.
 3. Font stack changed from `var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif`
    to the editor stack `Helvetica, Arial, sans-serif` (see the `text` element defaults in
-   `src/elements.ts`).
+   `src/registry/legacy.ts`).
+4. The title span does not wrap (`white-space: nowrap`). The compositor places the component
+   at `(x, y)` inside a shrink-to-fit box, so a long phrase would otherwise break at the
+   canvas edge instead of staying one line.
 
 Unchanged: the animation maths (`spring`, `interpolate`, `interpolateColors`), the
 `MarkerHighlightProps` interface and the marker markup. The component still reads the

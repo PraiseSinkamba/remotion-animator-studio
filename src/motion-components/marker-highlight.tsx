@@ -15,6 +15,8 @@
  *   (x, y) and the composition owns the background.
  * - Font stack replaced `var(--font-geist-sans), ...` with the editor's own
  *   stack ("Helvetica, Arial, sans-serif").
+ * - The title span does not wrap: the compositor places the component inside a
+ *   shrink-to-fit box, so a long phrase would otherwise break at the canvas edge.
  * - The animation maths (spring / interpolate / interpolateColors), the props
  *   interface and the marker markup are unchanged.
  */
@@ -86,6 +88,9 @@ export function MarkerHighlight({
           color: baseColor,
           letterSpacing: '-0.03em',
           fontFamily: 'Helvetica, Arial, sans-serif',
+          // The compositor places this component at (x, y) inside a shrink-to-fit
+          // box, so a long title would otherwise wrap at the canvas edge.
+          whiteSpace: 'nowrap',
         }}
       >
         {before}
