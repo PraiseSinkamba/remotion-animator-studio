@@ -2,9 +2,9 @@
  * Chart Studio R1 verification render.
  *
  * Builds a project that uses the first first-party trading component (the
- * candlestick chart) together with the adapted Remocn motion component, then
- * renders it through the real Remotion pipeline: stills at chosen frames plus
- * an mp4 export.
+ * candlestick chart) together with the three adapted Remocn motion components
+ * (marker highlight, soft blur in, typewriter), then renders it through the
+ * real Remotion pipeline: stills at chosen frames plus an mp4 export.
  *
  * Usage:
  *   node scripts/verify-r1.mjs            # stills + mp4
@@ -17,7 +17,7 @@ import path from 'node:path';
 import { generateSyntheticBars } from '../src/trading/ohlc.ts';
 
 const OUT_DIR = path.resolve('out', 'verify');
-const STILL_FRAMES = [0, 20, 45, 100, 179];
+const STILL_FRAMES = [0, 20, 45, 100, 140, 179];
 const FPS = 30;
 
 const bars = generateSyntheticBars({
@@ -58,6 +58,50 @@ const project = {
             speed: 1,
             x: 960,
             y: 200,
+          },
+          effects: [],
+        },
+      ],
+    },
+    {
+      id: 't-motion-2',
+      name: 'Motion 2',
+      clips: [
+        {
+          id: 'c-soft-blur',
+          name: 'Soft Blur In',
+          element: 'remocnSoftBlurIn',
+          from: 0,
+          durationInFrames: 100,
+          props: {
+            text: 'Blur into focus',
+            blur: 12,
+            fontSize: 72,
+            color: '#f5f5f7',
+            fontWeight: 700,
+            speed: 1,
+            x: 960,
+            y: 330,
+          },
+          effects: [],
+        },
+        {
+          id: 'c-typewriter',
+          name: 'Typewriter',
+          element: 'remocnTypewriter',
+          from: 100,
+          durationInFrames: 120,
+          props: {
+            text: 'Watch the story type itself',
+            cursor: true,
+            charsPerSecond: 22,
+            speed: 1,
+            fontSize: 48,
+            color: '#f5f5f7',
+            cursorColor: '#facc15',
+            fontWeight: 600,
+            x: 960,
+            y: 330,
           },
           effects: [],
         },
