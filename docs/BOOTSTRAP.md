@@ -12,6 +12,19 @@ no account and no network call in the editing path.
 - A Chromium-family browser for the preview. The Remotion renderer uses the Chrome Headless
   Shell that Remotion downloads into `node_modules/.remotion` on first export.
 
+## Hosting the built app
+
+The app stores projects in a SQLite database that lives in the browser's origin private file
+system. That needs **cross-origin isolation**, so the host that serves `dist/` must send:
+
+```
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+`npm run dev` and `npm run preview` already send them. Without them the app still runs, but it
+falls back to browser storage that cannot hold a SQLite database, and the top bar says so.
+
 ## Install
 
 ```bash
@@ -28,6 +41,7 @@ npm install
 | `npm test` | Vitest, single run (node environment) |
 | `npm run test:watch` | Vitest in watch mode |
 | `npm run build` | typecheck + production bundle into `dist/` |
+| `npm run preview` | serves the built `dist/` with the headers the local database needs |
 | `npm run render -- <project.json> <out.mp4>` | CLI export of a saved project through Remotion |
 | `node scripts/verify-r1.mjs` | renders the R1 verification project to stills (`out/verify/`) and an mp4 (`out/chart-studio-r1.mp4`) |
 
@@ -47,8 +61,15 @@ src/
     definition.ts    the chart's registry definition
   motion-components/ adapted Remocn source, vendored with licence + provenance
   project/migrate.ts project document migrations (schema version, component type, props version)
+  storage/           local persistence behind one interface
+    types.ts         WorkspaceRepository — the port the editor talks to  (normative)
+    contract-suite.ts the machine-checked contract every backend must pass
+    select.ts        chooses and opens a backend
+    sqlite/          official SQLite WASM in a worker, database in OPFS
+    local/           localStorage and in-memory fallbacks
+    useWorkspace.ts  the React binding: autosave, restore, storage status
   remotion/          the composition and the inherited element renderers
-  components/        Library, Timeline, Inspector, PreviewPanel, TopBar
+  components/        Library, Timeline, Inspector, PreviewPanel, TopBar, StorageIndicator
 remotion/            Remotion entry point (Composition id="Main")
 docs/                the Chart Studio design documents
 ```
@@ -87,7 +108,9 @@ Remotion entry and renders PNG stills through the same pipeline the export uses.
 | Document | Purpose |
 |---|---|
 | [docs/architecture/UPSTREAM_AUDIT.md](architecture/UPSTREAM_AUDIT.md) | what the upstream editor was, what R0/R1 changed, risks and known debt |
+| [docs/architecture/STORAGE.md](architecture/STORAGE.md) | how projects are stored: the port, the backends, the schema, the one-writer rule |
 | [docs/spec/COMPONENT_CONTRACT.md](spec/COMPONENT_CONTRACT.md) | the typed component contract (normative) |
+| [docs/decisions/ADR-004-STORAGE-PORT.md](decisions/ADR-004-STORAGE-PORT.md) | why persistence sits behind an interface, and what the SQLite backend costs |
 | [docs/decisions/ADR-003-COMPONENT-SYSTEM.md](decisions/ADR-003-COMPONENT-SYSTEM.md) | why the component system exists and what it must guarantee |
 | [docs/roadmap/ROADMAP.md](roadmap/ROADMAP.md) | the delivery sequence |
 | [docs/superpowers/plans/2026-10-25-chart-studio-scaffold.md](superpowers/plans/2026-10-25-chart-studio-scaffold.md) | the R0/R1 scaffold plan and what it actually produced |
