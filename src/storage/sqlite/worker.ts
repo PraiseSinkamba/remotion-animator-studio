@@ -63,6 +63,12 @@ const openRepository = (requestedNamespace: string): Promise<WorkspaceRepository
     return createSqliteRepository(createWasmDriver(db), requestedNamespace);
   })();
 
+  // A failed open must not be remembered: the file can be locked by a tab that
+  // is on its way out, and the next attempt has to be able to try again.
+  repository.catch(() => {
+    repository = null;
+  });
+
   return repository;
 };
 

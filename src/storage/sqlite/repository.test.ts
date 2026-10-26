@@ -12,6 +12,7 @@ import { describeRepositoryContract } from '../contract-suite';
 import { StorageConflictError } from '../types';
 import type { Project } from '../../types';
 import { createNodeSqliteDriver, type SqlDriver } from './driver';
+import { isTransientOpenError } from './client';
 import { createSqliteRepository } from './repository';
 import { runMigrations } from './schema';
 
@@ -106,5 +107,22 @@ describe('sqlite — conflicts', () => {
     expect(rows[0]?.count).toBe(2);
     driver.close();
     await repo.close();
+  });
+});
+
+describe('sqlite — opening the database', () => {
+  it('waits for a file handle that another tab still holds', () => {
+    // A tab that is closing holds the OPFS access handle for a moment; the
+    // next owner has to wait for it instead of giving up on the database.
+    expect(
+      isTransientOpenError(
+        "Failed to execute 'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles cannot be created if there is another open Access Handle or Writable stream associated with the same file.",
+      ),
+    ).toBe(true);
+  });
+
+  it('does not wait for a failure that will not pass', () => {
+    expect(isTransientOpenError('SQLITE_CANTOPEN: unable to open database file')).toBe(false);
+    expect(isTransientOpenError('The browser has no origin private file system')).toBe(false);
   });
 });

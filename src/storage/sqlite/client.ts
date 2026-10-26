@@ -37,6 +37,15 @@ const sameStatus = (a: StorageStatus, b: StorageStatus): boolean =>
   a.problem === b.problem &&
   a.detail === b.detail;
 
+/**
+ * Whether an open failure is worth waiting out.
+ *
+ * The browser refuses to hand out a second OPFS access handle for a file that
+ * one tab still holds. That handle belongs to a tab that is on its way out, so
+ * the open succeeds a moment later. Every other failure is final.
+ */
+export const isTransientOpenError = (message: string): boolean => /access handle/i.test(message);
+
 const blockedRepository = (status: StorageStatus): WorkspaceRepository => ({
   backend: 'sqlite-opfs',
   async init() {
@@ -186,6 +195,28 @@ export const createSqliteRepository: RepositoryFactory = async (
     return promise;
   };
 
+  /**
+   * Opens the database, waiting out the previous owner's file handle.
+   *
+   * A tab that held the workspace releases its OPFS access handle a moment
+   * after it goes away. A tab that starts in that window cannot open the
+   * file, and falling back to another store would hide the projects that are
+   * already in the database — so the open is retried before giving up.
+   */
+  const openDatabase = async (): Promise<unknown> => {
+    const attempts = 5;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await call('init', [namespace]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (attempt === attempts || !isTransientOpenError(message)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+    throw new StorageUnavailableError('The database could not be opened');
+  };
+
   let closed = false;
   const guard = (): void => {
     if (closed) {
@@ -194,7 +225,7 @@ export const createSqliteRepository: RepositoryFactory = async (
   };
 
   try {
-    const opened = await call('init', [namespace]);
+    const opened = await openDatabase();
     if (!isStorageStatus(opened)) {
       throw new StorageError('The database worker returned an unusable status');
     }
