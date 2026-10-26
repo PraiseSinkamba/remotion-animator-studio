@@ -1,4 +1,5 @@
 import React, { useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import { getComponent } from '../registry';
 import { seekTo } from '../playerRef';
 import { useStore } from '../store';
@@ -223,9 +224,9 @@ export const Timeline: React.FC = () => {
   return (
     <div className="timeline">
       <div className="timeline-toolbar">
-        <button className="btn btn-small" onClick={addTrack}>
+        <Button variant="ghost" size="sm" onClick={addTrack}>
           + Track
-        </button>
+        </Button>
         <span className="timeline-time">
           {framesToLabel(currentFrame, project.fps)} / {framesToLabel(project.durationInFrames, project.fps)}
           <span className="dim"> · frame {currentFrame}</span>

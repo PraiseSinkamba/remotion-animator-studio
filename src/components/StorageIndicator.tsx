@@ -1,4 +1,7 @@
 import React from 'react';
+import { Database, HardDrive, TriangleAlert } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { StorageStatus } from '../storage/types';
 
 export interface StorageIndicatorProps {
@@ -47,6 +50,13 @@ const describe = (status: StorageStatus, saving: boolean, error: string | null):
   return { label: 'Saved locally', tone: 'ok' };
 };
 
+/** Which backend the workspace actually lives in, in plain words. */
+const backendNote = (status: StorageStatus): string => {
+  if (status.backend === 'sqlite-opfs') return 'SQLite (OPFS) — stored in this browser';
+  if (status.backend === 'local-storage') return 'Browser local storage — the SQLite fallback';
+  return 'In memory only — nothing is written to disk';
+};
+
 /**
  * The chip in the top bar that tells the user where their work lives.
  *
@@ -54,14 +64,25 @@ const describe = (status: StorageStatus, saving: boolean, error: string | null):
  */
 export const StorageIndicator: React.FC<StorageIndicatorProps> = ({ status, saving, error, onSave }) => {
   const { label, tone } = describe(status, saving, error);
+  const degraded = tone === 'warn' || tone === 'bad';
+  const sqlite = status.backend === 'sqlite-opfs' && !degraded;
+  const Icon = degraded ? TriangleAlert : sqlite ? Database : HardDrive;
+
   return (
-    <button
-      type="button"
-      className={`storage-chip storage-chip--${tone}`}
-      title={error ?? status.detail ?? 'This project is stored in your browser'}
-      onClick={() => onSave?.()}
-    >
-      {label}
-    </button>
+    <Tooltip>
+      <Badge asChild variant={sqlite ? 'default' : 'secondary'} className="cursor-pointer">
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            title={error ?? status.detail ?? 'This project is stored in your browser'}
+            onClick={() => onSave?.()}
+          >
+            <Icon data-icon="inline-start" />
+            {label}
+          </button>
+        </TooltipTrigger>
+      </Badge>
+      <TooltipContent>{backendNote(status)}</TooltipContent>
+    </Tooltip>
   );
 };

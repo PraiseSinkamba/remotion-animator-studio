@@ -1,5 +1,6 @@
 import { Player } from '@remotion/player';
 import React, { useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
 import { playerRef } from '../playerRef';
 import { MainComposition } from '../remotion/MainComposition';
 import { findClip, useStore } from '../store';
@@ -139,12 +140,12 @@ export const PreviewPanel: React.FC = () => {
               <span>
                 Click to add points ({drawingPath.points.length}) — the element starts at the green dot
               </span>
-              <button className="btn btn-small btn-primary" onClick={() => useStore.getState().finishDrawingPath()}>
+              <Button size="sm" onClick={() => useStore.getState().finishDrawingPath()}>
                 ✓ Done (Enter)
-              </button>
-              <button className="btn btn-small" onClick={() => useStore.getState().cancelDrawingPath()}>
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => useStore.getState().cancelDrawingPath()}>
                 ✕ Cancel (Esc)
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
