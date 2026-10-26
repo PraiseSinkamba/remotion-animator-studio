@@ -2,9 +2,11 @@ import React, { useRef, useState } from 'react';
 import { playerRef, seekTo, togglePlay } from '../playerRef';
 import { migrateProject } from '../project/migrate';
 import { useStore } from '../store';
+import type { WorkspaceUiState } from '../storage/useWorkspace';
 import type { Project } from '../types';
 import { HelpModal } from './HelpModal';
 import { RenderDialog } from './RenderDialog';
+import { StorageIndicator } from './StorageIndicator';
 
 const SIZE_PRESETS: Record<string, [number, number]> = {
   'HD 1920×1080': [1920, 1080],
@@ -64,7 +66,14 @@ const blankProject = (): Project => ({
   ],
 });
 
-export const TopBar: React.FC = () => {
+export interface TopBarProps {
+  /** The health of the workspace storage, shown as a chip. */
+  storage?: WorkspaceUiState;
+  /** Commits the document to the workspace right away. */
+  onSave?: () => void;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
   const project = useStore((s) => s.project);
   const playing = useStore((s) => s.playing);
   const muted = useStore((s) => s.muted);
@@ -272,6 +281,17 @@ export const TopBar: React.FC = () => {
       </div>
 
       <div className="topbar-spacer" />
+
+      {storage ? (
+        <div className="topbar-group">
+          <StorageIndicator
+            status={storage.status}
+            saving={storage.saving}
+            error={storage.error}
+            onSave={onSave}
+          />
+        </div>
+      ) : null}
 
       <div className="topbar-group">
         <button

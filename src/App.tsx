@@ -5,10 +5,9 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { togglePlay } from './playerRef';
-import { migrateProject } from './project/migrate';
 import { useStore } from './store';
+import { useWorkspace } from './storage/useWorkspace';
 
-const AUTOSAVE_KEY = 'remotion-animator-autosave';
 const LAYOUT_KEY = 'remotion-animator-layout';
 
 interface Layout {
@@ -62,34 +61,8 @@ export const App: React.FC = () => {
     });
   }, []);
 
-  // Restore autosave once on boot, then autosave on every project change (debounced)
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(AUTOSAVE_KEY);
-      if (saved) {
-        const p = migrateProject(JSON.parse(saved));
-        if (p?.tracks && p?.fps) useStore.getState().hydrate(p);
-      }
-    } catch {
-      /* corrupted autosave — ignore */
-    }
-    let timer: number | undefined;
-    const unsub = useStore.subscribe((state, prev) => {
-      if (state.project === prev.project) return;
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        try {
-          localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(state.project));
-        } catch {
-          /* storage full — skip */
-        }
-      }, 800);
-    });
-    return () => {
-      unsub();
-      window.clearTimeout(timer);
-    };
-  }, []);
+  // The workspace keeps the project; the editor only holds the document.
+  const workspace = useWorkspace();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -135,7 +108,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="app">
-      <TopBar />
+      <TopBar storage={workspace.state} onSave={() => void workspace.saveNow()} />
       <div className="main">
         <div style={{ width: layout.libW, flexShrink: 0, display: 'flex', minWidth: 0 }}>
           <Library />

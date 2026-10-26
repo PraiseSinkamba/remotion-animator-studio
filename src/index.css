@@ -119,6 +119,40 @@ body {
   width: 100%;
 }
 
+.storage-chip {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.storage-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.storage-chip--ok {
+  color: var(--text);
+}
+
+.storage-chip--busy {
+  color: var(--accent);
+}
+
+.storage-chip--warn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.storage-chip--bad {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .dim {
   color: var(--text-dim);
 }

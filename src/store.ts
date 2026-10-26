@@ -33,6 +33,13 @@ interface EditorState {
   history: Project[];
   future: Project[];
 
+  /** Identity of the project in the workspace storage; null when it is not stored. */
+  workspaceId: string | null;
+  /** Revision of the stored document the app last committed. */
+  workspaceRevision: number | null;
+  /** Point the editor at a stored project, or forget it with null. */
+  setWorkspace: (identity: { id: string; revision: number } | null) => void;
+
   setProject: (patch: Partial<Project>) => void;
   /** Change canvas size, rescaling every clip's position/size props to match */
   resizeProject: (width: number, height: number) => void;
@@ -123,6 +130,14 @@ export const useStore = create<EditorState>((set, get) => ({
   pixelsPerFrame: 4,
   history: [],
   future: [],
+  workspaceId: null,
+  workspaceRevision: null,
+
+  setWorkspace: (identity) =>
+    set({
+      workspaceId: identity?.id ?? null,
+      workspaceRevision: identity?.revision ?? null,
+    }),
 
   setProject: (patch) => {
     get().commit();
@@ -162,7 +177,9 @@ export const useStore = create<EditorState>((set, get) => ({
   },
   replaceProject: (p) => {
     get().commit();
-    set({ project: p, selectedClipIds: [], currentFrame: 0 });
+    // A different document is a different workspace project, so the editor
+    // forgets which stored project it was editing.
+    set({ project: p, selectedClipIds: [], currentFrame: 0, workspaceId: null, workspaceRevision: null });
   },
   hydrate: (p) => set({ project: p, selectedClipIds: [] }),
   addPreset: (presetId, atFrame) => {
