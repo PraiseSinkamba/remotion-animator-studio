@@ -4,6 +4,13 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /*
+ * The app is always dark. Without this, Tailwind's `dark:` variant would
+ * follow the operating system preference and the shadcn primitives would
+ * render their light-theme rules on a light-preference machine.
+ */
+@custom-variant dark (&:is(.dark *));
+
+/*
  * Tailwind's preflight is deliberately NOT imported. The in-app Remotion
  * preview renders inside this document while the export bundle imports no CSS
  * at all, so preflight would change the preview and not the export and break
@@ -100,15 +107,6 @@ body {
   white-space: nowrap;
 }
 
-.project-name {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 5px 10px;
-  width: 170px;
-}
-
 .topbar-group {
   display: flex;
   align-items: center;
@@ -139,59 +137,9 @@ body {
   cursor: default;
 }
 
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.btn-play {
-  min-width: 84px;
-}
-
 .btn-small {
   padding: 2px 8px;
   font-size: 12px;
-}
-
-.btn-danger {
-  border-color: var(--danger);
-  color: var(--danger);
-  width: 100%;
-}
-
-.storage-chip {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 4px 10px;
-  cursor: pointer;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.storage-chip:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.storage-chip--ok {
-  color: var(--text);
-}
-
-.storage-chip--busy {
-  color: var(--accent);
-}
-
-.storage-chip--warn {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.storage-chip--bad {
-  border-color: var(--danger);
-  color: var(--danger);
 }
 
 .dim {
@@ -831,112 +779,7 @@ input[type='color'] {
   margin: -4px 0 9px;
 }
 
-.preset-item {
-  border-color: #3a3350;
-  background: linear-gradient(180deg, #221d38, #1b1730);
-}
-
 /* ---------- Render dialog ---------- */
-.progress-track {
-  height: 10px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  margin: 10px 0 6px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), #a78bff);
-  transition: width 0.4s ease;
-}
-
-.render-error {
-  color: var(--danger);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.modal-actions .btn {
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-}
-
-.modal-wide {
-  width: 680px;
-}
-
-.help-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  font-size: 12.5px;
-}
-
-.help-cols h4 {
-  margin: 10px 0 6px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 1px;
-}
-
-.help-cols ul {
-  padding-left: 18px;
-  line-height: 1.7;
-}
-
-/* ---------- Modal ---------- */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 22px;
-  width: 460px;
-  max-width: 90vw;
-  user-select: text;
-}
-
-.modal h3 {
-  margin-bottom: 10px;
-}
-
-.modal p,
-.modal ol {
-  margin-bottom: 10px;
-  line-height: 1.6;
-  font-size: 13px;
-}
-
-.modal ol {
-  padding-left: 22px;
-}
-
-.modal code {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 12px;
-}
 } /* end @layer legacy */
 
 /*
