@@ -1,9 +1,30 @@
 import React, { useRef, useState } from 'react';
+import {
+  Camera,
+  Check,
+  CircleHelp,
+  Clapperboard,
+  Download,
+  FolderOpen,
+  Loader2,
+  Pause,
+  Play,
+  Plus,
+  Redo2,
+  Save,
+  SkipBack,
+  Undo2,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { playerRef, seekTo, togglePlay } from '../playerRef';
 import { migrateProject } from '../project/migrate';
 import { useStore } from '../store';
 import type { WorkspaceUiState } from '../storage/useWorkspace';
 import type { Project } from '../types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { HelpModal } from './HelpModal';
 import { RenderDialog } from './RenderDialog';
 import { StorageIndicator } from './StorageIndicator';
@@ -19,31 +40,37 @@ const SIZE_PRESETS: Record<string, [number, number]> = {
   'Ultrawide 2560×1080': [2560, 1080],
 };
 
+const FPS_PRESETS = [24, 25, 30, 50, 60];
+
 const PROJECT_FILE_TYPES = [
   { description: 'Animator project', accept: { 'application/json': ['.json'] as const } },
 ];
 
 /** Number input that applies on blur/Enter (so typing "3840" doesn't rescale at "3") */
-const SizeInput: React.FC<{ value: number; title: string; onCommit: (v: number) => void }> = ({
-  value,
-  title,
-  onCommit,
-}) => {
+const SizeInput: React.FC<{
+  value: number;
+  title: string;
+  min?: number;
+  max?: number;
+  list?: string;
+  onCommit: (v: number) => void;
+}> = ({ value, title, min = 16, max = 7680, list, onCommit }) => {
   const [text, setText] = useState(String(value));
   React.useEffect(() => setText(String(value)), [value]);
   const commit = () => {
-    const v = Math.max(16, Math.min(7680, Number(text) || value));
+    const v = Math.max(min, Math.min(max, Number(text) || value));
     setText(String(v));
     if (v !== value) onCommit(v);
   };
   return (
-    <input
+    <Input
       type="number"
-      min={16}
-      max={7680}
+      min={min}
+      max={max}
       value={text}
       title={title}
-      style={{ width: 62 }}
+      list={list}
+      className="w-[62px]"
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -196,24 +223,36 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
   return (
     <header className="topbar">
       <div className="brand">
-        🎬 <strong>Remotion Animator</strong>
+        <Clapperboard className="mr-1 inline size-4 align-text-bottom" aria-hidden="true" />
+        <strong>Remotion Animator</strong>
       </div>
 
-      <input
-        className="project-name"
+      <Input
+        className="w-[170px]"
         value={project.name}
         onChange={(e) => setProject({ name: e.target.value })}
       />
 
       <div className="topbar-group">
-        <button className="btn" onClick={() => seekTo(0)} title="Back to start">
-          ⏮
-        </button>
-        <button className="btn btn-play" onClick={togglePlay}>
-          {playing ? '⏸ Pause' : '▶ Play'}
-        </button>
-        <button
-          className="btn"
+        <Button variant="ghost" size="icon" onClick={() => seekTo(0)} title="Back to start">
+          <SkipBack data-icon="inline-start" />
+        </Button>
+        <Button variant="outline" size="sm" className="min-w-[84px]" onClick={togglePlay}>
+          {playing ? (
+            <>
+              <Pause data-icon="inline-start" />
+              Pause
+            </>
+          ) : (
+            <>
+              <Play data-icon="inline-start" />
+              Play
+            </>
+          )}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
           title={muted ? 'Unmute preview' : 'Mute preview'}
           onClick={() => {
             const m = !muted;
@@ -222,29 +261,37 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
             else playerRef.current?.unmute();
           }}
         >
-          {muted ? '🔇' : '🔊'}
-        </button>
+          {muted ? <VolumeX data-icon="inline-start" /> : <Volume2 data-icon="inline-start" />}
+        </Button>
       </div>
 
       <div className="topbar-group">
         <label className="dim">Size</label>
-        <select
+        <Select
           value={sizeKey}
-          onChange={(e) => {
-            const preset = SIZE_PRESETS[e.target.value];
+          onValueChange={(v) => {
+            const preset = SIZE_PRESETS[v];
             if (preset) resizeProject(preset[0], preset[1]);
           }}
-          title="Changing size rescales all content to fit"
         >
-          {[...Object.keys(SIZE_PRESETS), 'Custom'].map((k) => (
-            <option key={k}>{k}</option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-[210px]" title="Changing size rescales all content to fit">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {[...Object.keys(SIZE_PRESETS), 'Custom'].map((k) => (
+                <SelectItem key={k} value={k}>
+                  {k}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
         <SizeInput value={project.width} title="Width" onCommit={(v) => resizeProject(v, project.height)} />
         <span className="dim">×</span>
         <SizeInput value={project.height} title="Height" onCommit={(v) => resizeProject(project.width, v)} />
         <label className="dim">Sec</label>
-        <input
+        <Input
           type="number"
           min={1}
           max={3600}
@@ -252,32 +299,34 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
           onChange={(e) =>
             setProject({ durationInFrames: Math.max(1, Number(e.target.value)) * project.fps })
           }
-          style={{ width: 52 }}
+          className="w-[52px]"
         />
         <label className="dim">FPS</label>
-        <select
+        <SizeInput
           value={project.fps}
-          onChange={(e) => {
-            const fps = Number(e.target.value);
+          title="FPS"
+          min={1}
+          max={240}
+          list="fps-presets"
+          onCommit={(fps) => {
             const seconds = project.durationInFrames / project.fps;
             setProject({ fps, durationInFrames: Math.round(seconds * fps) });
           }}
-        >
-          {[24, 25, 30, 50, 60].map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
+        />
+        <datalist id="fps-presets">
+          {FPS_PRESETS.map((f) => (
+            <option key={f} value={f} />
           ))}
-        </select>
+        </datalist>
       </div>
 
       <div className="topbar-group">
-        <button className="btn" disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
-          ↩
-        </button>
-        <button className="btn" disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
-          ↪
-        </button>
+        <Button variant="ghost" size="icon" disabled={!canUndo} onClick={undo} title="Undo (⌘Z)">
+          <Undo2 data-icon="inline-start" />
+        </Button>
+        <Button variant="ghost" size="icon" disabled={!canRedo} onClick={redo} title="Redo (⇧⌘Z)">
+          <Redo2 data-icon="inline-start" />
+        </Button>
       </div>
 
       <div className="topbar-spacer" />
@@ -294,8 +343,9 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
       ) : null}
 
       <div className="topbar-group">
-        <button
-          className="btn"
+        <Button
+          variant="outline"
+          size="sm"
           title="New project"
           onClick={() => {
             if (window.confirm('Start a new project? (Current work stays in undo history)')) {
@@ -304,33 +354,63 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
             }
           }}
         >
-          ✚ New
-        </button>
-        <button className="btn" onClick={save} title={fsAccess ? 'Overwrites the opened file' : 'Downloads a JSON file'}>
-          {savedFlash ? '✓ Saved' : '💾 Save'}
-        </button>
+          <Plus data-icon="inline-start" />
+          New
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={save}
+          title={fsAccess ? 'Overwrites the opened file' : 'Downloads a JSON file'}
+        >
+          {savedFlash ? (
+            <>
+              <Check data-icon="inline-start" />
+              Saved
+            </>
+          ) : (
+            <>
+              <Save data-icon="inline-start" />
+              Save
+            </>
+          )}
+        </Button>
         {fsAccess ? (
-          <button className="btn" onClick={saveAs} title="Save to a new file">
+          <Button variant="outline" size="sm" onClick={saveAs} title="Save to a new file">
             Save As…
-          </button>
+          </Button>
         ) : null}
-        <button className="btn" onClick={open}>
-          📂 Open
-        </button>
-        <button className="btn" onClick={() => setShowHelp(true)} title="Help & docs">
-          ？Help
-        </button>
-        <button
-          className="btn"
+        <Button variant="outline" size="sm" onClick={open}>
+          <FolderOpen data-icon="inline-start" />
+          Open
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => setShowHelp(true)} title="Help & docs">
+          <CircleHelp data-icon="inline-start" />
+          Help
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={exportStill}
           disabled={stillBusy}
           title="Render the current frame as a PNG"
         >
-          {stillBusy ? '⏳ Rendering…' : '📷 Still'}
-        </button>
-        <button className="btn btn-primary" onClick={() => setShowExport(true)}>
-          ⬇ Export MP4
-        </button>
+          {stillBusy ? (
+            <>
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+              Rendering…
+            </>
+          ) : (
+            <>
+              <Camera data-icon="inline-start" />
+              Still
+            </>
+          )}
+        </Button>
+        <Button size="sm" onClick={() => setShowExport(true)}>
+          <Download data-icon="inline-start" />
+          Export MP4
+        </Button>
         <input
           ref={fileRef}
           type="file"
