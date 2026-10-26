@@ -1,6 +1,7 @@
 # Upstream Audit — Remotion-Animator-Studio → Chart Studio (R0)
 
-Date: 2026-10-25 · Scope: R0 (audit + baseline) and R1 (component system) only.
+Date: 2026-10-25 · Scope: R0 (audit + baseline), R1 (component system) and R2 (editor shell +
+Remocn completion). §7 is the R2 addendum.
 
 ## 1. What the upstream repository actually is
 
@@ -105,3 +106,78 @@ drawing tools, the UI overhaul, the Next.js/Turborepo packaging described in `do
   indicator overlays, no volume pane.
 - The verification render uses a hard-coded verification project; it is not part of the test
   suite because it needs a browser and minutes of wall-clock time.
+
+## 7. R2 addendum — the editor shell and the Remocn set
+
+R2 did not change the architecture. It changed the editor chrome and finished the Remocn
+evaluation the roadmap asks for.
+
+**What changed**
+
+- **Tailwind CSS v4 and shadcn/ui are now the editor control layer.** Tailwind is added
+  through `@tailwindcss/vite` with a single global stylesheet (`src/index.css`); the shadcn
+  primitives are copied source in `src/components/ui/`, configured by `components.json`
+  (base `radix`, style `radix-nova`, icons `lucide`). The top bar, inspector, library, render
+  dialog, help dialog and storage indicator were converted; the timeline and preview panel keep
+  their bespoke CSS.
+- **The editor stays the Vite SPA.** No Next.js, no monorepo, no React upgrade. The decision
+  recorded in §4.1 stands.
+- **Remocn is now at three components.** `marker-highlight` (`remocnMarkerHighlight`),
+  `soft-blur-in` (`remocnSoftBlurIn`) and `typewriter` (`remocnTypewriter`), each vendored as
+  source with its MIT licence, a provenance row in `src/motion-components/PROVENANCE.md`, a
+  registry definition, an `ElementType` id and a test.
+- **shadcn never enters the render path.** No `src/components/ui/*` import appears in
+  `src/remotion/`, `src/registry/`, `src/trading/` or `src/motion-components/`.
+
+**Why preflight is not imported**
+
+The in-app Remotion preview renders inside the app document, while the export bundle imports no
+CSS at all. Importing Tailwind's preflight would therefore change the preview and not the
+export, which would break the preview/export parity invariant that ADR-003 and `AGENTS.md`
+both depend on. Only the theme and utilities layers are imported; the parts of preflight the
+editor needs (the border reset, the inherited form-control font and the button background
+reset) are re-declared by hand in `@layer base`. The surviving hand-written rules moved into
+`@layer legacy`, declared after `base` and before `utilities`, so a converted control can
+restyle a legacy rule with utility classes while elements that keep their own class names are
+unaffected.
+
+**Measured bundle**
+
+| | Before R2 | After R2 |
+|---|---|---|
+| JavaScript | 721 kB / 227 kB gzip | 945.56 kB / 295.63 kB gzip |
+| CSS | 14.5 kB (hand-written stylesheet) | 58.12 kB / 10.54 kB gzip |
+
+That is **+224.6 kB raw / +68.6 kB gzip** of JavaScript and a 14.5 kB → 58.1 kB stylesheet. The
+JavaScript went into the Radix primitives actually imported (select, scroll-area, slider,
+switch, dialog, dropdown-menu, tooltip, tabs) plus their `@floating-ui` positioning internals,
+`tailwind-merge` (one ~40 kB minified module) and the 42 `lucide-react` icon modules the chrome
+imports. The unused primitives (`sonner`, `next-themes`) and `culori` are tree-shaken out of the
+bundle entirely (0 modules). The stylesheet grew because Tailwind emits the utilities the
+shadcn components use, on top of the legacy rules that survived.
+
+**How this fork maps onto the documented Next.js/pnpm architecture**
+
+This is the note §6 listed as owed. The fork keeps the **contracts** from
+`docs/architecture/TECHNICAL_ARCHITECTURE.md` and `AGENTS.md`; it does not keep the
+**packaging**.
+
+| Documented target | This fork | The contract that survives |
+|---|---|---|
+| Next.js App Router shell | Vite SPA | The editor is a local-first client application; the exported video is Remotion, either way |
+| pnpm workspaces + Turborepo | one npm package | Package boundaries become directory boundaries (`src/registry/`, `src/trading/`, `src/storage/`, `src/motion-components/`); import rules and the "no state in the evaluator" rule are unchanged |
+| `packages/*` per domain | `src/*` per domain | The typed component protocol, the storage port and its contract suite, the migration rules and the provenance requirements are all as documented |
+| shadcn/ui for editor controls | shadcn/ui for editor controls | Adopted as specified, in `src/components/ui/` — see ADR-005 |
+| dnd-kit timeline interactions | not adopted | Deferred; the timeline keeps its own pointer handling |
+| SQLite WASM worker over OPFS | SQLite WASM worker over OPFS | As documented — see ADR-004 and `docs/architecture/STORAGE.md` |
+
+So the documents in `docs/` are not wrong about *what* the system must do; they are wrong about
+*where the code sits*. Where a document names a path, read the equivalent directory in this
+tree.
+
+**Debt closed in R2**
+
+- The `README.md` claim that the repository has no implementation is gone; the README now
+  describes the editor as it is.
+- The "how this fork maps onto the documented architecture" note is this section.
+

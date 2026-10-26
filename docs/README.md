@@ -1,6 +1,6 @@
 # Documentation map
 
-This documentation set is an **expanded revision of the v1.1 brainstorming candidate**, with library research and agent-oriented work breakdowns. It is a **proposed v1.2 design**, not a claim that the app exists or that the design has been approved.
+This documentation set began as an **expanded revision of the v1.1 brainstorming candidate**, with library research and agent-oriented work breakdowns. The application now exists in this repository and has moved ahead of parts of the v1.2 design; where a document names a path, read the equivalent directory in the tree. The implementation records below cover the slices that have landed.
 
 ## Start here
 
@@ -14,6 +14,13 @@ This documentation set is an **expanded revision of the v1.1 brainstorming candi
 8. [`decisions/ADR-002-DEPENDENCY-ADOPTION.md`](decisions/ADR-002-DEPENDENCY-ADOPTION.md) — reusable packages, paid starter consideration, Next.js offline strategy.
 9. [`quality/TEST_STRATEGY.md`](quality/TEST_STRATEGY.md) — fixtures, acceptance suites, source-integrity and performance.
 10. [`reference/chart-studio-design-v1.1.md`](reference/chart-studio-design-v1.1.md) — unmodified original design snapshot.
+
+## Implementation records
+
+11. [`decisions/ADR-004-STORAGE-PORT.md`](decisions/ADR-004-STORAGE-PORT.md) — why persistence sits behind one interface and what the SQLite backend costs.
+12. [`decisions/ADR-005-SHADCN-AND-TAILWIND.md`](decisions/ADR-005-SHADCN-AND-TAILWIND.md) — the editor control layer: Tailwind v4 and shadcn/ui, what they cost and how to leave them.
+13. [`superpowers/specs/2026-10-26-chart-studio-shadcn-design.md`](superpowers/specs/2026-10-26-chart-studio-shadcn-design.md) — the approved design for the shadcn adoption and the Remocn expansion.
+14. [`superpowers/plans/2026-10-26-chart-studio-shadcn.md`](superpowers/plans/2026-10-26-chart-studio-shadcn.md) — the implementation plan for that slice, task by task.
 
 ## Interpretation
 

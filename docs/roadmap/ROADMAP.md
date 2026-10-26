@@ -32,7 +32,8 @@ The roadmap is a dependency-aware sequence of release gates. It avoids calendar/
 
 - [ ] Owner approves product/scope and Remotion-first ADR.
 - [ ] Establish ADR-003 as the R1 component contract: first-party trading catalog and Remocn motion registry adapters are both mandatory foundations.
-- [ ] Evaluate and pin 2–3 Remocn motion components for titles, effects or transitions; keep framecn out of runtime.
+- [x] Evaluate and pin 2–3 Remocn motion components for titles, effects or transitions; keep framecn out of runtime. — pinned: `marker-highlight`, `soft-blur-in` and `typewriter`, vendored as source with their MIT licence, provenance record, registry definition, `ElementType` id and tests.
+- [x] Adopt Tailwind CSS v4 and shadcn/ui for the editor controls and record the dependency decision (versions, licences, browser support, bundle cost, security posture, exit strategy).
 - [ ] Review paid Remotion Editor Starter/Timeline procurement decision; maintain free DIY path until purchased.
 - [ ] Validate Next.js client-only offline App Router route behavior, service worker/pre-caching of WASM chunks and fonts; if unnecessary Next-specific complexity blocks offline use, propose Vite SPA alternative via ADR rather than silently switch.
 - [ ] Verify commercial data/licensing use case and copied component notices.

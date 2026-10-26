@@ -1,90 +1,102 @@
 # Chart Studio
 
-> **Status:** Design and planning only — no application code has been implemented.  
-> **Working design edition:** 1.2-draft, 2026-10-24. Requires product-owner approval before implementation.  
-> **Mission:** A local-first, trading-native video studio for creating engaging, accurate market-structure, SMT-divergence and multi-timeframe breakdowns.
+> **Status:** A working local-first video editor for trading content, built on Remotion.  
+> **Date:** 2026-10-26
 
-Chart Studio is an independent application inspired by existing chart animation products. It is **not** a clone of their proprietary assets or code. Unlike screen-recording-based editing, each chart, candle series, drawing, SMT relationship, caption and audio clip is a typed, editable video object with a timeline lifecycle. The output can show HTF/LTF charts individually, side-by-side or in animated layouts; candles can reveal as complete bars or evolve along clearly labeled OHLC-consistent simulated paths.
+Chart Studio is a browser-based video editor for market-structure, SMT-divergence and
+multi-timeframe breakdowns. It is a fork of `kr4ckhe4d/Remotion-Animator-Studio` being reshaped
+into a trading-native studio. It is not a clone of any other product's assets or code.
 
-## What v1 aims to do
+## What it is today
 
-Create a complete annotated trading video using manual and imported OHLC data, 2–3-asset user-confirmed SMT observations, independently displayed or synchronized HTF/LTF charts, lines/zones/position and text tools, animated candles, captions, images, basic audio, multi-scene timelines, offline autosave, portable project files and local video export.
+- **A browser-based editor.** A timeline of typed scene objects, an inspector, a library, a
+  preview that renders the same composition as the export, and a local render path. No account,
+  no backend, no network call in the editing path.
+- **A typed component registry.** Every element is a registry definition with a stable type, a
+  Zod-validated props schema, defaults, a pure render adapter, editor metadata and a
+  serialization version. The 22 inherited editor elements were converted to that contract.
+- **A candlestick chart video component.** A first-party trading component that renders OHLC
+  bars as SVG from pure props and the current frame, with intrabar simulation and no lookahead.
+- **Local storage with SQLite in OPFS.** Projects are saved through one port
+  (`WorkspaceRepository`); the durable backend is official SQLite WASM in a worker over OPFS,
+  with `localStorage` and in-memory fallbacks.
+- **Three vendored Remocn motion components.** `marker-highlight`, `soft-blur-in` and
+  `typewriter`, vendored as source with their MIT licence and a provenance record.
+- **A shadcn/ui editor chrome.** Tailwind CSS v4 with semantic tokens, Radix-based primitives
+  and Lucide icons. The video path imports none of it.
 
-## Read this first
+## Requirements
+
+- Node.js 22+ (developed on 24.20) and npm 10+.
+- A Chromium-family browser for the preview. The first export downloads Remotion's Chrome
+  Headless Shell into `node_modules/.remotion`.
+
+The package manager is **npm**. There is no `pnpm-lock.yaml`, and none should be added.
+
+## Install and run
+
+```bash
+npm install
+npm run dev
+```
+
+`npm run dev` starts the Vite dev server and the local render API (`server.mjs`) together. The
+editor is then in the browser. No account, no backend, no network call.
+
+## Verification commands
+
+```bash
+npm run typecheck      # tsc -b — the type gate, no emit
+npm test               # Vitest, single run
+npm run build          # typecheck + production bundle into dist/
+npm run preview        # serves the built dist/ with the storage headers
+node scripts/verify-r1.mjs   # real Remotion render: stills and an mp4
+```
+
+The last command is the only one that proves a change reaches the *video* path: it bundles the
+Remotion entry and renders PNG stills through the same pipeline the export uses.
+
+For the working details — hosting the built app, the cross-origin isolation headers, where
+things live, how to add a component — read [`docs/BOOTSTRAP.md`](docs/BOOTSTRAP.md).
+
+## Project layout
+
+```
+src/
+  registry/          the typed component contract and the registry
+  trading/           the candlestick chart component and pure OHLC maths
+  motion-components/ adapted Remocn source, vendored with licence + provenance
+  project/           project document migrations
+  storage/           local persistence behind one interface (SQLite/OPFS, localStorage, memory)
+  remotion/          the composition and the element renderers
+  components/        Library, Timeline, Inspector, PreviewPanel, TopBar, RenderDialog, …
+    ui/              the shadcn/ui primitives (copied source)
+  lib/utils.ts       cn() — the class-name helper
+  index.css          the one stylesheet: Tailwind layers, shadcn tokens, legacy rules
+remotion/            Remotion entry point (Composition id="Main")
+docs/                the Chart Studio design documents and decisions
+```
+
+## Documents
 
 | Document | Purpose |
 |---|---|
-| [Product design](docs/design/PRODUCT_DESIGN.md) | User experience, principles, information architecture, interaction models, scene lifecycles |
-| [Functional specification](docs/spec/FUNCTIONAL_SPEC.md) | Canonical feature behavior, object contracts, user-visible requirements and acceptance IDs |
-| [Technical architecture](docs/architecture/TECHNICAL_ARCHITECTURE.md) | Remotion-first rendering, scene graph, SQLite WASM/OPFS, import and data integrity, export interfaces |
-| [Feature catalogue](docs/features/FEATURE_CATALOG.md) | Full MVP and deferred inventory; expected behavior and acceptance mapping |
-| [Video scenarios](docs/scenarios/VIDEO_SCENARIOS.md) | Storyboards, concrete creator journeys, scene/object/timeline recipes, test expectations |
-| [Roadmap](docs/roadmap/ROADMAP.md) | Validation spikes, vertical slices, dependencies, deliverables, release gates and agent handoffs |
-| [Architecture decisions](docs/decisions/ADR-001-VIDEO-STACK.md) | Video framework, framecn/remocn and rendering decision |
-| [Dependency shortlist](docs/decisions/ADR-002-DEPENDENCY-ADOPTION.md) | Reuse existing libraries for timeline, import, archive, panels and exports |
-| [Component architecture ADR](docs/decisions/ADR-003-COMPONENT-SYSTEM.md) | First-party trading components from day one; source-owned Remocn components; typed editor/video contract |
-| [Test strategy](docs/quality/TEST_STRATEGY.md) | Test pyramid, fixtures, performance/error budgets, no-lookahead and render parity |
-| [AGENTS.md](AGENTS.md) | Nonnegotiable guardrails and task workflow for coding agents |
-| [Documentation index](docs/README.md) | Reading guide and status |
-| [v1.1 design snapshot](docs/reference/chart-studio-design-v1.1.md) | Predecessor design preserved for traceability |
-
-**Document authority:** `FUNCTIONAL_SPEC.md` is the canonical statement of observable v1 behavior; `TECHNICAL_ARCHITECTURE.md` defines interfaces and boundaries; `ADR-001-VIDEO-STACK.md` records dependency choices; `ROADMAP.md` sequences implementation. When docs conflict, raise a design issue rather than guess or silently invent behavior.
-
-## Architecture at a glance
-
-```
-Next.js / React application + shadcn/ui editor
-  ├── dashboard, inspector, canvas interactions, hierarchical timeline
-  ├── project commands / Zod-validated domain model
-  ├── chart and market data engine (custom, source-aware)
-  ├── SMT + MTF engine (custom, no-lookahead)
-  ├── first-party trading video objects + source-owned Remocn motion library
-  ├── React / SVG scene elements rendered with Remotion
-  │     ├── Remotion Player (preview)
-  │     └── Remotion web renderer (local export, compatibility-gated)
-  └── SQLite WASM worker (OPFS) + OPFS asset store
-
-Optional future: versioned sync API + cloud storage + Remotion server renderer
-```
-
-**Do not confuse similarly named projects:** `remocn.dev` is a library of shadcn-installable *Remotion* motion components; `remotion.dev` is the video framework; `framecn.dev` is built on *Editframe*. **Remotion is our video runtime, Remocn our primary source-owned generic motion component framework, and our custom trading component library is foundational from the first slice.** Install/adapt Remocn source as needed instead of blindly importing the entire registry. See [the ADR](docs/decisions/ADR-001-VIDEO-STACK.md).
-
-## Project structure (planned, not created)
-
-```
-apps/studio/
-packages/domain/
-packages/market-data/
-packages/smt-mtf/
-packages/chart-renderer/
-packages/trading-components/  # custom chart, drawing and SMT/MTF video objects (P0)
-packages/motion-components/   # adapted, source-owned Remocn motion pieces
-packages/scene-compositor/
-packages/editor-core/
-packages/timeline/
-packages/storage-sqlite/
-packages/project-archive/
-packages/export/
-packages/ui/
-tests/fixtures/
-docs/
-```
-
-## Tooling (proposed)
-
-Node.js LTS, pnpm, Turborepo, Next.js, TypeScript (strict), React, Tailwind CSS, shadcn/ui, Zod, Zustand, Remotion (`remotion`, `@remotion/player`, `@remotion/web-renderer`), `@sqlite.org/sqlite-wasm` in worker + OPFS, dnd-kit, Vitest, React Testing Library and Playwright. Versions must be checked and pinned together during the first technical spike; this documentation does not assert that any dependency is currently installed.
-
-After the project is scaffolded, expected scripts will be `pnpm dev`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build`. **These commands are a contract for the future repository; they do not run in this docs-only package.**
+| [Bootstrap](docs/BOOTSTRAP.md) | how to install, run and verify the repository |
+| [Documentation index](docs/README.md) | the full document map |
+| [Upstream audit](docs/architecture/UPSTREAM_AUDIT.md) | what the upstream editor was, what R1/R2 changed, risks and known debt |
+| [Storage](docs/architecture/STORAGE.md) | the persistence port, the backends, the one-writer rule |
+| [Component contract](docs/spec/COMPONENT_CONTRACT.md) | the typed component contract (normative) |
+| [ADR-003 — Component system](docs/decisions/ADR-003-COMPONENT-SYSTEM.md) | why the component system exists and what it must guarantee |
+| [ADR-004 — Storage port](docs/decisions/ADR-004-STORAGE-PORT.md) | why persistence sits behind an interface |
+| [ADR-005 — shadcn and Tailwind](docs/decisions/ADR-005-SHADCN-AND-TAILWIND.md) | the editor control layer: versions, licences, bundle cost, exit strategy |
+| [Roadmap](docs/roadmap/ROADMAP.md) | the delivery sequence |
+| [AGENTS.md](AGENTS.md) | the nonnegotiable guardrails and task workflow for coding agents |
 
 ## Licensing and data integrity
 
-Remotion's license is not universally MIT; check eligibility before commercial distribution or team growth. Paid Remotion Timeline and Editor Starter are optional purchases, not bundled. Market-provider data redistribution rights require review. Synthetic OHLC paths, modified historical bars and hypothetical branches must remain recognizable as such. No financial signals, brokerage connections or profitability claims are part of v1.
-
-## Current status
-
-- [x] Product direction, source workflows, SMT/MTF, hierarchical scenes and file workflow selected
-- [x] Expanded v1.2 design/spec/roadmap and agent guidance prepared for review
-- [ ] Approve v1.2 design and library licensing decisions
-- [ ] Run viability spikes (Remotion browser export + SQLite OPFS + chart-object interaction)
-- [ ] Convert roadmap slices into Superpowers task-level implementation plans
-- [ ] Implement, verify, and release creator-ready MVP
+Remotion's licence is not universally MIT; check eligibility before commercial distribution.
+Paid Remotion Timeline and Editor Starter are not bundled. The vendored Remocn source is MIT
+and keeps its licence text next to the copy. Market-provider data redistribution rights require
+review. Synthetic OHLC paths, modified historical bars and hypothetical branches stay
+recognisable as such. No financial signals, brokerage connections or profitability claims are
+part of this project.

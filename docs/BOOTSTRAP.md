@@ -49,6 +49,7 @@ npm install
 | `npm run build` | typecheck + production bundle into `dist/` |
 | `npm run preview` | serves the built `dist/` with the headers the local database needs |
 | `npm run render -- <project.json> <out.mp4>` | CLI export of a saved project through Remotion |
+| `npm run docs:gifs` | regenerates the documentation GIFs |
 | `node scripts/verify-r1.mjs` | renders the R1 verification project to stills (`out/verify/`) and an mp4 (`out/chart-studio-r1.mp4`) |
 
 ## Where things live
@@ -76,9 +77,41 @@ src/
     useWorkspace.ts  the React binding: autosave, restore, storage status
   remotion/          the composition and the inherited element renderers
   components/        Library, Timeline, Inspector, PreviewPanel, TopBar, StorageIndicator
+    ui/              the shadcn/ui primitives — copied source, editor chrome only
+  lib/utils.ts       cn() — the class-name helper the primitives use
+  index.css          the one stylesheet: Tailwind layers, shadcn tokens, legacy rules
 remotion/            Remotion entry point (Composition id="Main")
+components.json      the shadcn project configuration (base radix, style radix-nova)
 docs/                the Chart Studio design documents
 ```
+
+## Styling: Tailwind v4 and shadcn/ui
+
+The editor chrome is styled with **Tailwind CSS v4** and **shadcn/ui**. The primitives are
+copied source, not a runtime package: they live in `src/components/ui/` and are maintained
+here.
+
+- **One stylesheet.** `src/index.css` holds everything. It imports Tailwind's theme and
+  utilities layers, declares the shadcn token block in `@theme inline` plus the `:root`
+  variables, and keeps the surviving hand-written rules inside `@layer legacy`. The layer
+  order is `@layer theme, base, components, legacy, utilities;`.
+- **Preflight is not imported.** Only `tailwindcss/theme.css` and `tailwindcss/utilities.css`
+  are imported. The in-app preview renders inside the app document while the export bundle
+  imports no CSS at all, so importing preflight would change the preview and not the export.
+  The parts the editor needs — the border reset, the inherited form-control font and the
+  button background reset — are re-declared by hand in `@layer base`.
+- **The Vite plugin, not a PostCSS config.** `@tailwindcss/vite` is registered in
+  `vite.config.ts`. There is no `tailwind.config.js`; the configuration lives in CSS.
+- **The `@/` alias.** `@/*` resolves to `./src/*` in both `vite.config.ts` and
+  `tsconfig.json` (`paths`, without `baseUrl`). The generated primitives import `cn` from
+  `@/lib/utils`.
+- **The app is always dark.** `@custom-variant dark (&:is(.dark *));` and `<html class="dark">`
+  keep the `dark:` variant tied to the document instead of the OS preference.
+- **Editor chrome only.** No `src/components/ui/*` import may appear in `src/remotion/`,
+  `src/registry/`, `src/trading/` or `src/motion-components/` — those are the video path.
+
+The dependency record — versions, licences, the measured bundle cost and the exit strategy —
+is in [`docs/decisions/ADR-005-SHADCN-AND-TAILWIND.md`](decisions/ADR-005-SHADCN-AND-TAILWIND.md).
 
 ## Adding a component
 
@@ -120,6 +153,7 @@ the fallback — follow [`docs/quality/MANUAL_TEST_FLOWS.md`](quality/MANUAL_TES
 | [docs/architecture/STORAGE.md](architecture/STORAGE.md) | how projects are stored: the port, the backends, the schema, the one-writer rule |
 | [docs/spec/COMPONENT_CONTRACT.md](spec/COMPONENT_CONTRACT.md) | the typed component contract (normative) |
 | [docs/decisions/ADR-004-STORAGE-PORT.md](decisions/ADR-004-STORAGE-PORT.md) | why persistence sits behind an interface, and what the SQLite backend costs |
+| [docs/decisions/ADR-005-SHADCN-AND-TAILWIND.md](decisions/ADR-005-SHADCN-AND-TAILWIND.md) | the editor control layer: shadcn/ui and Tailwind v4, what they cost and how to leave them |
 | [docs/decisions/ADR-003-COMPONENT-SYSTEM.md](decisions/ADR-003-COMPONENT-SYSTEM.md) | why the component system exists and what it must guarantee |
 | [docs/roadmap/ROADMAP.md](roadmap/ROADMAP.md) | the delivery sequence |
 | [docs/quality/MANUAL_TEST_FLOWS.md](quality/MANUAL_TEST_FLOWS.md) | what to click in the browser to check the editor, the chart and the storage |
