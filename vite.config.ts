@@ -2,13 +2,17 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Cross-origin isolation is required for the OPFS VFS in a worker. The dev
- * server and `vite preview` send these headers; any host that serves the
- * built app has to send them too.
+ * Cross-origin isolation for the OPFS VFS in a worker. The dev server and
+ * `vite preview` send these headers; any host that serves the built app has
+ * to send them too.
+ *
+ * `credentialless` rather than `require-corp`: the editor can hold media from
+ * another origin, and `require-corp` blocks those unless the other server
+ * opts in. `credentialless` keeps the page isolated and still loads them.
  */
 const ISOLATION_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
-  'Cross-Origin-Embedder-Policy': 'require-corp',
+  'Cross-Origin-Embedder-Policy': 'credentialless',
 };
 
 export default defineConfig({
