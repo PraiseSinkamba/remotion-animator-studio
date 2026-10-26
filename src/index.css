@@ -403,6 +403,66 @@ input[type='color'] {
   flex: 1;
 }
 
+/* ---------- Candlestick chart inspector ---------- */
+.chart-inspector {
+  user-select: text;
+}
+
+.chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.chart-table th {
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: right;
+  padding: 2px 3px;
+}
+
+.chart-table th:first-child,
+.chart-table td:first-child {
+  text-align: left;
+}
+
+.chart-table td {
+  padding: 1px 3px;
+}
+
+.chart-table input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 11px;
+}
+
+.chart-table-index {
+  color: var(--text-dim);
+}
+
+.chart-table-remove {
+  text-align: right;
+}
+
+.chart-table-remove .btn-small {
+  padding: 1px 5px;
+  line-height: 1.2;
+}
+
+.chart-buttons {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.chart-length-hint {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
 .effect-card {
   background: var(--panel-2);
   border: 1px solid var(--border);

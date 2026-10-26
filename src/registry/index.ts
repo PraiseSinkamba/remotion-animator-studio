@@ -9,9 +9,9 @@
  * and add its import below. Nothing else needs to change.
  */
 import './legacy';
-import '../motion-components/definition';
 // Trading components (Chart Studio first-party) register here:
-// import '../trading/definition';
+import '../trading/definition';
+import '../motion-components/definition';
 
 export * from './registry';
 export * from './types';
