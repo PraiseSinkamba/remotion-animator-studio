@@ -77,13 +77,54 @@ src/
     useWorkspace.ts  the React binding: autosave, restore, storage status
   remotion/          the composition and the inherited element renderers
   components/        Library, Timeline, Inspector, PreviewPanel, TopBar, StorageIndicator
+    ToolRail.tsx     the full-height tool rail on the left of the shell
+    theme-toggle.tsx the light/dark switch in the top bar
+    selection-overlay.tsx  the dashed selection box and its corner handles (editor only)
+    canvas-hit-test.ts      which element is under the pointer (pure)
+    library/         the tabbed library pane: cards, rows, group headers, view toggle
+    inspector/       the inspector's sections, rows and parameter controls
+    timeline/        track rows, clip chips, the ruler and the lane packing
     ui/              the shadcn/ui primitives — copied source, editor chrome only
   lib/utils.ts       cn() — the class-name helper the primitives use
-  index.css          the one stylesheet: Tailwind layers, shadcn tokens, legacy rules
+  lib/theme.tsx      the theme provider: light, dark or system, persisted
+  index.css          the one stylesheet: Tailwind layers, light/dark tokens, legacy rules
 remotion/            Remotion entry point (Composition id="Main")
 components.json      the shadcn project configuration (base radix, style radix-nova)
 docs/                the Chart Studio design documents
 ```
+
+## The shell
+
+```
++---------------------------------------------------+
+| tool rail | top bar                               |
+|           | library | canvas + transport | inspector|
+|           |---------------- timeline ------------|
++---------------------------------------------------+
+```
+
+- The **tool rail** is the leftmost column of the whole editor: it runs past the top bar and
+  past the timeline. It shows the tools that exist today — Select, and the canvas drawing tools
+  the current selection makes meaningful.
+- The **library** filters the catalogue into `Presets · Text · Media · Audio · Scene · Chart ·
+  Motion` and toggles between a card grid and a compact list.
+- The **transport** floats over the bottom of the canvas: skip, a round play button, mute and
+  the time readout. The canvas also carries its size chip (bottom left) and the active layer's
+  name (bottom right).
+- The **inspector** is split into `Properties | Effects`; `Properties` holds the `CLIP`,
+  `POSITION`, `PROPERTIES` and `ACTIONS` sections.
+- The **timeline** gives every track one row per overlapping clip, so a clip is never hidden
+  under another one.
+
+## Light and dark modes
+
+The active mode is a class on `<html>` (`.dark`), set by `src/lib/theme.tsx` and by the
+pre-paint script in `index.html` so the shell never flashes the wrong mode. The tokens live in
+`src/index.css`: `:root` carries the light values and `.dark` overrides them. The choice is
+stored under `chart-studio-theme` and defaults to `system`.
+
+The hand-written rules in `@layer legacy` no longer own a palette: they read the semantic
+tokens through aliases (`--bg`, `--panel`, `--accent`, …), so they follow the mode.
 
 ## Styling: Tailwind v4 and shadcn/ui
 

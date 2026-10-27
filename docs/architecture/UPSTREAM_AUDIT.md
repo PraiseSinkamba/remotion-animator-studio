@@ -181,3 +181,54 @@ tree.
   describes the editor as it is.
 - The "how this fork maps onto the documented architecture" note is this section.
 
+## R3 — the cinema shell
+
+The editor shell was rebuilt in the shape of an external "Cinema" reference (a Stitch project:
+a flat, dense, zinc-and-indigo video editor), adapted to what this editor actually has. The
+contracts from `docs/` were kept; the layout was not.
+
+**Changed**
+
+- A **full-height tool rail** on the left of the whole editor, past the top bar and past the
+  timeline. It shows the tools that exist today: Select, and the canvas drawing tools the
+  current selection makes meaningful. The documented future tools (candle, line, zone,
+  position, arrow, text, SMT) have no slot yet.
+- The **library** filters the catalogue into `Presets · Text · Media · Audio · Scene · Chart ·
+  Motion` and toggles between a card grid and a compact list. The filter is a view over the
+  registry — it adds no component.
+- The **inspector** is split into `Properties | Effects`, and `Properties` holds the `CLIP`,
+  `POSITION`, `PROPERTIES` and `ACTIONS` sections. Every control and store call survived.
+- The **timeline** gives every track one row per overlapping clip, so a clip is never hidden
+  under another one.
+- The **transport** moved under the canvas as a floating pill: skip, a round play button, mute
+  and the time readout. The canvas carries its size chip and the active layer's name.
+- **Light and dark modes** replaced the single dark palette; the choice persists and follows the
+  operating system by default. See ADR-005.
+- **Canvas manipulation**: pressing an element selects and moves it, pressing the background
+  does not drag anything, and a library item dropped on the canvas is placed at the pointer.
+  A dashed selection box with corner handles shows what is selected, and resizes the components
+  that expose a width and a height.
+
+**Kept**
+
+- The video path. `src/remotion/`, `src/trading/`, `src/motion-components/` and the export
+  bundle are untouched; the render check produces the same frames as before.
+- The registry contract. The selection box needed a per-component size, which arrived as an
+  **optional** `bounds` descriptor on the definition — editor metadata that never reaches the
+  composition.
+
+**Debt closed in R3**
+
+- Fifty hand-written stylesheet rules lost their last consumer and were deleted; every class
+  the stylesheet still carries is used.
+- The shadcn primitives now react to Radix state again (ADR-005, addendum).
+
+**Known debt after R3**
+
+- The library's effect catalogue sits inside the tab scroll area, so it repeats in the flow of
+  every tab. It is not duplicated on screen, but it should be a region of its own.
+- The elements' `bounds` are a rectangle, not the rendered silhouette; a click near a text
+  element's edge picks it up even where nothing is painted.
+- The theme follows the operating system on first run. A user on a light system gets the light
+  editor; the toggle is in the top bar.
+

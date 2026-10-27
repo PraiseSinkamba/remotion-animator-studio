@@ -233,3 +233,44 @@ definition, an `ElementType` id and tests.
 | Adopt Tailwind without shadcn | Utility classes only, no vendored component source | Every control still hand-written; the accessibility work still not done | Reject |
 | Adopt shadcn without Tailwind | Not possible — shadcn's components are Tailwind classes | — | Reject |
 | **Tailwind v4 + shadcn/ui source, editor chrome only, preflight not imported** | One control system, semantic tokens, accessible primitives, copied source we own, parity preserved | +68.6 kB gzip of JavaScript, copied source to maintain | **Select** |
+
+## Addendum — light and dark modes
+
+The shell has one token set with two modes. `:root` carries the light values, `.dark` carries the
+dark ones, and the active mode is a class on `<html>` set by `src/lib/theme.tsx` and by the
+pre-paint script in `index.html` (so the shell never flashes the wrong mode). The choice is
+stored under `chart-studio-theme` and defaults to `system`.
+
+| Token | Light | Dark | Used for |
+|---|---|---|---|
+| `--background` | `#ffffff` | `#09090b` | the canvas around the stage |
+| `--card` | `#fafafa` | `#18181b` | panels, the top bar, the transport pill |
+| `--muted` / `--secondary` | `#f4f4f4` | `#27272a` | raised surfaces, inactive chips |
+| `--border` / `--input` | `#e4e4e7` | `#3f3f46` | hairlines and field borders |
+| `--foreground` | `#18181b` | `#fafafa` | body text |
+| `--muted-foreground` | `#52525b` | `#a1a1aa` | labels, micro-type |
+| `--primary` | `#4f46e5` | `#6366f1` | the brand, the active tool, the selection box |
+| `--destructive` | `#dc2626` | `#f87171` | delete actions |
+
+The nine hand-written palette variables (`--bg`, `--panel`, `--panel-2`, `--text`,
+`--text-dim`, `--accent`, `--accent-soft`, `--danger`) are now aliases of these tokens, so the
+surviving legacy rules follow the mode instead of owning a second palette. The legacy
+`--border` declaration was removed so the token of the same name wins.
+
+No webfont was added: the app is local-first and must work offline, so a self-hosted typeface
+would be payload for no offline gain. The system sans stack is used, with the reference's
+micro-typography (10–11px uppercase labels) applied through size and weight.
+
+## Addendum — the primitives had to be repaired
+
+The shadcn CLI wrote the primitives with **Base UI** state attributes (`data-checked`,
+`data-unchecked`, `data-active`, `data-open`, `data-closed`, `group-data-horizontal/`) while
+they import from `radix-ui@1.8.1`, which emits `data-state` and `data-orientation`. Every one of
+those variants was inert: switches never showed their checked colour and their thumbs never
+moved, tabs never marked the active one, and overlays never animated. The primitives were
+translated to the attributes the installed Radix actually emits (`data-[state=checked]:`,
+`group-data-[orientation=horizontal]/tabs:`, …).
+
+This is copied source we own, so the fix is a local edit rather than an upstream wait — but it
+is the cost of the "copied source" model: a registry change lands as source, and the source
+has to be checked against the Radix version it actually imports.

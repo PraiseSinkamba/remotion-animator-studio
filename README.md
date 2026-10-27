@@ -24,6 +24,13 @@ into a trading-native studio. It is not a clone of any other product's assets or
   `typewriter`, vendored as source with their MIT licence and a provenance record.
 - **A shadcn/ui editor chrome.** Tailwind CSS v4 with semantic tokens, Radix-based primitives
   and Lucide icons. The video path imports none of it.
+- **A dense, cinema-style shell.** A full-height tool rail, a tabbed library with a grid/list
+  toggle, a floating transport under the canvas, an inspector split into ordered sections, and a
+  timeline that stacks overlapping clips into rows instead of drawing them on top of each other.
+- **Light and dark modes.** One token set, two modes: the shell follows the operating system
+  until the user picks one, and the choice persists.
+- **Direct manipulation on the canvas.** Press an element to select and move it, and drop a
+  library item onto the canvas to place it there.
 
 ## Requirements
 
@@ -69,13 +76,20 @@ src/
   project/           project document migrations
   storage/           local persistence behind one interface (SQLite/OPFS, localStorage, memory)
   remotion/          the composition and the element renderers
-  components/        Library, Timeline, Inspector, PreviewPanel, TopBar, RenderDialog, …
+  components/        Library, Timeline, Inspector, PreviewPanel, TopBar, ToolRail, …
     ui/              the shadcn/ui primitives (copied source)
-  lib/utils.ts       cn() — the class-name helper
-  index.css          the one stylesheet: Tailwind layers, shadcn tokens, legacy rules
+    library/         the tabbed library pane: cards, rows, group headers, view toggle
+    inspector/       the inspector's sections, rows and parameter controls
+    timeline/        track rows, clip chips, the ruler and the lane packing
+  lib/               cn() and the theme provider
+  index.css          the one stylesheet: Tailwind layers, light/dark tokens, legacy rules
 remotion/            Remotion entry point (Composition id="Main")
 docs/                the Chart Studio design documents and decisions
 ```
+
+Two files sit next to the preview panel because they are canvas behaviour, not chrome:
+`src/components/canvas-hit-test.ts` decides which element is under the pointer, and
+`src/components/selection-overlay.tsx` draws the selection box and its handles.
 
 ## Documents
 
