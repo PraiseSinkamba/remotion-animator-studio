@@ -180,7 +180,7 @@ export const Inspector: React.FC = () => {
   return (
     <Shell icon={definition.icon} name={clip.name} type={definition.type}>
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="flex w-full flex-none items-center justify-start gap-1 rounded-none border-b border-border bg-transparent p-1.5">
+        <TabsList className="group-data-[orientation=horizontal]/tabs:h-auto flex w-full flex-none items-center justify-start gap-1 rounded-none border-b border-border bg-transparent p-1.5">
           <TabsTrigger value="properties" className={TRIGGER}>
             Properties
           </TabsTrigger>
