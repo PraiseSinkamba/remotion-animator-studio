@@ -4,9 +4,9 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /*
- * The app is always dark. Without this, Tailwind's `dark:` variant would
- * follow the operating system preference and the shadcn primitives would
- * render their light-theme rules on a light-preference machine.
+ * The active theme is a class on <html> (`.dark`), set by the theme provider
+ * and by the pre-paint script in index.html. Tailwind's `dark:` variant
+ * follows that class, never the operating system.
  */
 @custom-variant dark (&:is(.dark *));
 
@@ -62,16 +62,21 @@
   padding: 0;
 }
 
+/*
+ * The legacy palette is an alias of the semantic tokens, so every rule in
+ * this layer follows the active theme instead of owning a second palette.
+ * `--border` is deliberately absent: the token `--border` already carries the
+ * hairline colour, and a layered declaration would lose to the unlayered one.
+ */
 :root {
-  --bg: #0e0f13;
-  --panel: #16181f;
-  --panel-2: #1c1f28;
-  --border: #262a35;
-  --text: #e8eaf0;
-  --text-dim: #8b90a0;
-  --accent: #7c5cff;
-  --accent-soft: rgba(124, 92, 255, 0.18);
-  --danger: #ff5c6c;
+  --bg: var(--background);
+  --panel: var(--card);
+  --panel-2: var(--muted);
+  --text: var(--foreground);
+  --text-dim: var(--muted-foreground);
+  --accent: var(--primary);
+  --accent-soft: color-mix(in oklab, var(--primary) 18%, transparent);
+  --danger: var(--destructive);
 }
 
 html,
@@ -793,8 +798,10 @@ input[type='color'] {
 } /* end @layer legacy */
 
 /*
- * shadcn/ui semantic tokens. The app is always dark: the legacy palette
- * becomes the token set, so the primitives look native to the editor.
+ * shadcn/ui semantic tokens. The shell has a light and a dark mode: `:root`
+ * carries the light values and `.dark` (set on <html> by the theme provider)
+ * overrides them. Every shadcn primitive reads these, so the whole shell
+ * flips from one class.
  */
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -820,31 +827,54 @@ input[type='color'] {
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: #7c5cff;
+  --color-chart-1: #6366f1;
   --color-chart-2: #38bdf8;
   --color-chart-3: #facc15;
-  --color-chart-4: #ff5c6c;
+  --color-chart-4: #f87171;
   --color-chart-5: #34d399;
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: var(--bg);
-  --foreground: var(--text);
-  --card: var(--panel);
-  --card-foreground: var(--text);
-  --popover: var(--panel);
-  --popover-foreground: var(--text);
-  --primary: var(--accent);
+  --radius: 0.375rem;
+  --background: #ffffff;
+  --foreground: #18181b;
+  --card: #fafafa;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #4f46e5;
   --primary-foreground: #ffffff;
-  --secondary: var(--panel-2);
-  --secondary-foreground: var(--text);
-  --muted: var(--panel-2);
-  --muted-foreground: var(--text-dim);
-  --surface-hover: #262a35;
-  --accent-foreground: var(--text);
-  --destructive: var(--danger);
+  --secondary: #f4f4f4;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f4;
+  --muted-foreground: #52525b;
+  --surface-hover: #e4e4e7;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --input: var(--border);
-  --ring: var(--accent);
+  --input: #e4e4e7;
+  --border: #e4e4e7;
+  --ring: #4f46e5;
+}
+
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --surface-hover: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #f87171;
+  --destructive-foreground: #18181b;
+  --input: #3f3f46;
+  --border: #3f3f46;
+  --ring: #6366f1;
 }

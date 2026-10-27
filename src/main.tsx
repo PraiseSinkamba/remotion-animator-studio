@@ -4,6 +4,7 @@ import { App } from './App';
 import { playerRef } from './playerRef';
 import { useStore } from './store';
 import { TooltipProvider } from './components/ui/tooltip';
+import { ThemeProvider } from './lib/theme';
 import './index.css';
 
 if (import.meta.env.DEV) {
@@ -14,8 +15,10 @@ if (import.meta.env.DEV) {
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <TooltipProvider>
-      <App />
-    </TooltipProvider>
+    <ThemeProvider>
+      <TooltipProvider>
+        <App />
+      </TooltipProvider>
+    </ThemeProvider>
   </React.StrictMode>,
 );
