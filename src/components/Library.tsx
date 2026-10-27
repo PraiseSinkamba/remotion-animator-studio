@@ -180,7 +180,7 @@ export const Library: React.FC = () => {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="group-data-horizontal/tabs:h-auto flex w-full flex-wrap items-center justify-start gap-1 rounded-none border-b border-border bg-transparent p-1.5">
+        <TabsList className="group-data-[orientation=horizontal]/tabs:h-auto flex w-full flex-wrap items-center justify-start gap-1 rounded-none border-b border-border bg-transparent p-1.5">
           {visibleTabs.map((t) => (
             <TabsTrigger
               key={t.id}
