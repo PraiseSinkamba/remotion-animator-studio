@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { componentBounds, getComponent } from '../registry';
+import { getComponent } from '../registry';
 import { findClip, useStore } from '../store';
+import { clipGeometry } from './canvas-hit-test';
 
 /**
  * Editor-only selection box drawn over the preview Player.
@@ -62,23 +63,11 @@ export const SelectionOverlay: React.FC = () => {
   const clip = findClip(project, selectedClipId);
   const definition = clip ? getComponent(clip.element) : undefined;
 
-  /** The clip's own props over the definition's defaults. */
-  const props = useMemo(() => {
-    if (!clip || !definition) return null;
-    const merged: Record<string, unknown> = { ...definition.defaults };
-    for (const [key, value] of Object.entries(clip.props)) {
-      if (value !== undefined) merged[key] = value;
-    }
-    return merged;
-  }, [clip, definition]);
-
-  const bounds = useMemo(() => {
-    if (!props || !definition) return null;
-    return definition.bounds ? definition.bounds(props) : componentBounds(props);
-  }, [props, definition]);
+  /** The clip's box on the canvas — the same rectangle the canvas hit-tests. */
+  const geometry = useMemo(() => (clip ? clipGeometry(clip) : null), [clip]);
 
   /** Only positioned components get a box — audio and background have no anchor. */
-  const positioned = !!props && typeof props.x === 'number' && typeof props.y === 'number';
+  const positioned = !!geometry;
 
   /** Only components with numeric width/height params can be resized. */
   const resizable =
@@ -97,17 +86,17 @@ export const SelectionOverlay: React.FC = () => {
   const offsetX = (size.width - project.width * scale) / 2;
   const offsetY = (size.height - project.height * scale) / 2;
 
-  const box = bounds
+  const box = geometry
     ? {
-        left: offsetX + (bounds.x - bounds.width / 2) * scale,
-        top: offsetY + (bounds.y - bounds.height / 2) * scale,
-        width: bounds.width * scale,
-        height: bounds.height * scale,
+        left: offsetX + geometry.box.left * scale,
+        top: offsetY + geometry.box.top * scale,
+        width: geometry.box.width * scale,
+        height: geometry.box.height * scale,
       }
     : null;
 
   const onHandlePointerDown = (e: React.PointerEvent, handle: Handle) => {
-    if (!bounds || !clip) return;
+    if (!geometry || !clip) return;
     // Keep the stage's move-drag from starting under the handle.
     e.stopPropagation();
     e.preventDefault();
@@ -116,7 +105,12 @@ export const SelectionOverlay: React.FC = () => {
       startX: e.clientX,
       startY: e.clientY,
       scale,
-      origin: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+      origin: {
+        x: geometry.anchor.x,
+        y: geometry.anchor.y,
+        width: geometry.box.width,
+        height: geometry.box.height,
+      },
     };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -142,11 +136,11 @@ export const SelectionOverlay: React.FC = () => {
     drag.current = null;
   };
 
-  const show = !drawingPath && positioned && !!bounds && !!box && scale > 0;
+  const show = !drawingPath && positioned && !!geometry && !!box && scale > 0;
 
   return (
     <div ref={layerRef} className="pointer-events-none absolute inset-0 z-10">
-      {show && bounds ? (
+      {show && geometry && box ? (
         <>
           <div
             className="absolute rounded-sm border-2 border-dashed border-primary"
@@ -173,7 +167,7 @@ export const SelectionOverlay: React.FC = () => {
             className="absolute bg-background px-1 font-mono text-[10px] leading-none text-muted-foreground"
             style={{ left: box.left, top: Math.max(2, box.top - 16) }}
           >
-            {Math.round(bounds.width)} × {Math.round(bounds.height)}
+            {Math.round(geometry.box.width)} × {Math.round(geometry.box.height)}
           </div>
         </>
       ) : null}
