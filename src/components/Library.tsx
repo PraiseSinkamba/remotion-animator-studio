@@ -16,6 +16,27 @@ import { ViewToggle, readLibraryView, writeLibraryView, type LibraryView } from 
 
 export { ELEMENT_MIME, EFFECT_MIME, PRESET_MIME };
 
+/**
+ * The short kind tag each preset carries on its card. The preset keys are
+ * internal identifiers, so they never reach the user interface.
+ */
+const PRESET_KINDS: Record<string, string> = {
+  titleIntro: 'Intro',
+  lowerThird: 'Banner',
+  glitchTitle: 'Glitch',
+  kenBurnsPhoto: 'Photo',
+  socialPop: 'Social',
+  statCounter: 'Counter',
+  newsTicker: 'Ticker',
+  quoteCard: 'Quote',
+  synthwaveOutrun: 'Scene',
+  liquidType: 'Type',
+  isoCityGrowth: 'City',
+  dayNight: 'Scene',
+  commitTimeline: 'Timeline',
+  endCard: 'End card',
+};
+
 const TabBody: React.FC<{ tab: TabDef; view: LibraryView; query: string }> = ({
   tab,
   view,
@@ -53,7 +74,7 @@ const TabBody: React.FC<{ tab: TabDef; view: LibraryView; query: string }> = ({
             label: preset.label,
             icon: preset.icon,
             description: preset.description,
-            chip: key,
+            chip: PRESET_KINDS[key] ?? 'Preset',
             duration: presetDurations[key],
             onAdd: () => addPreset(key, currentFrame),
             onDragStart: (e: React.DragEvent) => {
@@ -68,7 +89,7 @@ const TabBody: React.FC<{ tab: TabDef; view: LibraryView; query: string }> = ({
             label: d.label,
             icon: d.icon,
             description: d.description,
-            chip: d.type,
+            chip: '',
             onAdd: () => {
               const track = project.tracks[0];
               if (track) addClip(d.type, track.id, currentFrame);
@@ -96,7 +117,7 @@ const TabBody: React.FC<{ tab: TabDef; view: LibraryView; query: string }> = ({
         label: EFFECTS[key].label,
         icon: EFFECTS[key].icon,
         description: EFFECTS[key].description,
-        chip: key,
+        chip: '',
         compact: true,
         onAdd: () => {
           for (const id of selectedClipIds) addEffect(id, key);

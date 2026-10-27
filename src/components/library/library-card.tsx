@@ -44,12 +44,14 @@ export const LibraryCard: React.FC<{ item: LibraryItem }> = ({ item }) => (
   >
     <div className="flex items-start justify-between gap-1.5">
       <IconTile icon={item.icon} className="size-7" />
-      <Badge
-        variant="outline"
-        className="h-4 max-w-[60%] truncate rounded px-1 py-0 font-mono text-[9px] font-normal text-muted-foreground"
-      >
-        {item.chip}
-      </Badge>
+      {item.chip ? (
+        <Badge
+          variant="outline"
+          className="h-4 max-w-[60%] truncate rounded px-1 py-0 font-mono text-[9px] font-normal text-muted-foreground"
+        >
+          {item.chip}
+        </Badge>
+      ) : null}
     </div>
     <div className="min-w-0">
       <p className="truncate text-xs font-medium text-foreground">{item.label}</p>
@@ -98,7 +100,7 @@ export const LibraryRow: React.FC<{ item: LibraryItem }> = ({ item }) => (
     {item.duration ? (
       <span className="shrink-0 font-mono text-[9px] text-muted-foreground">{item.duration}</span>
     ) : null}
-    {item.compact ? null : (
+    {item.compact || !item.chip ? null : (
       <Badge
         variant="outline"
         className="h-4 max-w-[40%] shrink-0 truncate rounded px-1 py-0 font-mono text-[9px] font-normal text-muted-foreground"
