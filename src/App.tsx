@@ -17,7 +17,7 @@ interface Layout {
   tlH: number;
 }
 
-const DEFAULT_LAYOUT: Layout = { libW: 200, inspW: 290, tlH: 250 };
+const DEFAULT_LAYOUT: Layout = { libW: 288, inspW: 300, tlH: 250 };
 
 const loadLayout = (): Layout => {
   try {

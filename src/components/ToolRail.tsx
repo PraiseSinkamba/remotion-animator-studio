@@ -22,7 +22,12 @@ export const ToolRail: React.FC = () => {
     <div className="flex flex-col items-center gap-2 w-12 shrink-0 border-r bg-card">
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="secondary" size="icon" aria-label="Select">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Select"
+            className="bg-primary/15 text-primary ring-1 ring-primary/25 hover:bg-primary/20"
+          >
             <MousePointer2 />
           </Button>
         </TooltipTrigger>
