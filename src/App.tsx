@@ -108,23 +108,27 @@ export const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="app">
-      <TopBar storage={workspace.state} onSave={() => void workspace.saveNow()} />
-      <div className="main">
-        <ToolRail />
-        <div style={{ width: layout.libW, flexShrink: 0, display: 'flex', minWidth: 0 }}>
-          <Library />
+    // The rail is the leftmost column of the whole editor: it runs past the
+    // top bar and past the timeline instead of being boxed in between them.
+    <div className="app flex flex-row">
+      <ToolRail />
+      <div className="flex flex-1 flex-col min-w-0 min-h-0">
+        <TopBar storage={workspace.state} onSave={() => void workspace.saveNow()} />
+        <div className="main">
+          <div style={{ width: layout.libW, flexShrink: 0, display: 'flex', minWidth: 0 }}>
+            <Library />
+          </div>
+          <Divider onDrag={(d) => patchLayout({ libW: Math.max(140, Math.min(420, layout.libW + d)) })} />
+          <PreviewPanel />
+          <Divider onDrag={(d) => patchLayout({ inspW: Math.max(200, Math.min(520, layout.inspW - d)) })} />
+          <div style={{ width: layout.inspW, flexShrink: 0, display: 'flex', minWidth: 0 }}>
+            <Inspector />
+          </div>
         </div>
-        <Divider onDrag={(d) => patchLayout({ libW: Math.max(140, Math.min(420, layout.libW + d)) })} />
-        <PreviewPanel />
-        <Divider onDrag={(d) => patchLayout({ inspW: Math.max(200, Math.min(520, layout.inspW - d)) })} />
-        <div style={{ width: layout.inspW, flexShrink: 0, display: 'flex', minWidth: 0 }}>
-          <Inspector />
+        <Divider vertical onDrag={(d) => patchLayout({ tlH: Math.max(140, Math.min(560, layout.tlH - d)) })} />
+        <div style={{ height: layout.tlH, flexShrink: 0, display: 'flex', minHeight: 0 }}>
+          <Timeline />
         </div>
-      </div>
-      <Divider vertical onDrag={(d) => patchLayout({ tlH: Math.max(140, Math.min(560, layout.tlH - d)) })} />
-      <div style={{ height: layout.tlH, flexShrink: 0, display: 'flex', minHeight: 0 }}>
-        <Timeline />
       </div>
     </div>
   );
