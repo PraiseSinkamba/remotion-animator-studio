@@ -351,8 +351,9 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
         </Button>
       </div>
 
-      {/* Format group — preset, size, duration, fps */}
-      <div className="flex shrink-0 items-center gap-1 rounded-lg border border-border bg-background/80 px-1.5 py-1">
+      {/* Format group — preset, size, duration, fps. It shrinks first so the
+          save, theme and export actions on the right stay reachable. */}
+      <div className="flex min-w-0 shrink items-center gap-1 overflow-hidden rounded-lg border border-border bg-background/80 px-1.5 py-1">
         <Select
           value={sizeKey}
           onValueChange={(v) => {
@@ -362,7 +363,7 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
         >
           <SelectTrigger
             size="sm"
-            className="h-6 w-[148px] border-0 bg-muted text-xs font-medium"
+            className="h-6 w-[124px] shrink-0 border-0 bg-muted text-xs font-medium"
             title="Changing size rescales all content to fit"
           >
             <SelectValue />
@@ -397,36 +398,38 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
           />
         </ValueChip>
 
-        <span className="h-4 w-px bg-border" aria-hidden="true" />
-        <ValueChip label="s">
-          <input
-            type="number"
-            min={1}
-            max={3600}
-            aria-label="Duration in seconds"
-            title="Duration in seconds"
-            value={Math.round(project.durationInFrames / project.fps)}
-            onChange={(e) =>
-              setProject({ durationInFrames: Math.max(1, Number(e.target.value)) * project.fps })
-            }
-            className="w-[34px] bg-transparent text-right font-mono text-[11px] leading-none text-foreground outline-none"
-          />
-        </ValueChip>
+        <div className="hidden shrink-0 items-center gap-1 xl:flex">
+          <span className="h-4 w-px bg-border" aria-hidden="true" />
+          <ValueChip label="s">
+            <input
+              type="number"
+              min={1}
+              max={3600}
+              aria-label="Duration in seconds"
+              title="Duration in seconds"
+              value={Math.round(project.durationInFrames / project.fps)}
+              onChange={(e) =>
+                setProject({ durationInFrames: Math.max(1, Number(e.target.value)) * project.fps })
+              }
+              className="w-[34px] bg-transparent text-right font-mono text-[11px] leading-none text-foreground outline-none"
+            />
+          </ValueChip>
 
-        <span className="h-4 w-px bg-border" aria-hidden="true" />
-        <ValueChip label="FPS">
-          <SizeInput
-            value={project.fps}
-            title="FPS"
-            min={1}
-            max={240}
-            list="fps-presets"
-            onCommit={(fps) => {
-              const seconds = project.durationInFrames / project.fps;
-              setProject({ fps, durationInFrames: Math.round(seconds * fps) });
-            }}
-          />
-        </ValueChip>
+          <span className="h-4 w-px bg-border" aria-hidden="true" />
+          <ValueChip label="FPS">
+            <SizeInput
+              value={project.fps}
+              title="FPS"
+              min={1}
+              max={240}
+              list="fps-presets"
+              onCommit={(fps) => {
+                const seconds = project.durationInFrames / project.fps;
+                setProject({ fps, durationInFrames: Math.round(seconds * fps) });
+              }}
+            />
+          </ValueChip>
+        </div>
         <datalist id="fps-presets">
           {FPS_PRESETS.map((f) => (
             <option key={f} value={f} />
