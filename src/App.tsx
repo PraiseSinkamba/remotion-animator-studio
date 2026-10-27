@@ -4,6 +4,7 @@ import { Library } from './components/Library';
 import { PreviewPanel } from './components/PreviewPanel';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
+import { ToolRail } from './components/ToolRail';
 import { togglePlay } from './playerRef';
 import { useStore } from './store';
 import { useWorkspace } from './storage/useWorkspace';
@@ -110,6 +111,7 @@ export const App: React.FC = () => {
     <div className="app">
       <TopBar storage={workspace.state} onSave={() => void workspace.saveNow()} />
       <div className="main">
+        <ToolRail />
         <div style={{ width: layout.libW, flexShrink: 0, display: 'flex', minWidth: 0 }}>
           <Library />
         </div>
