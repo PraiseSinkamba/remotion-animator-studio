@@ -1,16 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { EFFECTS, getEasing } from '../effects';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getComponent } from '../registry';
 import { findClip, useStore } from '../store';
-import type { Clip, ParamDef } from '../types';
+import type { Clip } from '../types';
+import { EffectList } from './inspector/effect-list';
+import { InspectorHeader } from './inspector/header';
+import { numberFieldClass, ParamControl } from './inspector/param-control';
+import { Row } from './inspector/row';
+import { Section } from './inspector/section';
 
 /** Very small HTML pretty-printer for the 🧩 HTML element's textarea. */
 const formatHtml = (src: string): string => {
@@ -33,33 +33,12 @@ const formatHtml = (src: string): string => {
   return out.join('\n');
 };
 
-/** Small graph of the selected animation curve. */
-const EasingPreview: React.FC<{ name: string; bez?: string }> = ({ name, bez }) => {
-  const W = 120;
-  const H = 56;
-  const pad = 6;
-  const fn = getEasing(name, bez);
-  const pts = Array.from({ length: 41 }, (_, i) => {
-    const t = i / 40;
-    const v = fn(t);
-    const x = pad + t * (W - pad * 2);
-    // eased values can overshoot [0,1] (elastic, overshoot) — leave headroom
-    const y = H - pad - v * (H - pad * 2) * 0.75 - (H - pad * 2) * 0.05;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  return (
-    <svg width={W} height={H} className="easing-preview">
-      <polyline points={pts} fill="none" stroke="var(--accent)" strokeWidth={2} />
-    </svg>
-  );
-};
-
 /** Upload a local image/GIF and store it inline as a data URL. */
 const FileUpload: React.FC<{ accept: string; onLoad: (dataUrl: string) => void }> = ({ accept, onLoad }) => {
   const ref = useRef<HTMLInputElement>(null);
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => ref.current?.click()}>
+      <Button variant="outline" size="sm" className="w-full" onClick={() => ref.current?.click()}>
         <FolderOpen data-icon="inline-start" />
         Upload file…
       </Button>
@@ -73,7 +52,9 @@ const FileUpload: React.FC<{ accept: string; onLoad: (dataUrl: string) => void }
           e.target.value = '';
           if (!f) return;
           if (f.size > 8 * 1024 * 1024) {
-            alert('Please keep uploads under 8 MB — larger files make the project slow to save. Host bigger files and paste the URL instead.');
+            alert(
+              'Please keep uploads under 8 MB — larger files make the project slow to save. Host bigger files and paste the URL instead.'
+            );
             return;
           }
           const reader = new FileReader();
@@ -85,258 +66,84 @@ const FileUpload: React.FC<{ accept: string; onLoad: (dataUrl: string) => void }
   );
 };
 
-/** The value kinds a parameter can hold. */
-type ParamValue = string | number | boolean | undefined;
+/** The panel shell: a 2px accent bar, a sticky header and the tab strip. */
+const Shell: React.FC<{
+  icon?: string;
+  name: string;
+  type?: string;
+  children: React.ReactNode;
+}> = ({ icon, name, type, children }) => (
+  <aside className="flex min-h-0 w-full flex-col overflow-hidden border-l border-border bg-card">
+    <div className="h-0.5 w-full shrink-0 bg-primary" />
+    <InspectorHeader icon={icon} name={name} type={type} />
+    {children}
+  </aside>
+);
 
-/**
- * A number parameter that has a range: a Radix slider that keeps a local draft
- * while dragging and only writes to the store when the drag is released, next
- * to a number input that writes through as you type.
- */
-const NumberRangeControl: React.FC<{
-  def: ParamDef;
-  value: ParamValue;
-  id: string;
-  onChange: (v: ParamValue) => void;
-  onCommit: () => void;
-}> = ({ def, value, id, onChange, onCommit }) => {
-  const min = def.min ?? 0;
-  const max = def.max ?? 100;
-  const num = Number(value);
-  const safeNum = Number.isFinite(num) ? num : min;
-  const [draft, setDraft] = useState(safeNum);
-
-  // The slider writes to the store on release only, so the store value can only
-  // change from the outside — follow it whenever it does.
-  useEffect(() => {
-    setDraft(safeNum);
-  }, [safeNum]);
-
-  const clamp = (n: number) => (Number.isFinite(n) ? Math.min(Math.max(n, min), max) : min);
-
-  return (
-    <div className="param-number">
-      <Slider
-        value={[clamp(draft)]}
-        min={min}
-        max={max}
-        step={def.step}
-        className="min-w-0 flex-1"
-        role="group"
-        aria-label={def.label}
-        onValueChange={(v) => {
-          setDraft(v[0]);
-        }}
-        onValueCommit={(v) => {
-          setDraft(v[0]);
-          onCommit();
-          onChange(v[0]);
-        }}
-      />
-      <Input
-        id={id}
-        type="number"
-        className="w-16"
-        min={min}
-        max={max}
-        step={def.step}
-        value={draft}
-        onFocus={onCommit}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          setDraft(n);
-          onChange(n);
-        }}
-      />
-    </div>
-  );
-};
-
-const ParamControl: React.FC<{
-  def: ParamDef;
-  value: ParamValue;
-  /** Prefix of the control ids — the clip id for clip props, the effect id for effect params. */
-  idPrefix: string;
-  onChange: (v: ParamValue) => void;
-  onCommit: () => void;
-}> = ({ def, value, idPrefix, onChange, onCommit }) => {
-  const id = `${idPrefix}-${def.key}`;
-  const label = (
-    <Label htmlFor={id} className="text-xs text-muted-foreground">
-      {def.label}
-    </Label>
-  );
-  switch (def.kind) {
-    case 'number':
-      if (def.min === undefined || def.max === undefined) {
-        return (
-          <div className="param-row">
-            {label}
-            <Input
-              id={id}
-              type="number"
-              min={def.min}
-              max={def.max}
-              step={def.step}
-              value={Number.isFinite(Number(value)) ? Number(value) : ''}
-              onFocus={onCommit}
-              onChange={(e) => onChange(Number(e.target.value))}
-            />
-          </div>
-        );
-      }
-      return (
-        <div className="param-row">
-          {label}
-          <NumberRangeControl def={def} value={value} id={id} onChange={onChange} onCommit={onCommit} />
-        </div>
-      );
-    case 'color':
-      return (
-        <div className="param-row">
-          {label}
-          <div className="param-color">
-            <Input
-              type="color"
-              aria-label={`${def.label} picker`}
-              className="w-12 shrink-0 p-1"
-              value={String(value)}
-              onFocus={onCommit}
-              onChange={(e) => onChange(e.target.value)}
-            />
-            <Input
-              id={id}
-              type="text"
-              className="flex-1"
-              value={String(value)}
-              onFocus={onCommit}
-              onChange={(e) => onChange(e.target.value)}
-            />
-          </div>
-        </div>
-      );
-    case 'select':
-      return (
-        <div className="param-row">
-          {label}
-          <Select
-            value={String(value)}
-            onValueChange={(v) => {
-              onCommit();
-              onChange(v);
-            }}
-          >
-            <SelectTrigger id={id} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {def.options?.map((o) => (
-                  <SelectItem key={o} value={o}>
-                    {o.includes(',') ? o.split(',')[0].replace(/"/g, '') : o}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      );
-    case 'text':
-      return (
-        <div className="param-row">
-          {label}
-          <Input
-            id={id}
-            type="text"
-            value={String(value)}
-            onFocus={onCommit}
-            onChange={(e) => onChange(e.target.value)}
-          />
-        </div>
-      );
-    case 'textarea':
-      return (
-        <div className="param-row">
-          {label}
-          <Textarea
-            id={id}
-            rows={8}
-            value={String(value)}
-            onFocus={onCommit}
-            onChange={(e) => onChange(e.target.value)}
-            spellCheck={false}
-          />
-        </div>
-      );
-    case 'boolean':
-      return (
-        <div className="param-row">
-          {label}
-          <Switch
-            id={id}
-            checked={Boolean(value)}
-            onPointerDown={onCommit}
-            onCheckedChange={(checked) => onChange(checked)}
-          />
-        </div>
-      );
-  }
-};
+const TRIGGER =
+  'h-6 flex-none rounded-full border border-border bg-muted px-2.5 text-[11px] font-medium text-muted-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground';
 
 export const Inspector: React.FC = () => {
   const project = useStore((s) => s.project);
   const selectedClipIds = useStore((s) => s.selectedClipIds);
-  const { updateClipProps, updateClip, updateEffectParams, removeEffect, removeClips, commit, duplicateSelection } =
-    useStore.getState();
+  const [tab, setTab] = useState('properties');
 
   if (selectedClipIds.length > 1) {
     const clips = selectedClipIds.map((id) => findClip(project, id)).filter(Boolean);
     const grouped = clips.length > 0 && clips.every((c) => c!.groupId && c!.groupId === clips[0]!.groupId);
     return (
-      <aside className="inspector">
-        <div className="panel-title">{selectedClipIds.length} clips selected</div>
-        <div className="inspector-empty">
-          {clips.map((c) => (
-            <div key={c!.id}>
-              {c!.groupId ? '⛓ ' : ''}
-              {getComponent(c!.element)?.icon ?? '❓'} {c!.name}
-            </div>
-          ))}
+      <Shell name={`${selectedClipIds.length} clips selected`}>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <Section title="CLIPS">
+            {clips.map((c) => (
+              <div key={c!.id} className="truncate text-[11px] text-foreground">
+                {c!.groupId ? '⛓ ' : ''}
+                {getComponent(c!.element)?.icon ?? '❓'} {c!.name}
+              </div>
+            ))}
+          </Section>
+          <Section title="ACTIONS">
+            {grouped ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => useStore.getState().ungroupSelection()}
+              >
+                <Unlink data-icon="inline-start" />
+                Ungroup (⇧⌘G)
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => useStore.getState().groupSelection()}
+              >
+                <Link2 data-icon="inline-start" />
+                Group — select &amp; move as one (⌘G)
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="w-full" onClick={() => useStore.getState().duplicateSelection()}>
+              <Copy data-icon="inline-start" />
+              Duplicate all (⌘D)
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              className="w-full"
+              onClick={() => useStore.getState().removeClips(selectedClipIds)}
+            >
+              <Trash2 data-icon="inline-start" />
+              Delete {selectedClipIds.length} clips
+            </Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Drag any selected clip in the timeline to move the whole group. ⌘C / ⌘V copies and pastes them at the
+              playhead.
+            </p>
+          </Section>
         </div>
-        {grouped ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3"
-            onClick={() => useStore.getState().ungroupSelection()}
-          >
-            <Unlink data-icon="inline-start" />
-            Ungroup (⇧⌘G)
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-3"
-            onClick={() => useStore.getState().groupSelection()}
-          >
-            <Link2 data-icon="inline-start" />
-            Group — select &amp; move as one (⌘G)
-          </Button>
-        )}
-        <Button variant="outline" size="sm" className="w-full mt-2" onClick={duplicateSelection}>
-          <Copy data-icon="inline-start" />
-          Duplicate all (⌘D)
-        </Button>
-        <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => removeClips(selectedClipIds)}>
-          <Trash2 data-icon="inline-start" />
-          Delete {selectedClipIds.length} clips
-        </Button>
-        <div className="inspector-empty" style={{ marginTop: 12 }}>
-          Drag any selected clip in the timeline to move the whole group. ⌘C / ⌘V copies and pastes them at
-          the playhead.
-        </div>
-      </aside>
+      </Shell>
     );
   }
 
@@ -344,196 +151,193 @@ export const Inspector: React.FC = () => {
 
   if (!clip) {
     return (
-      <aside className="inspector">
-        <div className="panel-title">Inspector</div>
-        <div className="inspector-empty">
+      <Shell name="Inspector">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
           Select a clip in the timeline to edit its parameters.
           <br />
           <br />
           Drag elements from the left panel onto a track to get started.
         </div>
-      </aside>
+      </Shell>
     );
   }
 
   const definition = getComponent(clip.element);
   if (!definition) {
     return (
-      <aside className="inspector">
-        <div className="panel-title">Inspector</div>
-        <div className="inspector-empty">Unknown component type “{clip.element}”.</div>
-      </aside>
+      <Shell name="Inspector">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 text-[11px] text-muted-foreground">
+          Unknown component type “{clip.element}”.
+        </div>
+      </Shell>
     );
   }
 
+  const { updateClipProps, updateClip, commit } = useStore.getState();
+  const positionParams = definition.params.filter((p) => p.key === 'x' || p.key === 'y');
+  const ownParams = definition.params.filter((p) => p.key !== 'x' && p.key !== 'y');
+
   return (
-    <aside className="inspector">
-      <div className="panel-title">
-        {definition.icon} {clip.name}
-      </div>
+    <Shell icon={definition.icon} name={clip.name} type={definition.type}>
+      <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
+        <TabsList className="flex w-full flex-none items-center justify-start gap-1 rounded-none border-b border-border bg-transparent p-1.5">
+          <TabsTrigger value="properties" className={TRIGGER}>
+            Properties
+          </TabsTrigger>
+          <TabsTrigger value="effects" className={TRIGGER}>
+            Effects
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="param-row">
-        <Label htmlFor={`${clip.id}-name`} className="text-xs text-muted-foreground">
-          Name
-        </Label>
-        <Input
-          id={`${clip.id}-name`}
-          type="text"
-          value={clip.name}
-          onFocus={commit}
-          onChange={(e) => updateClip(clip.id, { name: e.target.value })}
-        />
-      </div>
-      <div className="param-row">
-        <Label htmlFor={`${clip.id}-from`} className="text-xs text-muted-foreground">
-          Start (frame)
-        </Label>
-        <Input
-          id={`${clip.id}-from`}
-          type="number"
-          min={0}
-          max={project.durationInFrames - 1}
-          value={clip.from}
-          onFocus={commit}
-          onChange={(e) =>
-            updateClip(clip.id, {
-              from: Math.max(0, Math.min(project.durationInFrames - 1, Number(e.target.value))),
-            })
-          }
-        />
-      </div>
-      <div className="param-row">
-        <Label htmlFor={`${clip.id}-length`} className="text-xs text-muted-foreground">
-          Length (frames)
-        </Label>
-        <Input
-          id={`${clip.id}-length`}
-          type="number"
-          min={2}
-          value={clip.durationInFrames}
-          onFocus={commit}
-          onChange={(e) => updateClip(clip.id, { durationInFrames: Math.max(2, Number(e.target.value)) })}
-        />
-      </div>
+        <TabsContent value="properties" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+          <Section title="CLIP">
+            <Row label="Name" htmlFor={`${clip.id}-name`}>
+              <Input
+                id={`${clip.id}-name`}
+                type="text"
+                className="h-6 min-w-0 flex-1 text-xs md:text-xs"
+                value={clip.name}
+                onFocus={commit}
+                onChange={(e) => updateClip(clip.id, { name: e.target.value })}
+              />
+            </Row>
+            <Row label="Start (frame)" htmlFor={`${clip.id}-from`}>
+              <Input
+                id={`${clip.id}-from`}
+                type="number"
+                className={numberFieldClass}
+                min={0}
+                max={project.durationInFrames - 1}
+                value={clip.from}
+                onFocus={commit}
+                onChange={(e) =>
+                  updateClip(clip.id, {
+                    from: Math.max(0, Math.min(project.durationInFrames - 1, Number(e.target.value))),
+                  })
+                }
+              />
+            </Row>
+            <Row label="Length (frames)" htmlFor={`${clip.id}-length`}>
+              <Input
+                id={`${clip.id}-length`}
+                type="number"
+                className={numberFieldClass}
+                min={2}
+                value={clip.durationInFrames}
+                onFocus={commit}
+                onChange={(e) => updateClip(clip.id, { durationInFrames: Math.max(2, Number(e.target.value)) })}
+              />
+            </Row>
+          </Section>
 
-      <div className="section-title">Properties</div>
-      {definition.params.map((def) => (
-        <React.Fragment key={def.key}>
-          <ParamControl
-            def={def}
-            value={clip.props[def.key]}
-            idPrefix={clip.id}
-            onCommit={commit}
-            onChange={(v) => updateClipProps(clip.id, { [def.key]: v })}
-          />
-          {(def.key === 'src' && ['image', 'gif'].includes(clip.element)) ||
-          (def.key === 'imageSrc' && clip.element === 'particles') ? (
-            <FileUpload
-              accept={clip.element === 'gif' ? 'image/gif' : 'image/*'}
-              onLoad={(dataUrl) => {
-                commit();
-                updateClipProps(clip.id, { [def.key]: dataUrl });
-              }}
-            />
+          {positionParams.length > 0 ? (
+            <Section title="POSITION">
+              {positionParams.map((def) => (
+                <ParamControl
+                  key={def.key}
+                  def={def}
+                  value={clip.props[def.key]}
+                  idPrefix={clip.id}
+                  onCommit={commit}
+                  onChange={(v) => updateClipProps(clip.id, { [def.key]: v })}
+                />
+              ))}
+            </Section>
           ) : null}
-          {def.key === 'data' && clip.element === 'nodeTrail' ? (
-            <Button variant="outline" size="sm" onClick={() => useStore.getState().startDrawingTrail(clip.id)}>
-              <Pencil data-icon="inline-start" />
-              Draw waypoints on canvas
+
+          <Section title="PROPERTIES">
+            {ownParams.map((def) => (
+              <React.Fragment key={def.key}>
+                <ParamControl
+                  def={def}
+                  value={clip.props[def.key]}
+                  idPrefix={clip.id}
+                  onCommit={commit}
+                  onChange={(v) => updateClipProps(clip.id, { [def.key]: v })}
+                />
+                {(def.key === 'src' && ['image', 'gif'].includes(clip.element)) ||
+                (def.key === 'imageSrc' && clip.element === 'particles') ? (
+                  <FileUpload
+                    accept={clip.element === 'gif' ? 'image/gif' : 'image/*'}
+                    onLoad={(dataUrl) => {
+                      commit();
+                      updateClipProps(clip.id, { [def.key]: dataUrl });
+                    }}
+                  />
+                ) : null}
+                {def.key === 'data' && clip.element === 'nodeTrail' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => useStore.getState().startDrawingTrail(clip.id)}
+                  >
+                    <Pencil data-icon="inline-start" />
+                    Draw waypoints on canvas
+                  </Button>
+                ) : null}
+                {def.key === 'html' && clip.element === 'html' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      commit();
+                      updateClipProps(clip.id, { html: formatHtml(String(clip.props.html ?? '')) });
+                    }}
+                  >
+                    <Wand2 data-icon="inline-start" />
+                    Format HTML
+                  </Button>
+                ) : null}
+              </React.Fragment>
+            ))}
+
+            {definition.inspector
+              ? React.createElement(definition.inspector, {
+                  clip,
+                  props: clip.props,
+                  onChange: (patch: Record<string, any>) => updateClipProps(clip.id, patch),
+                  updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) =>
+                    updateClip(clip.id, patch),
+                  commit,
+                })
+              : null}
+          </Section>
+
+          <Section title="ACTIONS">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => useStore.getState().duplicateSelection()}>
+              <Copy data-icon="inline-start" />
+              Duplicate (⌘D)
             </Button>
-          ) : null}
-          {def.key === 'html' && clip.element === 'html' ? (
             <Button
-              variant="outline"
+              variant="destructive"
               size="sm"
-              onClick={() => {
-                commit();
-                updateClipProps(clip.id, { html: formatHtml(String(clip.props.html ?? '')) });
-              }}
+              className="w-full"
+              onClick={() => useStore.getState().removeClips([clip.id])}
             >
-              <Wand2 data-icon="inline-start" />
-              Format HTML
+              <Trash2 data-icon="inline-start" />
+              Delete clip
             </Button>
-          ) : null}
-        </React.Fragment>
-      ))}
+          </Section>
+        </TabsContent>
 
-      {definition.inspector
-        ? React.createElement(definition.inspector, {
-            clip,
-            props: clip.props,
-            onChange: (patch: Record<string, any>) => updateClipProps(clip.id, patch),
-            updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) =>
-              updateClip(clip.id, patch),
-            commit,
-          })
-        : null}
-
-      <div className="section-title">
-        Effects <span className="dim">({clip.effects.length})</span>
-      </div>
-      {clip.effects.length === 0 ? (
-        <div className="inspector-empty">Drag an effect from the library onto this clip.</div>
-      ) : (
-        clip.effects.map((fx) => {
-          const fxDef = EFFECTS[fx.type];
-          return (
-            <div key={fx.id} className="effect-card">
-              <div className="effect-card-head">
-                <span>
-                  {fxDef.icon} {fxDef.label}
-                </span>
-                <button className="track-delete" title="Remove effect" onClick={() => removeEffect(clip.id, fx.id)}>
-                  ×
-                </button>
-              </div>
-              {fxDef.params.map((def) => {
-                // frame-based params can never exceed the clip's own length
-                const framed =
-                  def.kind === 'number' && ['start', 'duration', 'at'].includes(def.key)
-                    ? { ...def, max: clip.durationInFrames }
-                    : def;
-                return (
-                  <React.Fragment key={def.key}>
-                    <ParamControl
-                      def={framed}
-                      value={fx.params[def.key] ?? fxDef.defaults[def.key]}
-                      idPrefix={`${clip.id}-fx-${fx.id}`}
-                      onCommit={commit}
-                      onChange={(v) => updateEffectParams(clip.id, fx.id, { [def.key]: v })}
-                    />
-                    {def.key === 'easing' ? (
-                      <EasingPreview
-                        name={String(fx.params.easing ?? fxDef.defaults.easing ?? 'easeOut')}
-                        bez={String(fx.params.bez ?? fxDef.defaults.bez ?? '')}
-                      />
-                    ) : null}
-                  </React.Fragment>
-                );
-              })}
-              {fx.type === 'motionPath' ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => useStore.getState().startDrawingPath(clip.id, fx.id)}
-                >
-                  <Pencil data-icon="inline-start" />
-                  Draw path on canvas
-                </Button>
-              ) : null}
-            </div>
-          );
-        })
-      )}
-
-      <Button variant="outline" size="sm" className="w-full mt-4" onClick={duplicateSelection}>
-        <Copy data-icon="inline-start" />
-        Duplicate (⌘D)
-      </Button>
-      <Button variant="destructive" size="sm" className="w-full mt-2" onClick={() => removeClips([clip.id])}>
-        <Trash2 data-icon="inline-start" />
-        Delete clip
-      </Button>
-    </aside>
+        <TabsContent value="effects" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+          <Section
+            title={
+              <>
+                EFFECTS <span className="text-muted-foreground/70">({clip.effects.length})</span>
+              </>
+            }
+          >
+            {clip.effects.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">Drag an effect from the library onto this clip.</p>
+            ) : (
+              <EffectList clip={clip} commit={commit} />
+            )}
+          </Section>
+        </TabsContent>
+      </Tabs>
+    </Shell>
   );
 };
