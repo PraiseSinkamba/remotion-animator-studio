@@ -6,3 +6,4 @@ out/
 .claude/
 tsconfig.tsbuildinfo
 .tmp/
+.omp/
