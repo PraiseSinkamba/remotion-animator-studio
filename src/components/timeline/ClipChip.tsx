@@ -3,15 +3,17 @@ import { getComponent } from '../../registry';
 import { useStore } from '../../store';
 import type { Clip, EffectType } from '../../types';
 import { EFFECT_MIME } from '../Library';
-import { framesToLabel, TRACK_HEIGHT, type TrackAccent } from './shared';
+import { framesToLabel, LANE_HEIGHT, type TrackAccent } from './shared';
 
 const isAdditive = (e: React.PointerEvent | React.MouseEvent) => e.metaKey || e.ctrlKey || e.shiftKey;
 
-export const ClipChip: React.FC<{ clip: Clip; trackId: string; accent: TrackAccent }> = ({
-  clip,
-  trackId,
-  accent,
-}) => {
+export const ClipChip: React.FC<{
+  clip: Clip;
+  trackId: string;
+  accent: TrackAccent;
+  /** row of overlapping clips this chip sits in, counted from the track top */
+  lane: number;
+}> = ({ clip, trackId, accent, lane }) => {
   const ppf = useStore((s) => s.pixelsPerFrame);
   const selected = useStore((s) => s.selectedClipIds.includes(clip.id));
   const totalFrames = useStore((s) => s.project.durationInFrames);
@@ -22,7 +24,6 @@ export const ClipChip: React.FC<{ clip: Clip; trackId: string; accent: TrackAcce
     mode: 'move' | 'resize-l' | 'resize-r';
     startX: number;
     startY: number;
-    lastY: number;
     origFrom: number;
     origDur: number;
     /** all selected clips' original positions, for group moves */
@@ -55,7 +56,6 @@ export const ClipChip: React.FC<{ clip: Clip; trackId: string; accent: TrackAcce
       mode,
       startX: e.clientX,
       startY: e.clientY,
-      lastY: e.clientY,
       origFrom: clip.from,
       origDur: clip.durationInFrames,
       group,
@@ -74,7 +74,6 @@ export const ClipChip: React.FC<{ clip: Clip; trackId: string; accent: TrackAcce
         df = Math.min(df, totalFrames - m.dur - m.from);
       }
       shiftClips(g.group.map((m) => ({ clipId: m.clipId, from: m.from + df })));
-      g.lastY = e.clientY;
     } else if (g.mode === 'resize-r') {
       const dur = Math.max(2, Math.min(g.origDur + df, totalFrames - g.origFrom));
       updateClip(clip.id, { durationInFrames: dur });
@@ -84,17 +83,36 @@ export const ClipChip: React.FC<{ clip: Clip; trackId: string; accent: TrackAcce
     }
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (e: React.PointerEvent) => {
     const g = gesture.current;
     gesture.current = null;
-    // vertical drags move the clip to another track on release (single clip only)
-    if (g && g.mode === 'move' && g.group.length === 1) {
-      const rows = Math.round((g.lastY - g.startY) / TRACK_HEIGHT);
-      if (rows !== 0) {
-        const s = useStore.getState();
-        const idx = s.project.tracks.findIndex((t) => t.id === trackId);
-        const target = Math.max(0, Math.min(s.project.tracks.length - 1, idx + rows));
-        if (target !== idx) s.moveClipToTrack(clip.id, s.project.tracks[target].id);
+    // vertical drags move the clip to the track the pointer was released over
+    // (single clip only). Half a lane of travel is the threshold, so a small
+    // jitter while dragging sideways never changes track.
+    if (
+      g &&
+      g.mode === 'move' &&
+      g.group.length === 1 &&
+      Math.abs(e.clientY - g.startY) >= LANE_HEIGHT / 2
+    ) {
+      const lanes = Array.from(document.querySelectorAll<HTMLElement>('[data-track-lane]'));
+      let target: string | undefined;
+      let nearest = Infinity;
+      for (const lane of lanes) {
+        const rect = lane.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY < rect.bottom) {
+          target = lane.dataset.trackLane;
+          break;
+        }
+        // released outside every track — keep the nearest one
+        const distance = e.clientY < rect.top ? rect.top - e.clientY : e.clientY - rect.bottom;
+        if (distance < nearest) {
+          nearest = distance;
+          target = lane.dataset.trackLane;
+        }
+      }
+      if (target && target !== trackId) {
+        useStore.getState().moveClipToTrack(clip.id, target);
       }
     }
   };
@@ -102,12 +120,17 @@ export const ClipChip: React.FC<{ clip: Clip; trackId: string; accent: TrackAcce
   return (
     <div
       className={[
-        'group absolute top-[3px] bottom-[3px] z-[1] flex cursor-grab touch-none items-center overflow-hidden rounded-[4px] border',
+        'group absolute z-[1] flex cursor-grab touch-none items-center overflow-hidden rounded-[4px] border',
         accent.border,
         accent.fill,
         selected ? 'z-[3] ring-2 ring-ring' : '',
       ].join(' ')}
-      style={{ left: clip.from * ppf, width: Math.max(6, clip.durationInFrames * ppf) }}
+      style={{
+        left: clip.from * ppf,
+        width: Math.max(6, clip.durationInFrames * ppf),
+        top: lane * LANE_HEIGHT + 3,
+        height: LANE_HEIGHT - 6,
+      }}
       onPointerDown={onPointerDown('move')}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
