@@ -94,3 +94,25 @@ Guides and magnetic snapping, a Blur inspector tab, a Data & Metrics category, n
 ## 11. Implementation mechanics
 
 Built in a dedicated worktree (`feature/chart-studio-cinema`) by parallel agents over disjoint file sets, verified there, then merged into `main`. The legacy `.btn`-era CSS shrinks as the chrome moves to Tailwind utilities and shadcn primitives; rules that no longer have a consumer are deleted in the same slice.
+
+## 12. As built — what changed while it was built
+
+The design above is the plan. Four things moved during the work, and the code is the record:
+
+- **The library has seven tabs, not four.** `Presets · Text · Media · Audio · Scene · Chart ·
+  Motion` — the tabs follow the registry's real contents. There are also **fourteen** presets,
+  not the five the design assumed, and each card carries a short kind tag (`Intro`, `Banner`,
+  `Glitch`, …) instead of its internal key.
+- **The transport is a floating pill over the canvas, not a strip under it** — the reference
+  draws it that way, and the owner asked for the reference's look. It carries skip, a round play
+  button, mute and the time readout; the canvas carries its size chip and the active layer's
+  name.
+- **The selection box has four corner handles, not eight**, drawn as a dashed indigo border,
+  and it resizes only the components that expose a width and a height.
+- **Three behaviours were added on the owner's instruction** after the design was approved:
+  a library item can be dropped onto the canvas, pressing an element on the canvas selects and
+  moves it (pressing the background does not), and a track gives every overlapping clip its own
+  row.
+
+The shadcn primitives also needed repair: the CLI wrote them with Base UI state attributes while
+they import Radix, so their state styling was inert. ADR-005 records the fix.
