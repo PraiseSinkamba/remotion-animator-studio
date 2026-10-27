@@ -1,16 +1,27 @@
 import { Player } from '@remotion/player';
+import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import React, { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { playerRef } from '../playerRef';
+import { playerRef, seekTo, togglePlay } from '../playerRef';
 import { MainComposition } from '../remotion/MainComposition';
 import { findClip, useStore } from '../store';
+import { SelectionOverlay } from './selection-overlay';
+
+/** Seconds label for the transport readout, e.g. "1.5s". */
+const secondsLabel = (frames: number, fps: number) => {
+  const s = frames / fps;
+  return s % 1 === 0 ? `${s}s` : `${s.toFixed(1)}s`;
+};
 
 export const PreviewPanel: React.FC = () => {
   const project = useStore((s) => s.project);
   const muted = useStore((s) => s.muted);
+  const playing = useStore((s) => s.playing);
+  const currentFrame = useStore((s) => s.currentFrame);
   const selectedClipId = useStore((s) => s.selectedClipIds[0] ?? null);
   const setCurrentFrame = useStore((s) => s.setCurrentFrame);
   const setPlaying = useStore((s) => s.setPlaying);
+  const setMuted = useStore((s) => s.setMuted);
   const commit = useStore((s) => s.commit);
   const updateClipProps = useStore((s) => s.updateClipProps);
 
@@ -83,10 +94,23 @@ export const PreviewPanel: React.FC = () => {
   const selected = findClip(project, selectedClipId);
   const canDrag = selected && typeof selected.props.x === 'number';
 
+  const onToggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    if (next) playerRef.current?.mute();
+    else playerRef.current?.unmute();
+  };
+
+  /** Step one frame back/forward, clamped to the composition. */
+  const stepFrame = (delta: number) => {
+    const frame = playerRef.current?.getCurrentFrame() ?? currentFrame;
+    seekTo(Math.max(0, Math.min(project.durationInFrames - 1, frame + delta)));
+  };
+
   return (
     <div className="preview-panel">
       <div
-        className="preview-stage"
+        className="preview-stage relative"
         ref={wrapperRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -106,6 +130,7 @@ export const PreviewPanel: React.FC = () => {
           initiallyMuted={muted}
           acknowledgeRemotionLicense
         />
+        <SelectionOverlay />
         {drawingPath ? (
           <div
             className="draw-overlay"
@@ -149,6 +174,74 @@ export const PreviewPanel: React.FC = () => {
             </div>
           </div>
         ) : null}
+
+        {/* Canvas info: size on the left, the selected layer on the right. */}
+        <div className="pointer-events-none absolute bottom-2 left-3 z-20 font-mono text-[10px] text-muted-foreground">
+          {project.width}×{project.height} • {project.fps} fps
+        </div>
+        {selected ? (
+          <div className="pointer-events-none absolute bottom-2 right-3 z-20 rounded border border-border bg-card/90 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            {selected.name}
+          </div>
+        ) : null}
+
+        {/* Floating transport, centred over the bottom edge of the canvas. */}
+        {drawingPath ? null : (
+          <div
+            className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card/90 px-3 py-1.5 shadow-lg backdrop-blur-md"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => stepFrame(-1)}
+              title="Previous frame"
+              aria-label="Previous frame"
+            >
+              <SkipBack data-icon="inline-start" />
+            </Button>
+            <Button
+              variant="default"
+              size="icon-sm"
+              className="rounded-full bg-foreground text-background shadow hover:opacity-90"
+              onClick={togglePlay}
+              title={playing ? 'Pause' : 'Play'}
+              aria-label={playing ? 'Pause' : 'Play'}
+            >
+              {playing ? (
+                <Pause data-icon="inline-start" className="fill-current" />
+              ) : (
+                <Play data-icon="inline-start" className="fill-current" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => stepFrame(1)}
+              title="Next frame"
+              aria-label="Next frame"
+            >
+              <SkipForward data-icon="inline-start" />
+            </Button>
+            <div className="mx-1 h-3.5 w-px bg-border" />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={onToggleMute}
+              title={muted ? 'Unmute' : 'Mute'}
+              aria-label={muted ? 'Unmute' : 'Mute'}
+            >
+              {muted ? <VolumeX data-icon="inline-start" /> : <Volume2 data-icon="inline-start" />}
+            </Button>
+            <span className="ml-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+              {secondsLabel(currentFrame, project.fps)} / {secondsLabel(project.durationInFrames, project.fps)}
+            </span>
+            <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70">f{currentFrame}</span>
+          </div>
+        )}
       </div>
       {canDrag && !drawingPath ? (
         <div className="preview-hint">Drag anywhere on the canvas to move “{selected!.name}”</div>

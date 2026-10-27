@@ -9,7 +9,7 @@
  */
 import { createElement } from 'react';
 import { registerComponent } from '../registry/registry';
-import type { ComponentProps, VideoComponentDefinition } from '../registry/types';
+import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '../registry/types';
 import { CandlestickChart, type CandlestickChartProps } from './candlestick-chart';
 import { CandlestickChartInspector } from './candlestick-chart-inspector';
 import { barsToFrames, generateSyntheticBars } from './ohlc';
@@ -80,6 +80,8 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
       frame,
     }),
   inspector: CandlestickChartInspector,
+  // The chart renders at its own width/height around its anchor.
+  bounds: componentBounds,
   // A new chart is long enough to show its whole series.
   defaultDuration: (props: ComponentProps) => barsToFrames(props.bars ?? [], props.framesPerBar),
 };

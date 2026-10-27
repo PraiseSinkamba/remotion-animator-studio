@@ -28,6 +28,40 @@ export interface ComponentRenderContext {
   fps: number;
 }
 
+/**
+ * The editor's selection box for a component, in composition pixels.
+ *
+ * `x`/`y` are the component's anchor — the compositor centres a component's
+ * content on it (`translate(-50%, -50%)`) — so the box spans `x ± width / 2`
+ * and `y ± height / 2`.
+ */
+export interface ComponentBounds {
+  /** Anchor X, in composition pixels. */
+  x: number;
+  /** Anchor Y, in composition pixels. */
+  y: number;
+  /** Box width, in composition pixels. */
+  width: number;
+  /** Box height, in composition pixels. */
+  height: number;
+}
+
+/** Box size used for components that expose no width/height of their own. */
+const FALLBACK_SIZE = { width: 320, height: 180 };
+
+/**
+ * The default selection box: the component's anchor plus its own size.
+ * Width and height come from the props (the definition defaults are already
+ * merged in by the caller), then a 320×180 fallback so the overlay still
+ * shows where a component without a size sits.
+ */
+export const componentBounds = (props: Record<string, unknown>): ComponentBounds => ({
+  x: typeof props.x === 'number' ? props.x : 0,
+  y: typeof props.y === 'number' ? props.y : 0,
+  width: typeof props.width === 'number' ? props.width : FALLBACK_SIZE.width,
+  height: typeof props.height === 'number' ? props.height : FALLBACK_SIZE.height,
+});
+
 export interface ComponentInspectorContext {
   clip: Clip;
   props: ComponentProps;
@@ -81,4 +115,10 @@ export interface VideoComponentDefinition {
   };
   /** Defaults to `content`. */
   renderMode?: RenderMode;
+  /**
+   * Editor-only geometry of the component's rendered box, in composition
+   * pixels. The selection overlay draws this rectangle; it is metadata and
+   * never reaches the composition, so it cannot change a rendered pixel.
+   */
+  bounds?: (props: Record<string, unknown>) => ComponentBounds;
 }

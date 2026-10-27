@@ -32,7 +32,7 @@ import {
   WaveAdapter,
 } from '../remotion/legacy-elements';
 import { registerComponent } from './registry';
-import type { VideoComponentDefinition } from './types';
+import { componentBounds, type VideoComponentDefinition } from './types';
 
 const FONTS = [
   'Helvetica, Arial, sans-serif',
@@ -689,4 +689,8 @@ const definitions: VideoComponentDefinition[] = [
   },
 ];
 
-definitions.forEach(registerComponent);
+// Every legacy element reports its selection box: the anchor it sits on plus
+// its own size, so the editor overlay can frame it.
+definitions.forEach((definition) =>
+  registerComponent({ ...definition, bounds: definition.bounds ?? componentBounds }),
+);

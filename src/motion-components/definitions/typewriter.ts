@@ -8,7 +8,7 @@
  */
 import { createElement } from 'react';
 import { registerComponent } from '../../registry/registry';
-import type { ComponentRenderContext, VideoComponentDefinition } from '../../registry/types';
+import { componentBounds, type ComponentRenderContext, type VideoComponentDefinition } from '../../registry/types';
 import { Typewriter } from '../typewriter';
 
 const POSITION_PARAMS = [
@@ -54,6 +54,8 @@ export const remocnTypewriterDefinition: VideoComponentDefinition = {
     notes:
       'Vendored from Remocn (MIT, Copyright (c) 2026 Remocn). Local changes: dropped the Next.js "use client" directive; the root is a content-sized centred box instead of position:absolute/inset:0 with a hardcoded white background (the Chart Studio compositor positions the component and the composition owns the background); the font stack uses the editor stack "Helvetica, Arial, sans-serif" instead of var(--font-geist-sans); the text span does not wrap. Fifth change: the two upstream imports were repointed at the vendored local copies — "Caret" now comes from "./caret" (vendored from https://remocn.dev/r/caret.json) and "useTypewriter" from "./remocn-ui" (vendored from the upstream lib/remocn-ui timeline module). The animation maths, the props interface and the markup are unchanged. The default text and caret colours are light so the component reads on the dark composition background.',
   },
+  // The component has no size of its own, so the box falls back to 320×180.
+  bounds: componentBounds,
   // This module is a .ts file, so the adapter builds its element with
   // createElement instead of JSX.
   render: ({ props }: ComponentRenderContext) => {

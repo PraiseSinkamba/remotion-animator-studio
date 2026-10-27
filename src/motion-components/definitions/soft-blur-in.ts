@@ -8,7 +8,7 @@
  */
 import { createElement } from 'react';
 import { registerComponent } from '../../registry/registry';
-import type { ComponentRenderContext, VideoComponentDefinition } from '../../registry/types';
+import { componentBounds, type ComponentRenderContext, type VideoComponentDefinition } from '../../registry/types';
 import { SoftBlurIn } from '../soft-blur-in';
 
 const POSITION_PARAMS = [
@@ -50,6 +50,8 @@ export const remocnSoftBlurInDefinition: VideoComponentDefinition = {
     notes:
       'Vendored from Remocn (MIT, Copyright (c) 2026 Remocn). Local changes: dropped the Next.js "use client" directive; the root is a content-sized centred box instead of position:absolute/inset:0 (the Chart Studio compositor positions the component and the composition owns the background); the font stack uses the editor stack "Helvetica, Arial, sans-serif" instead of var(--font-geist-sans); the text span does not wrap. Animation maths, props interface and per-character markup are unchanged. The default text colour is light (#ffffff) so the component reads on the dark composition background.',
   },
+  // The component has no size of its own, so the box falls back to 320×180.
+  bounds: componentBounds,
   // This module is a .ts file, so the adapter builds its element with
   // createElement instead of JSX.
   render: ({ props }: ComponentRenderContext) => {
