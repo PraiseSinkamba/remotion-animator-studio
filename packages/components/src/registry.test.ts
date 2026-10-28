@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { ElementType, Project } from '@chart-studio/core';
-import { buildComponentProps, getComponent, listComponents, listComponentsByCategory, registerComponent } from '@chart-studio/core';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from './index';
-import './legacy';
+import {
+  buildComponentProps,
+  getComponent,
+  listComponents,
+  listComponentsByCategory,
+  registerComponent,
+  type ElementType,
+  type Project,
+} from '@chart-studio/core';
+import { CATEGORY_LABELS, CATEGORY_ORDER } from './registry.js';
 
 const LEGACY_TYPES: ElementType[] = [
   'text',
@@ -40,7 +46,7 @@ describe('component registry', () => {
     const text = getComponent('text')!;
     expect(text.label).toBe('Text');
     expect(text.icon).toBe('🅣');
-    expect(text.category).toBe('generic');
+    expect(text.category).toBe('base');
     expect(text.propsVersion).toBe(1);
     expect(text.defaults).toMatchObject({ text: 'Hello world', fontSize: 90 });
     expect(text.params.map((p) => p.key)).toContain('fontSize');
@@ -57,16 +63,27 @@ describe('component registry', () => {
   });
 
   it('lists components by category', () => {
-    const generic = listComponentsByCategory('generic');
+    const base = listComponentsByCategory('base');
     for (const type of LEGACY_TYPES) {
-      expect(generic.map((d) => d.type)).toContain(type);
+      expect(base.map((d) => d.type)).toContain(type);
     }
     expect(listComponents().length).toBeGreaterThanOrEqual(LEGACY_TYPES.length);
   });
 
-  it('orders the library categories generic → trading → motion', () => {
-    expect(CATEGORY_ORDER).toEqual(['generic', 'trading', 'motion']);
-    expect(CATEGORY_LABELS.generic).toBe('Elements');
+  it('registers the whole catalogue from the aggregator alone', () => {
+    // Nothing in this file imports a definition directly. The aggregator
+    // imports them for their side effect, so this fails if a definition is
+    // ever dropped — which is what happens when a package that registers
+    // components is wrongly declared free of side effects.
+    expect(listComponents().length).toBe(26);
+    expect(listComponentsByCategory('base').length).toBe(22);
+    expect(listComponentsByCategory('trading').length).toBe(1);
+    expect(listComponentsByCategory('motion').length).toBe(3);
+  });
+
+  it('orders the library categories base → trading → motion', () => {
+    expect(CATEGORY_ORDER).toEqual(['base', 'trading', 'motion']);
+    expect(CATEGORY_LABELS.base).toBe('Elements');
   });
 
   it('builds fresh props from the defaults, centred on the canvas', () => {
@@ -92,12 +109,12 @@ describe('component registry', () => {
       label: 'Test',
       icon: '🧪',
       description: 'test component',
-      category: 'generic',
+      category: 'base',
       defaults: {},
       params: [],
       render: () => null,
     });
     expect(getComponent(type)?.label).toBe('Test');
-    expect(listComponentsByCategory('generic').map((d) => d.type)).toContain(type);
+    expect(listComponentsByCategory('base').map((d) => d.type)).toContain(type);
   });
 });

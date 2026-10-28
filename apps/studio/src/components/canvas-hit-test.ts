@@ -5,7 +5,7 @@
  * component boxes, never the DOM. The pointer conversion stays in
  * `PreviewPanel`, which owns the stage rect.
  */
-import { componentBounds, getComponent } from '../registry';
+import { componentBounds, getComponent } from '@chart-studio/components';
 import type { Clip, Project } from '@chart-studio/core';
 
 /** A box in project coordinates. */

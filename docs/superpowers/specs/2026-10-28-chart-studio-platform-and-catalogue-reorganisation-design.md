@@ -179,9 +179,13 @@ what the type checker could not.
    stylesheet lists it with `@source`. Without it the build still succeeds and the editor renders
    unstyled — the stylesheet halves and nothing reports it.
 
-6. **An internal package declares `"sideEffects": false`.** Without it the bundler cannot prove that an
-   unused module is droppable, and the barrel pulls the whole package into the bundle. The declaration
-   restores the tree-shaking the single-package layout had for free.
+6. **A package declares `"sideEffects": false` only if every one of its modules is free of side
+   effects.** Without the declaration the bundler cannot prove that an unused module is droppable, and
+   the barrel pulls the whole package into the bundle. The declaration must not be applied to
+   `packages/components`: a component definition registers itself when it is imported, so that import
+   *is* a side effect. Declaring the catalogue side-effect free makes the bundler drop the
+   registrations, and the library panel silently loses its components while the build still succeeds
+   and the bundle gets smaller.
 
 ## 6. Ownership map
 

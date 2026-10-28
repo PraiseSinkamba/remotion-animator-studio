@@ -18,16 +18,16 @@
  * - The text span does not wrap: the compositor places the component inside a
  *   shrink-to-fit box, so a long phrase would otherwise break at the canvas edge.
  * - The two upstream imports were repointed at the vendored local copies:
- *   `Caret` comes from "./caret" (vendored from
- *   https://remocn.dev/r/caret.json) and `useTypewriter` from "./remocn-ui"
+ *   `Caret` comes from "./caret.js" (vendored from
+ *   https://remocn.dev/r/caret.json) and `useTypewriter` from "./remocn-ui.js"
  *   (vendored from the upstream lib/remocn-ui timeline module).
  *
  * The animation maths, the props interface and the markup are unchanged. The
  * component still reads the frame through Remotion's `useCurrentFrame()`.
  */
 
-import { Caret } from "./caret";
-import { useTypewriter } from "./remocn-ui";
+import { Caret } from "./caret.js";
+import { useTypewriter } from "./remocn-ui.js";
 
 export interface TypewriterProps {
   text: string;

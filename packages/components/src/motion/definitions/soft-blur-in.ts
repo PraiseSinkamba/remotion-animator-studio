@@ -9,7 +9,7 @@
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
 import { componentBounds, type ComponentRenderContext, type VideoComponentDefinition } from '@chart-studio/core';
-import { SoftBlurIn } from '../soft-blur-in';
+import { SoftBlurIn } from '../soft-blur-in.js';
 
 const POSITION_PARAMS = [
   { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },

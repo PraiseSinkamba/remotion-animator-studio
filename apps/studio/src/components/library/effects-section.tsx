@@ -1,5 +1,5 @@
 import React from 'react';
-import { EFFECTS } from '../../effects';
+import { EFFECTS } from '@chart-studio/components';
 import type { EffectType } from '@chart-studio/core';
 import { GROUP_DOT, GroupHeader, LibraryRow, type LibraryItem } from '@chart-studio/ui';
 

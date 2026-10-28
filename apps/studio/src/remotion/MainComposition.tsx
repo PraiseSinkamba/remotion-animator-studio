@@ -1,8 +1,8 @@
 import { noise2D } from '@remotion/noise';
 import React from 'react';
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
-import { computeEffectStyle, type ComputedStyle } from '../effects';
-import { getComponent } from '../registry';
+import { computeEffectStyle, type ComputedStyle } from '@chart-studio/components';
+import { getComponent } from '@chart-studio/components';
 import type { Clip, Project } from '@chart-studio/core';
 
 /** Renders glitch slice copies on top of the content when the glitch gate is open. */

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { getComponent } from './registry';
+import { getComponent } from '@chart-studio/components';
 import { sampleProject } from '@chart-studio/core';
 import { useStore } from './store';
 import type { Project } from '@chart-studio/core';

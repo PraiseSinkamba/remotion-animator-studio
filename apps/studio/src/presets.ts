@@ -1,5 +1,5 @@
 import type { Clip, EffectInstance, ElementType } from '@chart-studio/core';
-import { getComponent } from './registry';
+import { getComponent } from '@chart-studio/components';
 
 let n = 0;
 const pid = (p: string) => `${p}-${Date.now().toString(36)}-${n++}`;

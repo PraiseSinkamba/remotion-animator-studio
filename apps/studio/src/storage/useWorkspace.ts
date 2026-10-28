@@ -7,7 +7,7 @@
  * workspace.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { migrateProject } from '../project/migrate';
+import { migrateProject } from '@chart-studio/components';
 import { uid, useStore } from '../store';
 import type { Project } from '@chart-studio/core';
 import { selectRepository } from './select';

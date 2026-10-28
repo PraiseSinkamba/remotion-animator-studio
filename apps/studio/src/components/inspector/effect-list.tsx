@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pencil, X } from 'lucide-react';
-import { EFFECTS, getEasing } from '../../effects';
+import { EFFECTS, getEasing } from '@chart-studio/components';
 import { useStore } from '../../store';
 import type { Clip } from '@chart-studio/core';
 import { Button, ParamControl } from '@chart-studio/ui';

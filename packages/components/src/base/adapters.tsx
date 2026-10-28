@@ -1,5 +1,5 @@
 /**
- * Render adapters for the 22 generic elements inherited from the upstream editor.
+ * Render adapters for the 22 base elements inherited from the upstream editor.
  *
  * Every adapter is a `React.FC<ComponentRenderContext>`: it receives the clip, the
  * props, the clip-relative frame and the project fps — and nothing else. No editor
@@ -14,10 +14,10 @@ import { noise2D } from '@remotion/noise';
 import React from 'react';
 import { AbsoluteFill, Audio, Img, OffthreadVideo, interpolate, spring } from 'remotion';
 import { useAudioData, visualizeAudio } from '@remotion/media-utils';
-import { effectParams, typewriterChars } from '../effects';
+import { effectParams, typewriterChars } from './effects.js';
 import type { ComponentRenderContext } from '@chart-studio/core';
 import type { Clip } from '@chart-studio/core';
-import { CommitGraph, IsoCity, NeonSun, NodeTrail, Ridge, SkyCycle, SunMoon, SynthGrid } from './scenes';
+import { CommitGraph, IsoCity, NeonSun, NodeTrail, Ridge, SkyCycle, SunMoon, SynthGrid } from './scenes.js';
 
 /** Letters riding a sine wave; `gain` scales amplitude (1 = manual, >1 = audio-driven). */
 const WavyLetters: React.FC<{

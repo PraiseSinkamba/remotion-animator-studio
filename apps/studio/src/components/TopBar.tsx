@@ -15,7 +15,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { seekTo } from '../playerRef';
-import { migrateProject } from '../project/migrate';
+import { migrateProject } from '@chart-studio/components';
 import { useStore } from '../store';
 import type { WorkspaceUiState } from '../storage/useWorkspace';
 import type { Project } from '@chart-studio/core';

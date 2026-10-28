@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import { EFFECTS } from '../effects';
-import { listComponents } from '../registry';
+import { EFFECTS } from '@chart-studio/components';
+import { listComponents } from '@chart-studio/components';
 import { PRESETS } from '../presets';
 import { useStore } from '../store';
 import type { EffectType } from '@chart-studio/core';

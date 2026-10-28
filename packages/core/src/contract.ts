@@ -17,7 +17,7 @@ export type ComponentProps = Record<string, any>;
 export type RenderMode = 'content' | 'audio' | 'background';
 
 /** Library grouping shown in the left-hand panel. */
-export type ComponentCategory = 'generic' | 'trading' | 'motion';
+export type ComponentCategory = 'base' | 'trading' | 'motion';
 
 export interface ComponentRenderContext {
   clip: Clip;
@@ -75,7 +75,7 @@ export interface ComponentInspectorContext {
 
 /**
  * The single contract every exportable video object implements — first-party
- * trading components, adapted Remocn motion components and the generic
+ * trading components, adapted Remocn motion components and the base
  * elements inherited from the upstream editor.
  *
  * See docs/spec/COMPONENT_CONTRACT.md and docs/decisions/ADR-003-COMPONENT-SYSTEM.md.

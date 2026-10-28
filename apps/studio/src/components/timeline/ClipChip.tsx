@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { getComponent } from '../../registry';
+import { getComponent } from '@chart-studio/components';
 import { useStore } from '../../store';
 import type { Clip, EffectType } from '@chart-studio/core';
 import { EFFECT_MIME } from '../Library';

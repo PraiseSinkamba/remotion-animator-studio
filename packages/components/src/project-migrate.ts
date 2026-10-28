@@ -14,7 +14,7 @@
  * The migration is non-destructive and idempotent:
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
-import { getComponent } from '../registry';
+import { getComponent } from './registry.js';
 import type { Clip, ElementType, Project, Track } from '@chart-studio/core';
 
 /** Schema version this build writes and understands. */

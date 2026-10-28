@@ -9,7 +9,7 @@
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
 import type { ComponentRenderContext, VideoComponentDefinition } from '@chart-studio/core';
-import { MarkerHighlight } from './marker-highlight';
+import { MarkerHighlight } from '../marker-highlight.js';
 
 const POSITION_PARAMS = [
   { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },
