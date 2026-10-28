@@ -73,6 +73,6 @@ registry definition on our side — see `src/motion-components/definition.ts` an
 ## Where the analysis lives
 
 `docs/architecture/REMOCN-CATALOGUE.md` — what the catalogue contains, how it maps onto our
-own 23 elements and the 9 planned trading components, and what to mine and what to leave.
+own 26 components and the 9 planned trading components, and what to mine and what to leave.
 
 `docs/decisions/ADR-003-COMPONENT-SYSTEM.md` — the standing decision and its addendum.

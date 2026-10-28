@@ -10,7 +10,7 @@
 | React video composition | `remotion`, `@remotion/player`, `@remotion/transitions` | Market-time binding, chart state evaluation, object-specific timeline semantics | Preview and export parity |
 | Browser video export | `@remotion/web-renderer`, Remotion media + Mediabunny integration | Render snapshot, job UX, asset-resolution and failure policy | Supported Chromium 1080p/30fps + audio test |
 | General-purpose video motion **(primary framework)** | [Remocn](https://remocn.dev/) shadcn-style, source-owned components | Internal registry integration, lifecycle and inspector adapters | Per component imports/license/render compatibility |
-| Specialized trading video components **(required R1 work)** | First-party `packages/trading-components` library | All OHLC/SMT/MTF/trading object visuals, metadata and editing behavior | Component protocol tests and preview/export parity |
+| Specialized trading video components **(required R1 work)** | First-party `packages/components/src/trading/` library | All OHLC/SMT/MTF/trading object visuals, metadata and editing behavior | Component protocol tests and preview/export parity |
 | General UI | Next.js + React, Tailwind, shadcn/ui, Lucide | Chart inspector and creator-specific editing workflows | Offline-safe app-shell spike |
 | Drag/drop/sortable | [dnd-kit](https://dndkit.com/react/quickstart/) | Frame ruler, clip trim/snap, scene-local/global mappings | 100+ clip interaction test |
 | Resizable panels | `react-resizable-panels` (candidate) | Panel persistence and chart object handles | keyboard and desktop performance |

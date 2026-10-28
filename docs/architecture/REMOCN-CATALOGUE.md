@@ -74,8 +74,9 @@ which the animation has finished… a floor for the `Sequence`, not the whole be
 
 ## 3. Our own catalogue, re-judged
 
-Our 23 elements: 22 inherited generic elements (`src/registry/legacy.ts`) plus one
-first-party trading element (`src/trading/definition.ts`). **Verdict vocabulary:** `REPLACE`
+Our 26 components: 22 inherited base elements (`packages/components/src/base/definitions.ts`),
+one first-party trading element (`packages/components/src/trading/`) and three adapted Remocn
+components (`packages/components/src/motion/`). **Verdict vocabulary:** `REPLACE`
 — upstream makes ours redundant. `EXTEND` — take upstream's source as the base, add our
 domain semantics. `KEEP` — ours is better for the slot. `NONE` — no upstream analogue of the
 same kind.
@@ -106,7 +107,7 @@ same kind.
 | `background` (`renderMode: 'background'`, solid/linear/radial) | `backdrop` (color, gradient, **image, or any React element**), `drift` | **EXTEND** | Upstream's fill vocabulary is richer, but upstream's is a *wrapper* that owns the composition — ours must stay a `renderMode: 'background'` layer in our z-ordered compositor. |
 | `candlestickChart` (OHLC, price axis, provenance badge, custom inspector, duration from series) | `animated-line-chart` (SVG `stroke-dashoffset` draw-on), `animated-bar-chart` (spring-up from baseline, deterministic stagger) | **EXTEND** | Upstream gives the *drawing techniques*; every semantic — OHLC, price→y anchoring, the no-lookahead rule, provenance, duration from the series — is ours to build. |
 
-**Not one `REPLACE`.** No upstream component makes any of our 23 redundant. Keep all 23.
+**Not one `REPLACE`.** No upstream component makes any of our 26 redundant. Keep all 26.
 
 ## 4. The nine planned trading components
 
@@ -154,7 +155,7 @@ pair, and upstream's `isometric-build` is less capable than our `isoCity`. Keep 
 
 ## 6. Decision
 
-1. **Keep all 23 of our elements.** Nothing upstream makes one redundant.
+1. **Keep all 26 of our components.** Nothing upstream makes one redundant.
 2. **Adopt upstream source as a technique base for the nine trading components**, in this
    order: `animated-line-chart` + `animated-bar-chart` (draw-on and spring-up chart
    technique) → `ink-arrow` (Arrow, LongShortPosition) → `squiggle` / `ink-underline`

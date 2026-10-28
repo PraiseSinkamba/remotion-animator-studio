@@ -158,22 +158,23 @@ shadcn components use, on top of the legacy rules that survived.
 
 **How this fork maps onto the documented Next.js/pnpm architecture**
 
-This is the note §6 listed as owed. The fork keeps the **contracts** from
-`docs/architecture/TECHNICAL_ARCHITECTURE.md` and `AGENTS.md`; it does not keep the
-**packaging**.
+This is the note §6 listed as owed. The fork now keeps the **packaging** as well as the
+**contracts**: the repository is a pnpm workspace with five packages and one application, and the
+ownership boundaries in `docs/architecture/TECHNICAL_ARCHITECTURE.md` §2 describe where the code
+actually sits.
 
 | Documented target | This fork | The contract that survives |
 |---|---|---|
-| Next.js App Router shell | Vite SPA | The editor is a local-first client application; the exported video is Remotion, either way |
-| pnpm workspaces + Turborepo | one npm package | Package boundaries become directory boundaries (`src/registry/`, `src/trading/`, `src/storage/`, `src/motion-components/`); import rules and the "no state in the evaluator" rule are unchanged |
-| `packages/*` per domain | `src/*` per domain | The typed component protocol, the storage port and its contract suite, the migration rules and the provenance requirements are all as documented |
-| shadcn/ui for editor controls | shadcn/ui for editor controls | Adopted as specified, in `src/components/ui/` — see ADR-005 |
+| Next.js App Router shell | Vite SPA at `apps/studio` | The editor is a local-first client application; the exported video is Remotion, either way. The deferral is recorded formally in ADR-006, not left as a silent divergence |
+| pnpm workspaces + Turborepo | pnpm workspace + Turborepo | As documented. The package boundaries are real package boundaries now, enforced by the dependency lists rather than by convention |
+| `packages/*` per domain | five packages: `core`, `components`, `ui`, `editor`, `video` | The typed component protocol, the storage port and its contract suite, the migration rules and the provenance requirements are all as documented. `smt-mtf`, `project-archive` and `testing` are deferred to the roadmap stage that needs them |
+| three component families | `packages/components/{base,trading,motion}` | The families are folders inside one package, because they share the contract, the registration mechanism and the project migration |
+| shadcn/ui for editor controls | shadcn/ui for editor controls | Adopted as specified, in `packages/ui/` — see ADR-005 |
 | dnd-kit timeline interactions | not adopted | Deferred; the timeline keeps its own pointer handling |
 | SQLite WASM worker over OPFS | SQLite WASM worker over OPFS | As documented — see ADR-004 and `docs/architecture/STORAGE.md` |
 
-So the documents in `docs/` are not wrong about *what* the system must do; they are wrong about
-*where the code sits*. Where a document names a path, read the equivalent directory in this
-tree.
+So the documents in `docs/` are no longer wrong about *where the code sits*. Where a document names a
+path, read the equivalent directory in this tree.
 
 **Debt closed in R2**
 
@@ -254,7 +255,7 @@ artefact is a template film on fictional data.
 component's source is copied into the repository, MIT licensed, and stays ours to edit. So
 upstream is a *technique source* for the nine planned trading components — the draw-on
 technique, the hand-drawn arrow, the brush circle, the sweep-in zone fill — while every
-market semantic is written by us. None of our 23 own elements is made redundant.
+market semantic is written by us. None of our 26 own components is made redundant.
 
 **Newly identified gap.** The object model has no transition slot. 31 upstream transitions
 exist and most suit a trading video, but upstream's are `presentation()` wrappers that own a

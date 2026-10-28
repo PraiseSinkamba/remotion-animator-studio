@@ -9,14 +9,29 @@
 |---|---|---|
 | Pure unit/property | OHLC bounds, time conversion, pivot gating, animation functions | Vitest + property-based test library if justified |
 | Contract | Typed schema validation, RPC request/response, migration/adapters | Vitest/Zod fixtures |
-| Integration | SQLite Worker/OPFS lifecycle, series edits, MTF/SMT, scene snapshot | Vitest browser mode or Playwright |
-| Component/UI | Tools, inspector, timeline drag/trim and selection | React Testing Library + Playwright |
-| End-to-end | Creator journey from import to render/archive | Playwright on target Chromium |
+| Integration | SQLite Worker/OPFS lifecycle, series edits, MTF/SMT, scene snapshot | Vitest today; Playwright is the intended tool and is not installed |
+| Component/UI | Tools, inspector, timeline drag/trim and selection | React Testing Library today; Playwright is the intended tool and is not installed |
+| End-to-end | Creator journey from import to render/archive | Playwright on target Chromium — not installed; this row is a target |
 | Visual/media | Exact evaluated state and tolerance-based pixel/audio comparison | Remotion still snapshots, image diffs, media metadata assertions |
 
-No claim of passing tests or performance is valid until actual runs produce inspected results. The docs package does not include an implemented app or runnable test suite.
+No claim of passing tests or performance is valid until actual runs produce inspected results.
+
+The repository contains a working editor and a runnable test suite. `pnpm test` runs Vitest across the
+workspace; as of 2026-10-28 it is 154 tests over 12 files. Section 3 records what those tests cover and,
+just as importantly, what they do not.
 
 ## 2. Foundational fixtures
+
+**None of the fixtures below exist yet.** They are the fixture set still to be authored, and the table is
+the specification of what each one must contain when it is written.
+
+The fixture data that does exist today is:
+
+| Fixture data | Where | What it provides |
+|---|---|---|
+| Deterministic synthetic bars | `generateSyntheticBars` in `packages/core/src/market.ts` | Seeded bar series for the candle maths and the chart renderer |
+| The sample project | `packages/core/src/sample-project.ts` | A complete, valid project document used by the store and the composition |
+| The storage contract suite | `packages/editor/src/storage/contract-suite.ts` | One shared set of assertions, run against every repository backend |
 
 | Fixture | Purpose | Traps intentionally included |
 |---|---|---|
@@ -34,7 +49,37 @@ No claim of passing tests or performance is valid until actual runs produce insp
 
 Fixtures must be generated deterministically, have metadata stating **synthetic/non-market**, and avoid licensing issues with proprietary market feeds.
 
-## 3. Critical unit assertions
+## 3. What the suite covers today
+
+As of 2026-10-28 the suite is 154 tests over 12 files. What it actually asserts:
+
+- **The candle maths** — bar generation, frame evaluation, the price range and the conversion from a
+  series to a frame count.
+- **The component registry** — every inherited element registers, the catalogue metadata is asserted, the
+  categories are ordered, and a fresh instance is built from the defaults. The test relies on the
+  aggregator alone to register the components, so a definition that stops registering is caught rather
+  than silently dropped from the library.
+- **The project migration** — a legacy document migrates, a current document round-trips unchanged, a
+  document from a newer schema version is rejected by version, and the migration is idempotent and does
+  not mutate its input.
+- **The store** and **the timeline's lane packing**.
+- **The storage layer** — one contract suite run against all three backends: the SQLite driver, the
+  localStorage repository and the in-memory repository. It covers the happy path, the quota failure, two
+  writers conflicting, and the migration path.
+- **The candlestick chart** — including the rule that a bar which has not happened yet never moves the
+  price scale.
+
+What it does **not** cover, and what must not be claimed:
+
+- No browser end-to-end test. The editor has been exercised by hand and by the render gate, not by an
+  automated browser suite.
+- No fixture-driven market data. The suite runs on synthetic bars, never on a real price series.
+- No pixel comparison between the preview and the export. The render gate proves the exported video
+  matches the preview byte for byte for one fixed project, which is weaker than a tolerance-based
+  comparison across a range of compositions.
+- No performance measurement. The budgets in section 8 have no baseline behind them.
+
+## 4. Critical unit assertions
 
 ### Candle integrity
 
@@ -77,7 +122,7 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 - A chart panel transform never changes the price anchor of a horizontal line or zone.
 - Playback speed changes preview wall-clock only, not output clip duration.
 
-## 4. SQLite/OPFS tests
+## 5. SQLite/OPFS tests
 
 **Happy path:** new project -> commit revision -> persist dataset/media refs -> close tab -> reopen -> identical project head/references, no dependency on internet.  
 **Crash boundary:** simulate interruption after OPFS staging but before SQLite commit; recover previous head, stage cleanup; after SQL commit but before temp cleanup, required published assets still valid.  
@@ -86,7 +131,10 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 **Migrations:** previous project version migrates or is rejected without altering original; expected revision compare-and-set prevents stale write overwrites.  
 **Portability:** export logical archive, import into clean origin with no existing OPFS, render same evaluated scenes; corrupt hash/path/size fails atomically.
 
-## 5. UI and editor tests
+## 6. UI and editor tests
+
+The tests below are a **specification**, not a passing suite. Playwright is not
+installed and none of these cases run today.
 
 - Adding a chart via data browser creates an object with editable in/out; adding same dataset twice creates distinct chart object IDs but same source hash.
 - Selecting a drawn high-line highlights layer row, price inspector and relevant timeline clip.
@@ -98,7 +146,7 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 - Unsaved/saved-local/external-stale indicators accurately reflect durable commits and file exports.
 - Offline refresh after install correctly loads app shell, SQLite worker/WASM, local project and stored assets.
 
-## 6. Remotion render tests
+## 7. Remotion render tests
 
 - Build a composition from frozen JSON-serializable `ExportSnapshot`; render still via web renderer at boundary frames; compare evaluated geometry/labels/visible chart data to Player state. Raster comparison uses documented threshold, not byte equality.
 - Render 1-chart and 3-chart compositions with SVG candles, lines/zones, position tool, captions/image, voice track, fades and a chart focus transition.
@@ -107,7 +155,7 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 - Missing file/font or canceled render must leave project unchanged and release object URLs/resources.
 - Start export, edit the project, complete export, and assert output reflects frozen snapshot only.
 
-## 7. Performance budgets as reviewable hypotheses
+## 8. Performance budgets as reviewable hypotheses
 
 All numbers below are **targets**, not guarantees. Establish baseline hardware/browser details (at least one representative lower-middle desktop/laptop) and store measurements in CI artifacts before treating them as gates.
 
@@ -123,7 +171,7 @@ All numbers below are **targets**, not guarantees. Establish baseline hardware/b
 
 Performance regression policy: capture frame evaluation time, SVG node count, DB query latency, clip interaction latency, memory high-water, render output verification. Optimize only after evidence; first cull invisible bars, use memoized geometry, chunk market queries and avoid whole-project rerenders on inspector updates.
 
-## 8. Release gates
+## 9. Release gates
 
 - **Gate A (architecture feasibility):** actual supported Chromium shows SQLite WASM OPFS save/reload, Remotion 1080p SVG + audio MP4 export, timeline usability and offline app shell.
 - **Gate B (domain correctness):** candle origins/validation, timestamp alignment and no-lookahead tests pass; deterministic simulated path and user-confirmed SMT pairwise semantics are verified.

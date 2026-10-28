@@ -20,9 +20,9 @@ Use Remocn's shadcn-style source registry to install and adapt useful generic Re
 
 ## Three different component responsibilities
 
-1. **Trading domain components (`packages/trading-components`) — custom from R1:** `CandlestickChart`, `HighLowLine`, `HorizontalPriceLine`, `TrendLine`, `PriceZone`, `LongShortPosition`, `Arrow`, `TextLabel`, `SMTComparison`, `ChartGroup`. Each has a validated typed schema, rendering adapter and inspector/tool descriptor. HTF and LTF are chart instances or groups with independent data/timeframe bindings, not separate Remotion runtimes.
-2. **General motion components (`packages/motion-components`) — source-owned Remocn-based library:** titles, kinetic typography, backgrounds, reveals, motion transitions and similar visuals. Source is installed/copied at the pinned revision, with license notices and local modifications tracked. Wrap components only when necessary to adapt them to timeline/object props.
-3. **Video runtime (`packages/scene-compositor`) — Remotion:** `Composition`, `Sequence`, `AbsoluteFill`, transitions, `useCurrentFrame()`, preview player and export. The scene compositor maps typed video objects to rendering components; it never owns candle arithmetic or SMT matching.
+1. **Trading domain components (`packages/components/src/trading/`) — custom from R1:** `CandlestickChart`, `HighLowLine`, `HorizontalPriceLine`, `TrendLine`, `PriceZone`, `LongShortPosition`, `Arrow`, `TextLabel`, `SMTComparison`, `ChartGroup`. Each has a validated typed schema, rendering adapter and inspector/tool descriptor. HTF and LTF are chart instances or groups with independent data/timeframe bindings, not separate Remotion runtimes.
+2. **General motion components (`packages/components/src/motion/`) — source-owned Remocn-based library:** titles, kinetic typography, backgrounds, reveals, motion transitions and similar visuals. Source is installed/copied at the pinned revision, with license notices and local modifications tracked. Wrap components only when necessary to adapt them to timeline/object props.
+3. **Video runtime (`packages/video`) — Remotion:** `Composition`, `Sequence`, `AbsoluteFill`, transitions, `useCurrentFrame()`, preview player and export. The scene compositor maps typed video objects to rendering components; it never owns candle arithmetic or SMT matching.
 
 The editor uses **shadcn/ui for controls** such as inspector inputs, buttons and dialogs. This is distinct from **Remocn for visual video content**. Do not place editor selection handles or Zustand hooks inside exportable components.
 
@@ -152,7 +152,7 @@ upstream source and their *semantics* from us:
 `scribble-circle` (pivot marking) → `marker-highlight` (PriceZone fill, already vendored) →
 `value-swap` / `gradient-scale-cut-text` (TextLabel) → `chat-to-preview-layout` (ChartGroup).
 
-**What this does not change.** All 23 of our own elements stay. No upstream component makes
+**What this does not change.** All 26 of our own components stay. No upstream component makes
 one redundant — our generic layer already beats upstream's per-slot components on
 inspector depth, duration control and the clip effect stack. Upstream is additive.
 
@@ -163,3 +163,55 @@ between panels, `whip-pan` for an instant symbol change), but upstream's are
 Opening that slot is a design task that comes before mining transitions.
 
 Full working: `docs/architecture/REMOCN-CATALOGUE.md`.
+
+---
+
+## Addendum, 2026-10-28 — the component families and the transition slot
+
+### The families are folders inside one package
+
+The catalogue is now one package, `packages/components`, with three folders: `base/` for the 22
+inherited generic elements, `trading/` for the candlestick chart and the nine planned trading objects,
+and `motion/` for the adapted Remocn components.
+
+They are folders rather than three packages on purpose. The families share the contract, the
+registration mechanism and the project migration — the migration validates a stored project against the
+catalogue, so it has to live with it. Splitting the families into packages of their own would buy a
+dependency graph to maintain rather than a boundary worth enforcing, and it would make the migration's
+home ambiguous.
+
+The family a component belongs to is its `category`: `base`, `trading` or `motion`. The library panel
+groups by it. **No component `type` is renamed, renumbered or reused.** The `generic` category was
+renamed to `base` to match its folder; category is registry metadata and is never serialised into a
+project document, so no saved project is affected.
+
+### The transition slot
+
+A transition belongs to the boundary between two clips on a track, not to a clip. The track gains an
+optional transition list, and each entry names the outgoing clip, the transition component and its
+duration in frames. This is a stored-document change and therefore a schema migration, following the
+same pattern and the same migration-identifier discipline as the project migration itself.
+
+A transition's duration must fit inside the adjacent clips' frames; the compositor clamps it and the
+inspector reports the clamp rather than letting a transition overlap a clip silently.
+
+### The rules for adopting an upstream component
+
+Every adopted component keeps the contract: a hand-written registry definition with `type`, `label`,
+`icon`, `description`, `category`, `defaults`, `params`, `render`, plus `provenance` naming the upstream
+registry item, its revision and its licence, plus `bounds`, `propsVersion` and `defaultDuration`.
+
+Four rules govern the adoption itself:
+
+1. **The composition-length trap.** An upstream component that reads `useVideoConfig().durationInFrames`
+   computes its reveal against the whole composition, which is wrong inside our per-clip `<Sequence>`.
+   An adopted component reads `fps` only, or receives its progress as a prop.
+2. **`speed` is the only retiming lever.** Upstream components have no duration prop. The registry
+   definition's `defaultDuration` equals the upstream reveal length at 30 fps, and the component holds
+   afterwards rather than looping or vanishing.
+3. **Provenance travels with the copy.** The verbatim upstream source lives in `vendor/remocn/`, outside
+   the compiled tree; the adapted copy sits beside it in `packages/components/src/motion/`; and
+   `PROVENANCE.md` records the upstream URL, the retrieval date, the licence and the enumerated local
+   modifications. The verbatim copy is a record, not code that compiles.
+4. **Additions, not replacements.** An adopted component gets a new `type`. It never takes over an
+   existing element's slot.

@@ -1312,7 +1312,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Task 7: Documentation and ADRs
 
 **Files:**
-- Create: `docs/decisions/ADR-004-SHELL-TECHNOLOGY.md`
+- Create: `docs/decisions/ADR-006-SHELL-TECHNOLOGY.md`
 - Modify: `AGENTS.md`, `DOCS.md`, `docs/architecture/UPSTREAM_AUDIT.md`, `docs/architecture/TECHNICAL_ARCHITECTURE.md`, `docs/architecture/REMOCN-CATALOGUE.md`, `docs/roadmap/ROADMAP.md`, `docs/quality/TEST_STRATEGY.md`, `docs/decisions/ADR-003-COMPONENT-SYSTEM.md`, `docs/README.md`
 
 **Interfaces:**
@@ -1321,7 +1321,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write ADR-004**
 
-Create `docs/decisions/ADR-004-SHELL-TECHNOLOGY.md`. It records that the application shell is a Vite SPA
+Create `docs/decisions/ADR-006-SHELL-TECHNOLOGY.md`. It records that the application shell is a Vite SPA
 under `apps/studio` and that Next.js is deferred; it cites ADR-002's offline-refresh requirement and
 `TECHNICAL_ARCHITECTURE.md` §17; it states the trigger for revisiting the decision; and it states that the
 core and component packages stay unchanged either way. Follow the format of ADR-001 to ADR-003: status,
@@ -1380,7 +1380,7 @@ additions rather than replacements.
 
 - [ ] **Step 9: Update the docs index**
 
-`docs/README.md` gains `docs/decisions/ADR-004-SHELL-TECHNOLOGY.md` and the new spec and plan.
+`docs/README.md` gains `docs/decisions/ADR-006-SHELL-TECHNOLOGY.md` and the new spec and plan.
 
 - [ ] **Step 10: Verify the claims**
 

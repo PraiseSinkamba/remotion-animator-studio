@@ -383,7 +383,7 @@ impact, no postinstall of its own.
 | `docs/quality/TEST_STRATEGY.md` | The "no implemented app, no runnable test suite" claim is removed. Playwright and the named fixture files are marked not present. |
 | `DOCS.md` | The pre-registry `ELEMENTS` map becomes the registry; the element count becomes 26, grouped by family. The library's tabs, the 14 presets and the SQLite autosave path are corrected. |
 | `docs/architecture/REMOCN-CATALOGUE.md` | The "23 elements" count becomes 26, and §5 gains the wave 1 outcome. |
-| `docs/decisions/ADR-004-SHELL-TECHNOLOGY.md` | **New.** The Vite SPA shell is retained; Next.js is deferred with the reason, the trigger to revisit, and the requirement that the domain and renderer packages stay unchanged either way. |
+| `docs/decisions/ADR-006-SHELL-TECHNOLOGY.md` | **New.** The Vite SPA shell is retained; Next.js is deferred with the reason, the trigger to revisit, and the requirement that the domain and renderer packages stay unchanged either way. |
 | `docs/decisions/ADR-003-COMPONENT-SYSTEM.md` | **Addendum.** The three family packages, the transition slot, and the adoption rules of §9.2. |
 
 ## 12. Cleanup
@@ -420,7 +420,7 @@ configuration, CI, ADR-004, the §11 documentation corrections, the §12 cleanup
 | Typecheck | `turbo run typecheck` — five packages and the app, zero errors |
 | Tests | `turbo run test` — the same 153 tests, same names, same results |
 | Build | `turbo run build` produces `apps/studio/dist` |
-| Render | `node packages/export/src/render.mjs` produces an MP4 whose logical frames match the preview |
+| Render | `node packages/video/tools/render.mjs` produces an MP4 whose logical frames match the preview |
 | Boundary | no package imports a package absent from its own `package.json` |
 
 ### Phase 2 — Catalogue

@@ -21,6 +21,21 @@ This documentation set began as an **expanded revision of the v1.1 brainstorming
 12. [`decisions/ADR-005-SHADCN-AND-TAILWIND.md`](decisions/ADR-005-SHADCN-AND-TAILWIND.md) — the editor control layer: Tailwind v4 and shadcn/ui, what they cost and how to leave them.
 13. [`superpowers/specs/2026-10-26-chart-studio-shadcn-design.md`](superpowers/specs/2026-10-26-chart-studio-shadcn-design.md) — the approved design for the shadcn adoption and the Remocn expansion.
 14. [`superpowers/plans/2026-10-26-chart-studio-shadcn.md`](superpowers/plans/2026-10-26-chart-studio-shadcn.md) — the implementation plan for that slice, task by task.
+15. [`superpowers/plans/2026-10-25-chart-studio-scaffold.md`](superpowers/plans/2026-10-25-chart-studio-scaffold.md) — the scaffold plan: the project document, the registry and the first components.
+16. [`superpowers/plans/2026-10-26-chart-studio-storage.md`](superpowers/plans/2026-10-26-chart-studio-storage.md) — the persistence plan: the storage port, the SQLite backend and the contract suite.
+17. [`superpowers/specs/2026-10-27-chart-studio-cinema-shell-design.md`](superpowers/specs/2026-10-27-chart-studio-cinema-shell-design.md) — the design for the cinema shell, the two modes and the repaired primitives.
+18. [`superpowers/plans/2026-10-27-chart-studio-cinema-shell.md`](superpowers/plans/2026-10-27-chart-studio-cinema-shell.md) — the implementation plan for that slice.
+19. [`superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md`](superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md) — the design for the pnpm workspace, the five packages and the three component families.
+20. [`superpowers/plans/2026-10-28-chart-studio-platform-restructure.md`](superpowers/plans/2026-10-28-chart-studio-platform-restructure.md) — the implementation plan for that restructure, task by task.
+21. [`decisions/ADR-006-SHELL-TECHNOLOGY.md`](decisions/ADR-006-SHELL-TECHNOLOGY.md) — the application shell stays a Vite SPA; Next.js is deferred, with the trigger to revisit.
+
+## Records without a written plan
+
+The 2026-10-28 storage hardening landed without a plan or a spec of its own: saving when the page goes
+away with a warning before leaving, autosave during a long edit rather than only after it stops, and
+validating a restored project before loading it while recording the component version each clip was
+written with. The audit trail for those changes is in
+[`architecture/UPSTREAM_AUDIT.md`](architecture/UPSTREAM_AUDIT.md).
 
 ## Interpretation
 

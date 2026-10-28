@@ -37,42 +37,47 @@ The application is **not** a general purpose timeline engine plus screenshots of
 
 ```text
 apps/
-  studio/                         # Next.js App Router application (client editor)
-  render-worker/                  # deferred: optional server Remotion renderer
+  studio/                         # the editor shell — a Vite SPA; see ADR-006
 packages/
-  domain/                         # project, scene, clip and object schemas
-  market-data/                    # import, candles, series, sessions, time mapping
-  smt-mtf/                        # deterministic candidate matching + aggregation
-  chart-renderer/                 # pure evaluated chart->React/SVG shapes
-  trading-components/             # custom domain objects, manifests, inspectors and render adapters (P0)
-  motion-components/              # locally owned/adapted Remocn React motion components
-  scene-compositor/               # Remotion composition and transitions
-  editor-core/                    # commands, history, selection coordination
-  timeline/                       # project/scene timeline UI, drag/snap/trim
-  storage-sqlite/                 # single database worker, queries, migrations
-  project-archive/                # .chartstudio packaging, integrity checks
-  export/                         # render configs, freeze, local export
+  core/                           # project, scene, clip and object schemas; the component
+                                  # contract; the registration mechanism; candles, series,
+                                  # sessions, time mapping
+  components/                     # the catalogue, in three families:
+    base/                         #   the 22 inherited generic elements
+    trading/                      #   the trading objects, inspectors and render adapters (P0)
+    motion/                       #   the locally owned/adapted Remocn components
+                                  # plus the registry aggregator and the project migration
   ui/                             # shadcn wrappers, inspector/tool UI
-  testing/                        # fixtures, golden frames, mocks
+  editor/                         # commands, history, selection, timeline UI, persistence
+  video/                          # the Remotion composition and transitions; the render tools
 ```
+
+Three further packages are named in the original design and are **deferred, not forgotten**:
+`smt-mtf` (deterministic candidate matching and aggregation), `project-archive` (`.chartstudio`
+packaging and integrity checks) and `testing` (fixtures, golden frames, mocks). Each appears when the
+roadmap stage that needs it lands; none is created empty. `apps/render-worker` stays deferred too —
+there is no server renderer in this product.
+
+The three component families are folders inside `packages/components`, not packages of their own. They
+share the contract, the registration mechanism and the project migration, and the migration validates a
+stored project against the catalogue, so it has to live with it.
 
 ### Boundary rules
 
-- `domain` and `market-data` import **no** React, Zustand, Next.js, Remotion or storage libraries.
-- `smt-mtf` consumes canonical bar/time APIs from `market-data` and produces typed observations and time-consistent derived states; no DOM.
-- `chart-renderer` consumes evaluated chart states rather than reaching into storage.
-- `trading-components` is a foundational P0 library, not a deferred registry. It registers typed chart/drawing/SMT/MTF object behaviors, inspector metadata and Remotion render adapters.
-- `motion-components` owns the selected Remocn-installed source, provenance and lifecycle compatibility adapters. No independent video engine, timer, or editor state may be introduced.
-- `scene-compositor` consumes immutable project input props and frame, not mutable editor UI state.
-- `timeline` can issue typed commands, not directly modify SQLite or market datasets.
-- `storage-sqlite` owns persistence and transactional revisions, not asset painting or video state.
-- `export` manages immutable snapshot and media capability; it does not define alternative chart timing semantics.
+- `core` imports **no** React, Remotion, Zustand or storage code. It is pure TypeScript.
+- `components` consumes canonical bar/time APIs from `core` and produces typed observations and time-consistent derived states; no DOM, no editor state.
+- `components` is a foundational P0 library, not a deferred registry. It registers typed chart/drawing/SMT/MTF object behaviors, inspector metadata and Remotion render adapters.
+- `components/motion` owns the selected Remocn-installed source, provenance and lifecycle compatibility adapters. No independent video engine, timer, or editor state may be introduced.
+- `ui` is presentational: it takes its data as props and holds no editor state.
+- `editor` owns commands, history, selection coordination and persistence. It can issue typed commands, not directly modify SQLite or market datasets.
+- `video` consumes immutable project input props and frame, not mutable editor UI state. It manages the immutable snapshot and media capability; it does not define alternative chart timing semantics.
+- A package imports another package by name and declares it in its own `package.json`. No path alias crosses a package boundary, because the dependency list is what enforces these rules.
 
 ## 2A. Foundational component system (selected)
 
 The editor is specialized, so **our own trading video component library is a prerequisite for the first animated chart**, not a later enhancement. Remocn is the primary shadcn-style, source-owned library for generic Remotion effects, typography and transitions; Remotion remains the sole authoritative player/compositor/export runtime.
 
-Each registered visual component has a stable type, versioned/Zod-validated props, defaults, inspector descriptors, keyframe eligibility, frame lifespan `[startFrame,endFrame)`, market/scene anchors when relevant, and one deterministic rendering adapter. Domain components—`CandlestickChart`, `ChartGroup`, high/low line, horizontal price line, trendline, zone, long/short position, arrow, text label and SMT comparison—are implemented and tested inside `packages/trading-components` starting in R1. Remocn components, copied to `packages/motion-components`, use the same scene-object lifecycle through adapters. The editor uses shadcn/ui separately for its input controls and UI panels.
+Each registered visual component has a stable type, versioned/Zod-validated props, defaults, inspector descriptors, keyframe eligibility, frame lifespan `[startFrame,endFrame)`, market/scene anchors when relevant, and one deterministic rendering adapter. Domain components—`CandlestickChart`, `ChartGroup`, high/low line, horizontal price line, trendline, zone, long/short position, arrow, text label and SMT comparison—are implemented and tested inside `packages/components/src/trading/` starting in R1. Remocn components, copied to `packages/components/src/motion/`, use the same scene-object lifecycle through adapters. The editor uses shadcn/ui separately for its input controls and UI panels.
 
 See the normative [ADR-003 component system](../decisions/ADR-003-COMPONENT-SYSTEM.md) for object protocol, provenance and R1 gates. Do not serialize React component functions in project files: use typed IDs, props, frames, transforms, asset references and animation properties.
 
@@ -332,7 +337,7 @@ For a chart with multiple bars, the frame evaluator resolves the active candle i
 Conceptual API (not copy-paste implementation; verify exact installed Remotion signatures during spike):
 
 ```tsx
-// packages/scene-compositor/ProjectVideo.tsx
+// packages/video/src/composition.tsx
 export function ProjectVideo({snapshot}: {snapshot: ExportSnapshot}) {
   const frame = useCurrentFrame();
   const active = resolveActiveScenePlacements(snapshot.project, frame);
