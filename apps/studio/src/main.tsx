@@ -1,8 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
-import { playerRef } from './playerRef';
-import { useStore } from './store';
+import { playerRef } from '@chart-studio/editor';
+import { useStore } from '@chart-studio/editor';
 import { TooltipProvider } from '@chart-studio/ui';
 import { ThemeProvider } from './lib/theme';
 import './index.css';

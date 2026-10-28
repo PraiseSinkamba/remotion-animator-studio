@@ -17,7 +17,7 @@ import {
   type StorageStatus,
   type StoredProject,
   type WorkspaceRepository,
-} from '../types';
+} from '../types.js';
 import {
   fromRpcError,
   isProjectSummaryList,
@@ -25,7 +25,7 @@ import {
   isStorageStatus,
   isStoredProject,
   type RpcMethod,
-} from './rpc';
+} from './rpc.js';
 
 /** One writer per origin; the losers read only. */
 const LOCK_NAME = 'chart-studio-workspace';
@@ -145,7 +145,10 @@ export const createSqliteRepository: RepositoryFactory = async (
     onStatusChange?.(next);
   };
 
-  const worker = new Worker(new URL('./worker.ts', import.meta.url), {
+  // The worker is named by its built file name, not its source name: the app
+  // consumes this package's built output, where only `worker.js` exists, and
+  // Vite resolves `./worker.js` back to `worker.ts` when it compiles the source.
+  const worker = new Worker(new URL('./worker.js', import.meta.url), {
     type: 'module',
   });
 

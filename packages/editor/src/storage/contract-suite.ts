@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Project } from '@chart-studio/core';
-import { StorageConflictError, type RepositoryFactory } from './types';
+import { StorageConflictError, type RepositoryFactory } from './types.js';
 
 const sampleProject = (name: string): Project => ({
   name,

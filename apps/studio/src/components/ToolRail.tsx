@@ -1,6 +1,6 @@
 import React from 'react';
 import { MousePointer2, PenTool, Spline } from 'lucide-react';
-import { findClip, useStore } from '../store';
+import { findClip, useStore } from '@chart-studio/editor';
 import { Button } from '@chart-studio/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@chart-studio/ui';
 

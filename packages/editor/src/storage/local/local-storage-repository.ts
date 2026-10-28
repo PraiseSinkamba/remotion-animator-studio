@@ -11,14 +11,14 @@ import {
   StorageQuotaError,
   StorageUnavailableError,
   type RepositoryFactory,
-} from '../types';
+} from '../types.js';
 import {
   createRepositoryOverStore,
   isProject,
   type ProjectStore,
   type RevisionRecord,
   type StoreDriver,
-} from './memory-repository';
+} from './memory-repository.js';
 
 const KEY_PREFIX = 'chart-studio:';
 

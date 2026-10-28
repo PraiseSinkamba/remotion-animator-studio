@@ -1,9 +1,9 @@
 import { Player } from '@remotion/player';
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { playerRef, seekTo, togglePlay } from '../playerRef';
+import { playerRef, seekTo, togglePlay } from '@chart-studio/editor';
 import { MainComposition } from '../remotion/MainComposition';
-import { findClip, useStore } from '../store';
+import { findClip, useStore } from '@chart-studio/editor';
 import type { ElementType, Project } from '@chart-studio/core';
 import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit-test';
 import type { PickableClip } from './canvas-hit-test';

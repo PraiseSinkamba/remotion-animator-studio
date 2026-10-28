@@ -4,10 +4,10 @@
  * and the in-memory backend.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { describeRepositoryContract } from '../contract-suite';
-import { StorageQuotaError, StorageUnavailableError } from '../types';
-import { createLocalStorageRepository } from './local-storage-repository';
-import { createMemoryRepository } from './memory-repository';
+import { describeRepositoryContract } from '../contract-suite.js';
+import { StorageQuotaError, StorageUnavailableError } from '../types.js';
+import { createLocalStorageRepository } from './local-storage-repository.js';
+import { createMemoryRepository } from './memory-repository.js';
 
 const emptyDocument = (name: string) => ({
   name,

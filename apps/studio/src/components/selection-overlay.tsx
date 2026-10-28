@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getComponent } from '@chart-studio/components';
-import { findClip, useStore } from '../store';
+import { findClip, useStore } from '@chart-studio/editor';
 import { clipGeometry } from './canvas-hit-test';
 
 /**

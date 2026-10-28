@@ -5,9 +5,9 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { Timeline } from './components/Timeline';
 import { TopBar } from './components/TopBar';
 import { ToolRail } from './components/ToolRail';
-import { togglePlay } from './playerRef';
-import { useStore } from './store';
-import { useWorkspace } from './storage/useWorkspace';
+import { togglePlay } from '@chart-studio/editor';
+import { useStore } from '@chart-studio/editor';
+import { useWorkspace } from '@chart-studio/editor';
 
 const LAYOUT_KEY = 'remotion-animator-layout';
 

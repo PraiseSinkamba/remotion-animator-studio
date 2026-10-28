@@ -5,9 +5,9 @@
  * (not durable). When the durable backend cannot run, the app keeps working
  * on a fallback and says so through the repository's status.
  */
-import { createLocalStorageRepository } from './local/local-storage-repository';
-import { createMemoryRepository } from './local/memory-repository';
-import { createSqliteRepository } from './sqlite/client';
+import { createLocalStorageRepository } from './local/local-storage-repository.js';
+import { createMemoryRepository } from './local/memory-repository.js';
+import { createSqliteRepository } from './sqlite/client.js';
 import {
   StorageUnavailableError,
   type RepositoryFactory,
@@ -16,7 +16,7 @@ import {
   type StorageProblem,
   type StorageStatus,
   type WorkspaceRepository,
-} from './types';
+} from './types.js';
 
 export interface SelectOptions extends RepositoryOptions {
   /** Where the workspace lives. Two backends share data per namespace. */

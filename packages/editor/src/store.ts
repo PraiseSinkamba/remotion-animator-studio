@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
-import { buildPresetClips, PRESETS } from './presets';
+import { buildPresetClips, PRESETS } from './presets.js';
 import { sampleProject } from '@chart-studio/core';
 import type { Clip, EffectType, ElementType, Project, Track } from '@chart-studio/core';
 

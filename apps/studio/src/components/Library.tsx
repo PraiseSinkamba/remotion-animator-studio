@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { EFFECTS } from '@chart-studio/components';
 import { listComponents } from '@chart-studio/components';
-import { PRESETS } from '../presets';
-import { useStore } from '../store';
+import { PRESETS } from '@chart-studio/editor';
+import { useStore } from '@chart-studio/editor';
 import type { EffectType } from '@chart-studio/core';
 import { EffectsSection } from './library/effects-section';
 import {

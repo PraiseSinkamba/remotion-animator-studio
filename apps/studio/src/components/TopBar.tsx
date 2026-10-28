@@ -14,10 +14,10 @@ import {
   SkipBack,
   Undo2,
 } from 'lucide-react';
-import { seekTo } from '../playerRef';
+import { seekTo } from '@chart-studio/editor';
 import { migrateProject } from '@chart-studio/components';
-import { useStore } from '../store';
-import type { WorkspaceUiState } from '../storage/useWorkspace';
+import { useStore } from '@chart-studio/editor';
+import type { WorkspaceUiState } from '@chart-studio/editor';
 import type { Project } from '@chart-studio/core';
 import { Badge } from '@chart-studio/ui';
 import { Button } from '@chart-studio/ui';

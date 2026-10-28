@@ -13,10 +13,10 @@ import {
   type StorageStatus,
   type StoredProject,
   type WorkspaceRepository,
-} from '../types';
-import type { SqlDriver } from './driver';
-import { isProjectDocument } from './rpc';
-import { runMigrations } from './schema';
+} from '../types.js';
+import type { SqlDriver } from './driver.js';
+import { isProjectDocument } from './rpc.js';
+import { runMigrations } from './schema.js';
 
 /** A row of the `projects` table. */
 interface ProjectRow {

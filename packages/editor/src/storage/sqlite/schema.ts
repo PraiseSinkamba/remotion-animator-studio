@@ -5,7 +5,7 @@
  * migration version this build does not know is refused: guessing at a
  * newer schema would corrupt it.
  */
-import type { SqlDriver } from './driver';
+import type { SqlDriver } from './driver.js';
 
 export interface Migration {
   version: number;

@@ -11,9 +11,9 @@
  * - `createLocalStorageRepository` and `createMemoryRepository` are the
  *   fallbacks for browsers that cannot run the durable backend.
  */
-export * from './types';
+export * from './types.js';
 
-export { selectRepository, chooseBackend, type SelectOptions } from './select';
-export { createSqliteRepository } from './sqlite/client';
-export { createLocalStorageRepository } from './local/local-storage-repository';
-export { createMemoryRepository } from './local/memory-repository';
+export { selectRepository, chooseBackend, type SelectOptions } from './select.js';
+export { createSqliteRepository } from './sqlite/client.js';
+export { createLocalStorageRepository } from './local/local-storage-repository.js';
+export { createMemoryRepository } from './local/memory-repository.js';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { packLanes } from './shared';
+import { packLanes } from './shared.js';
 
 const clip = (id: string, from: number, durationInFrames: number) => ({ id, from, durationInFrames });
 

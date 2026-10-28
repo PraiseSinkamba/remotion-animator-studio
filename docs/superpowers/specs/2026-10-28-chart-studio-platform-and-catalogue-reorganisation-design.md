@@ -187,6 +187,11 @@ what the type checker could not.
    registrations, and the library panel silently loses its components while the build still succeeds
    and the bundle gets smaller.
 
+7. **A package that creates a worker names it by its built file name.** `new Worker(new URL('./worker.ts',
+   import.meta.url))` works only when the source and the built output sit side by side. An application
+   consumes a package's built output, where only `worker.js` exists, so the reference is written as
+   `./worker.js` — which Vite resolves back to `worker.ts` when it compiles the source.
+
 ## 6. Ownership map
 
 | Current path | Target | Notes |

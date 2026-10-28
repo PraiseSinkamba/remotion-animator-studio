@@ -1,10 +1,10 @@
 import React from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
-import { useStore } from '../../store';
+import { useStore } from '../store.js';
 import type { ElementType, Track } from '@chart-studio/core';
-import { ClipChip } from './ClipChip';
-import { LANE_HEIGHT, LABEL_COLUMN_WIDTH, packLanes, type TrackAccent } from './shared';
-import { ELEMENT_MIME, PRESET_MIME } from '../Library';
+import { ClipChip } from './ClipChip.js';
+import { LANE_HEIGHT, LABEL_COLUMN_WIDTH, packLanes, type TrackAccent } from './shared.js';
+import { ELEMENT_MIME, PRESET_MIME } from '@chart-studio/ui';
 
 const isAdditive = (e: React.PointerEvent | React.MouseEvent) => e.metaKey || e.ctrlKey || e.shiftKey;
 

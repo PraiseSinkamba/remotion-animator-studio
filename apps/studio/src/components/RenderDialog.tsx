@@ -11,7 +11,7 @@ import {
 } from '@chart-studio/ui';
 import { Label } from '@chart-studio/ui';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@chart-studio/ui';
-import { useStore } from '../store';
+import { useStore } from '@chart-studio/editor';
 
 type Phase = 'idle' | 'starting' | 'bundling' | 'rendering' | 'done' | 'error' | 'no-server';
 

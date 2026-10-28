@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
 import { getComponent } from '@chart-studio/components';
-import { findClip, useStore } from '../store';
+import { findClip, useStore } from '@chart-studio/editor';
 import type { Clip } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
 import {

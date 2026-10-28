@@ -1,5 +1,5 @@
 import React from 'react';
-import { framesToLabel, RULER_HEIGHT } from './shared';
+import { framesToLabel, RULER_HEIGHT } from './shared.js';
 
 export const TimelineRuler: React.FC<{
   marks: number[];

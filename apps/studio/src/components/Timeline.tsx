@@ -3,11 +3,11 @@ import { Plus } from 'lucide-react';
 import { Button } from '@chart-studio/ui';
 import { Badge } from '@chart-studio/ui';
 import { Separator } from '@chart-studio/ui';
-import { seekTo } from '../playerRef';
-import { useStore } from '../store';
-import { TrackRow } from './timeline/TrackRow';
-import { TimelineRuler } from './timeline/TimelineRuler';
-import { accentForTrack, framesToLabel, LABEL_COLUMN_WIDTH, RULER_HEIGHT } from './timeline/shared';
+import { seekTo } from '@chart-studio/editor';
+import { useStore } from '@chart-studio/editor';
+import { TrackRow } from '@chart-studio/editor';
+import { TimelineRuler } from '@chart-studio/editor';
+import { accentForTrack, framesToLabel, LABEL_COLUMN_WIDTH, RULER_HEIGHT } from '@chart-studio/editor';
 
 export const Timeline: React.FC = () => {
   const project = useStore((s) => s.project);

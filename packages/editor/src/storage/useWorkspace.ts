@@ -8,9 +8,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { migrateProject } from '@chart-studio/components';
-import { uid, useStore } from '../store';
+import { uid, useStore } from '../store.js';
 import type { Project } from '@chart-studio/core';
-import { selectRepository } from './select';
+import { selectRepository } from './select.js';
 import {
   StorageConflictError,
   StorageQuotaError,
@@ -20,7 +20,7 @@ import {
   type StorageStatus,
   type StoredProject,
   type WorkspaceRepository,
-} from './types';
+} from './types.js';
 
 export interface UseWorkspaceOptions {
   /** Test seam: replaces how the repository is opened. */
