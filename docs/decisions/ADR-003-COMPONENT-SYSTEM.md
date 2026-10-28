@@ -113,3 +113,53 @@ The canvas editor overlays interactive handles over the video objects and uses c
 ## Boundaries
 
 No Remocn component is treated as a trading analysis engine. No custom scene object runs its own free-running `setInterval`, animation RAF clock or video player. No copied component enters the canonical project document as executable code; persist typed component IDs, props, keyframes and immutable asset references. The component library is essential from R1, but a *public* component registry, arbitrary user plugins and public API are not MVP work.
+
+## Addendum — the copy-in model, restated (2026-10-28)
+
+The decision above stands. What changed is the *reason* it stands, and the action list that
+follows from it.
+
+**The model.** Remocn is a shadcn-style registry: `npx shadcn@latest add @remocn/<name>`
+copies the component's source into the repository, MIT licensed, and it stays ours to edit.
+There is no runtime dependency on Remocn, and there is no upstream package we would need to
+keep current. The upstream catalogue is 438 registry items — 328 installable components
+across 17 families — and a snapshot of it plus its documentation now lives in
+`docs/reference/remocn/`.
+
+**Why the answer is still "not a substitute", stated correctly.** The first framing — "a
+Remocn component is a fixed React component with a closed prop set, so it cannot satisfy
+`VideoComponentDefinition`" — was true but misleading, because the same is true of every
+shadcn component and the answer is always "write the definition yourself", which we already
+do. The decisive reason is narrower and stronger:
+
+> Upstream models **generic motion**. It has no OHLC, no price anchoring, no SMT, no HTF/LTF
+> pairing, no market-time policy, no provenance badge, and no duration derived from a data
+> series. Grepping the whole snapshot for `candlestick|ohlc|smt|divergence|liquidity|support|
+> resistance|pivot` returns nothing. The only trading-flavoured artefact is
+> `fomo-limit-orders`, a template film built on fictional market data.
+
+So the boundary is not "upstream components are foreign to our contract". It is **"upstream
+components do not know what a market is"** — and that is a boundary no amount of editing the
+copied source removes, because the semantics have to be written either way.
+
+**What this changes operationally.** Because the source is ours, the question stops being
+"adopt or not" and becomes "start from what". Of the ten trading components this ADR names,
+`CandlestickChart` is built; the other nine each get their *drawing technique* from an
+upstream source and their *semantics* from us:
+
+`animated-line-chart` / `animated-bar-chart` (draw-on and spring-up chart technique) →
+`ink-arrow` (Arrow, LongShortPosition) → `squiggle` / `ink-underline` (the price-line set) →
+`scribble-circle` (pivot marking) → `marker-highlight` (PriceZone fill, already vendored) →
+`value-swap` / `gradient-scale-cut-text` (TextLabel) → `chat-to-preview-layout` (ChartGroup).
+
+**What this does not change.** All 23 of our own elements stay. No upstream component makes
+one redundant — our generic layer already beats upstream's per-slot components on
+inspector depth, duration control and the clip effect stack. Upstream is additive.
+
+**Newly identified gap.** We have no transition slot in the object model. 31 upstream
+transitions exist and most fit a trading video (`push-through` for an MTF push, `focus-pull`
+between panels, `whip-pan` for an instant symbol change), but upstream's are
+`presentation()` wrappers that own a scene boundary, and our model has nowhere to put one.
+Opening that slot is a design task that comes before mining transitions.
+
+Full working: `docs/architecture/REMOCN-CATALOGUE.md`.

@@ -232,3 +232,33 @@ contracts from `docs/` were kept; the layout was not.
 - The theme follows the operating system on first run. A user on a light system gets the light
   editor; the toggle is in the top bar.
 
+## R4 — the upstream catalogue, on the record
+
+**Closed: the catalogue was scratch.** The Remocn registry manifest (438 items) lived only in
+`.tmp/remocn/registry.json`, a gitignored scratch directory. The repository could not answer
+"what does Remocn offer?" from its own contents, and every adoption decision had to be
+re-derived from the web. The catalogue, the router table and the documentation pages that
+govern adoption are now committed in `docs/reference/remocn/`, with fetch date, source URLs
+and sha256 hashes, and a refresh command.
+
+**The first analysis was answered in the wrong frame.** "Can we replace our elements with
+Remocn?" was answered on the grounds that a Remocn component is a fixed React component with
+a closed prop set and therefore cannot satisfy `VideoComponentDefinition`. That is true of
+every shadcn component, and the answer is always "write the definition yourself" — which is
+what we already do for the three we have vendored. The decisive fact is narrower: upstream
+models generic motion and knows nothing about markets. It has no OHLC, no price anchoring, no
+SMT, no HTF/LTF pairing, no market-time policy and no provenance, and the only trading-flavoured
+artefact is a template film on fictional data.
+
+**Because the source is ours, the question changes shape.** Remocn is shadcn-style: the
+component's source is copied into the repository, MIT licensed, and stays ours to edit. So
+upstream is a *technique source* for the nine planned trading components — the draw-on
+technique, the hand-drawn arrow, the brush circle, the sweep-in zone fill — while every
+market semantic is written by us. None of our 23 own elements is made redundant.
+
+**Newly identified gap.** The object model has no transition slot. 31 upstream transitions
+exist and most suit a trading video, but upstream's are `presentation()` wrappers that own a
+scene boundary. Opening a transition slot is a design task that comes before mining them.
+
+Working: `docs/architecture/REMOCN-CATALOGUE.md`. Decision: `ADR-003` addendum.
+
