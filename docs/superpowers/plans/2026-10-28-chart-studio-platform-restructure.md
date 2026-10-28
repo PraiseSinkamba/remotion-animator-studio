@@ -20,6 +20,9 @@
 - pnpm 10 lifecycle scripts are allowlisted explicitly in the root `package.json`.
 - The local-first invariant holds: no network call, login or server is required to edit, save, preview or export.
 - No package imports a package absent from its own `package.json`.
+- **A package's relative imports carry an explicit `.js` extension.** The built output is strict ESM, so Node and webpack require fully-specified paths. Vite's build and the type checker are both silent about this; only the Remotion bundler catches it.
+- **A package has two TypeScript configurations.** `tsconfig.json` typechecks everything under `src` and emits nothing; `tsconfig.build.json` extends it, emits, and excludes the test files. The build script removes `dist` first.
+- React's types are a development dependency. A package that only needs `React.FC` declares `react` and `@types/react` as devDependencies; nothing is bundled.
 - After every task, `node scripts/verify-r1.mjs` still renders an MP4 whose logical frames match the preview.
 - Every task ends with a commit.
 
@@ -447,7 +450,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   }
@@ -633,7 +636,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
@@ -656,7 +659,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 the moved files import. If the app depends on the `radix-ui` umbrella package rather than individual
 `@radix-ui/react-*` packages, keep that single dependency instead of listing both.
 
-`packages/ui/tsconfig.json` is identical to the core one.
+Create `packages/ui/tsconfig.json` and `packages/ui/tsconfig.build.json` with exactly the contents the core
+package uses — see `packages/core/tsconfig.json` and `packages/core/tsconfig.build.json`.
 
 - [ ] **Step 2: Move the sources**
 
@@ -805,7 +809,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
@@ -819,7 +823,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
-`packages/components/tsconfig.json` is identical to the core one.
+Create `packages/components/tsconfig.json` and `packages/components/tsconfig.build.json` with exactly the contents the core package uses.
 
 - [ ] **Step 2: Move the base family**
 
@@ -1049,7 +1053,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
@@ -1065,7 +1069,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
-`packages/editor/tsconfig.json` is identical to the core one.
+Create `packages/editor/tsconfig.json` and `packages/editor/tsconfig.build.json` with exactly the contents the core package uses.
 
 - [ ] **Step 2: Move the sources**
 
@@ -1187,7 +1191,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json && node --check tools/render.mjs && node --check tools/server.mjs",
     "test": "vitest run --passWithNoTests"
   },
@@ -1204,9 +1208,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 The package holds both the React composition and the Node render tools, so it declares React and the
-server-side renderer together. `packages/video/tsconfig.json` is identical to the core one, with
-`"include": ["src"]` — the `remotion/` and `tools/` directories are entry points and scripts, not compiled
-modules.
+server-side renderer together. Create `packages/video/tsconfig.json` and `packages/video/tsconfig.build.json`
+with exactly the contents the core package uses, except that the `include` stays `["src"]` — the `remotion/`
+and `tools/` directories are entry points and scripts, not compiled modules.
 
 - [ ] **Step 2: Move the sources**
 

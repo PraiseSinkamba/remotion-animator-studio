@@ -150,6 +150,30 @@ Consequences that the implementation plan must handle:
 - Global CSS stays with the application (`apps/studio/src/index.css`); `packages/ui` ships class names and
   depends on the CSS variables the application defines.
 
+### 5.2 Package conventions
+
+Four rules every internal package follows. The first three were found by the render gate, which caught
+what the type checker could not.
+
+1. **A package's relative imports carry an explicit `.js` extension.** A package's built output is strict
+   ESM — the package is `"type": "module"` — so Node and webpack both require fully-specified import
+   paths. `import { x } from './schemas.js'` in the source resolves to `schemas.ts` under TypeScript and
+   emits `schemas.js` unchanged. Without the extension, Vite's build succeeds, the type checker is
+   silent, and the Remotion bundler fails with `Can't resolve './schemas'`.
+
+2. **A package has two TypeScript configurations.** `tsconfig.json` typechecks everything under `src`,
+   including the tests, and emits nothing. `tsconfig.build.json` extends it, emits JavaScript and
+   declarations, and excludes `*.test.ts` and `*.test.tsx`, so a test file never reaches `dist`. The
+   build script removes `dist` before compiling, so a stale file can never survive a rename.
+
+3. **React's types are a development dependency, not a runtime one.** The component contract types the
+   render and inspector adapters as `React.FC`. A package that needs only those types declares `react`
+   and `@types/react` as devDependencies; the import is type-only, it is erased at compile time, and
+   nothing is bundled.
+
+4. **A package imports another package by name, never by path.** The dependency is declared in
+   `package.json`, which is what enforces the ownership rules mechanically rather than by convention.
+
 ## 6. Ownership map
 
 | Current path | Target | Notes |
