@@ -19,7 +19,7 @@ export const ToolRail: React.FC = () => {
   const isTrail = clip?.element === 'nodeTrail';
 
   return (
-    <div className="flex flex-col items-center gap-2 w-12 shrink-0 border-r bg-card">
+    <div className="flex flex-col items-center gap-2 w-12 shrink-0 border-r bg-card py-2">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

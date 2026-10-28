@@ -270,4 +270,36 @@ describe('useWorkspace — restore on boot', () => {
 
     unmount();
   });
+
+  it('migrates a stored document that predates the schema version', async () => {
+    const legacy = seedProject('p-legacy', 'Legacy doc', 2000);
+    // A document written before the schema version existed.
+    expect(legacy.document.schemaVersion).toBeUndefined();
+    const fake = createFakeRepository([legacy]);
+    const { unmount } = await mountWorkspace(fake);
+
+    expect(useStore.getState().project.name).toBe('Legacy doc');
+    expect(useStore.getState().project.schemaVersion).toBe(1);
+    expect(useStore.getState().workspaceId).toBe('p-legacy');
+
+    unmount();
+  });
+
+  it('refuses a document from a newer build and leaves it untouched', async () => {
+    const future = seedProject('p-future', 'Future doc', 2000);
+    const document = { ...future.document, schemaVersion: 99 };
+    const fake = createFakeRepository([{ ...future, document }]);
+    const before = useStore.getState().project;
+    const { result, unmount } = await mountWorkspace(fake);
+
+    // The editor keeps what it had; the unreadable document is not loaded.
+    expect(useStore.getState().project).toBe(before);
+    expect(useStore.getState().workspaceId).toBeNull();
+    expect(result.current.state.error).toContain('schema version 99');
+    // Nothing was written over it.
+    expect(fake.commits).toHaveLength(0);
+    expect(fake.stored('p-future')?.document.schemaVersion).toBe(99);
+
+    unmount();
+  });
 });

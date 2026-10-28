@@ -7,6 +7,7 @@
  * workspace.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { migrateProject } from '../project/migrate';
 import { uid, useStore } from '../store';
 import type { Project } from '../types';
 import { selectRepository } from './select';
@@ -17,6 +18,7 @@ import {
   type ProjectSummary,
   type RepositoryFactory,
   type StorageStatus,
+  type StoredProject,
   type WorkspaceRepository,
 } from './types';
 
@@ -124,6 +126,23 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
   const setDirty = useCallback((dirty: boolean) => {
     dirtyRef.current = dirty;
     setState((s) => (s.saving === dirty ? s : { ...s, saving: dirty }));
+  }, []);
+
+  /**
+   * Validate a stored document before it reaches the editor.
+   *
+   * The stored document may have been written by a newer build, or be
+   * corrupt. A document that cannot be read is never hydrated: the editor
+   * keeps what it has, the reason is shown, and the stored document is left
+   * exactly as it is. A failed restore must not turn into a lost project.
+   */
+  const readStored = useCallback((stored: StoredProject): Project | null => {
+    try {
+      return migrateProject(stored.document);
+    } catch (error) {
+      setState((s) => ({ ...s, error: describeError(error) }));
+      return null;
+    }
   }, []);
 
   /**
@@ -239,9 +258,12 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
           const stored = await repo.get(newest.id);
           if (cancelled) return;
           if (stored) {
-            restoredRef.current = stored.document;
-            useStore.getState().hydrate(stored.document);
-            useStore.getState().setWorkspace({ id: stored.id, revision: stored.revision });
+            const document = readStored(stored);
+            if (document) {
+              restoredRef.current = document;
+              useStore.getState().hydrate(document);
+              useStore.getState().setWorkspace({ id: stored.id, revision: stored.revision });
+            }
           }
         }
         // An edit made while the workspace was opening is still unsaved.
@@ -286,12 +308,14 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
     if (!repo) return;
     const stored = await repo.get(id);
     if (!stored) return;
-    restoredRef.current = stored.document;
-    useStore.getState().hydrate(stored.document);
+    const document = readStored(stored);
+    if (!document) return;
+    restoredRef.current = document;
+    useStore.getState().hydrate(document);
     useStore.getState().setWorkspace({ id: stored.id, revision: stored.revision });
     setDirty(false);
     setState((s) => ({ ...s, error: null }));
-  }, [setDirty]);
+  }, [readStored, setDirty]);
 
   const removeProject = useCallback(async (id: string) => {
     const repo = repoRef.current;

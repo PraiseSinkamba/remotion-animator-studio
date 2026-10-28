@@ -192,6 +192,9 @@ export const useStore = create<EditorState>((set, get) => ({
       const clips = buildPresetClips(preset, width, height, at).map((c) => ({
         ...c,
         durationInFrames: Math.max(2, Math.min(c.durationInFrames, durationInFrames - c.from)),
+        // Same rule as addClip: the clip records the props schema it was
+        // written against.
+        propsVersion: getComponent(c.element)?.propsVersion ?? 1,
       }));
       // one track per clip so nothing hides in a shared lane;
       // buildPresetClips returns bottom→top, and the top layer belongs on the first track
@@ -335,6 +338,10 @@ export const useStore = create<EditorState>((set, get) => ({
         durationInFrames: Math.min(wanted, total - from),
         props,
         effects: [],
+        // The props are written against the definition's current schema.
+        // The migrator rejects a clip that is newer than the component
+        // supports, so a clip has to say which schema it belongs to.
+        propsVersion: def.propsVersion ?? 1,
       };
       return {
         project: {
