@@ -14,7 +14,7 @@ import { bundle } from '@remotion/bundler';
 import { renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { generateSyntheticBars } from '../src/trading/ohlc.ts';
+import { generateSyntheticBars } from '../apps/studio/src/trading/ohlc.ts';
 
 const OUT_DIR = path.resolve('out', 'verify');
 const STILL_FRAMES = [0, 20, 45, 100, 140, 179];
@@ -162,7 +162,7 @@ const project = {
 mkdirSync(OUT_DIR, { recursive: true });
 
 console.log('Bundling composition...');
-const serveUrl = await bundle({ entryPoint: path.resolve('remotion/index.ts') });
+const serveUrl = await bundle({ entryPoint: path.resolve('apps/studio/remotion/index.ts') });
 
 const inputProps = { project };
 const composition = await selectComposition({ serveUrl, id: 'Main', inputProps });

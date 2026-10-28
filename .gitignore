@@ -7,3 +7,4 @@ out/
 tsconfig.tsbuildinfo
 .tmp/
 .omp/
+.turbo/

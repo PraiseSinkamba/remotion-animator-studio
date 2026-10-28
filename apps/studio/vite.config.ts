@@ -41,11 +41,13 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@sqlite.org/sqlite-wasm'],
-  },
-  test: {
-    // Node by default; DOM tests opt in with `// @vitest-environment jsdom`.
-    environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    exclude: [
+      '@sqlite.org/sqlite-wasm',
+      '@chart-studio/core',
+      '@chart-studio/ui',
+      '@chart-studio/components',
+      '@chart-studio/editor',
+      '@chart-studio/video',
+    ],
   },
 });

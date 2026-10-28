@@ -1,58 +1,28 @@
 {
-  "name": "remotion-animator",
+  "name": "chart-studio",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": { "node": ">=24.20.0" },
   "scripts": {
-    "dev": "concurrently -k -n web,render -c cyan,magenta \"vite\" \"node server.mjs\"",
-    "dev:web": "vite",
-    "build": "tsc -b && vite build",
-    "typecheck": "tsc -b",
+    "dev": "concurrently -k -n web,render -c cyan,magenta \"pnpm --filter @chart-studio/studio dev\" \"node server.mjs\"",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "preview": "vite preview",
+    "preview": "pnpm --filter @chart-studio/studio preview",
     "render": "node render.mjs",
     "docs:gifs": "node docs-gifs.mjs"
-  },
-  "dependencies": {
-    "@remotion/gif": "4.0.538",
-    "@remotion/media-utils": "4.0.538",
-    "@remotion/noise": "4.0.538",
-    "@remotion/paths": "4.0.538",
-    "@remotion/player": "4.0.538",
-    "@remotion/shapes": "4.0.538",
-    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.61.0",
-    "next-themes": "^0.4.6",
-    "radix-ui": "^1.8.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "remotion": "4.0.538",
-    "sonner": "^2.0.8",
-    "tailwind-merge": "^3.7.0",
-    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@remotion/bundler": "4.0.538",
     "@remotion/renderer": "4.0.538",
-    "@tailwindcss/vite": "^4.3.3",
-    "@testing-library/dom": "^10.4.2",
-    "@testing-library/react": "^16.3.3",
-    "@types/node": "^22.20.5",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^10.0.3",
-    "jsdom": "^26.1.0",
-    "tailwindcss": "^4.3.3",
+    "turbo": "2.11.10",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
     "vitest": "^3.2.7"
   },
-  "allowScripts": {
-    "esbuild@0.28.1": true,
-    "esbuild@0.21.5": true
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }

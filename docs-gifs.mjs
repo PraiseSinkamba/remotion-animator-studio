@@ -5,7 +5,7 @@ import { renderMedia, selectComposition } from '@remotion/renderer';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-const OUT = path.resolve('public/docs/gifs');
+const OUT = path.resolve('apps/studio/public/docs/gifs');
 mkdirSync(OUT, { recursive: true });
 
 let n = 0;
@@ -111,7 +111,7 @@ const DEMOS = {
 };
 
 console.log('Bundling composition...');
-const serveUrl = await bundle({ entryPoint: path.resolve('remotion/index.ts') });
+const serveUrl = await bundle({ entryPoint: path.resolve('apps/studio/remotion/index.ts') });
 
 for (const [name, proj] of Object.entries(DEMOS)) {
   const inputProps = { project: proj };
