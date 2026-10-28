@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { playerRef, seekTo, togglePlay } from '../playerRef';
 import { MainComposition } from '../remotion/MainComposition';
 import { findClip, useStore } from '../store';
-import type { ElementType, Project } from '../types';
+import type { ElementType, Project } from '@chart-studio/core';
 import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit-test';
 import type { PickableClip } from './canvas-hit-test';
 import { SelectionOverlay } from './selection-overlay';

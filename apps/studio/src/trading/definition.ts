@@ -8,11 +8,11 @@
  * See docs/spec/COMPONENT_CONTRACT.md.
  */
 import { createElement } from 'react';
-import { registerComponent } from '../registry/registry';
-import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '../registry/types';
+import { registerComponent } from '@chart-studio/core';
+import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '@chart-studio/core';
 import { CandlestickChart, type CandlestickChartProps } from './candlestick-chart';
 import { CandlestickChartInspector } from './candlestick-chart-inspector';
-import { barsToFrames, generateSyntheticBars } from './ohlc';
+import { barsToFrames, generateSyntheticBars } from '@chart-studio/core';
 
 const POSITION_PARAMS = [
   { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },

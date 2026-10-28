@@ -29,6 +29,9 @@ importers:
 
   apps/studio:
     dependencies:
+      '@chart-studio/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@remotion/gif':
         specifier: 4.0.538
         version: 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -126,6 +129,15 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.20.5)(jsdom@26.1.0)(lightningcss@1.32.0)(terser@5.51.2)
+
+  packages/core:
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.12
+        version: 18.3.31
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
 
 packages:
 
@@ -4330,13 +4342,13 @@ snapshots:
       '@remotion/timeline-utils': 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@rspack/core': 1.7.11
       '@rspack/plugin-react-refresh': 1.6.1(react-refresh@0.18.0)
-      css-loader: 7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32))
+      css-loader: 7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32))
       esbuild: 0.28.1
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       react-refresh: 0.18.0
       remotion: 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      style-loader: 4.0.0(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32))
+      style-loader: 4.0.0(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32))
       webpack: 5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)
     transitivePeerDependencies:
       - '@minify-html/node'
@@ -5120,7 +5132,7 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  css-loader@7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32)):
+  css-loader@7.1.4(@rspack/core@1.7.11)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)):
     dependencies:
       icss-utils: 5.1.0(postcss@8.5.32)
       postcss: 8.5.32
@@ -5749,7 +5761,7 @@ snapshots:
     dependencies:
       loose-envify: 1.4.0
 
-  schema-utils@4.8.1(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32)):
+  schema-utils@4.8.1(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)):
     dependencies:
       '@types/json-schema': 7.0.15
       ajv: 8.20.0
@@ -5820,7 +5832,7 @@ snapshots:
     dependencies:
       js-tokens: 9.0.1
 
-  style-loader@4.0.0(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32)):
+  style-loader@4.0.0(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)):
     dependencies:
       webpack: 5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)
 
@@ -5838,11 +5850,11 @@ snapshots:
 
   tapable@2.3.3: {}
 
-  terser-webpack-plugin@5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32)):
+  terser-webpack-plugin@5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
-      schema-utils: 4.8.1(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32))
+      schema-utils: 4.8.1(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32))
       terser: 5.51.2
       webpack: 5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)
     optionalDependencies:
@@ -6032,9 +6044,9 @@ snapshots:
       loader-runner: 4.3.2
       mime-types: 2.1.35
       neo-async: 2.6.2
-      schema-utils: 4.8.1(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32))
+      schema-utils: 4.8.1(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32))
       tapable: 2.3.3
-      terser-webpack-plugin: 5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)(webpack@5.105.0(lightningcss@1.32.0)(postcss@8.5.32))
+      terser-webpack-plugin: 5.6.1(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32)(webpack@5.105.0(esbuild@0.28.1)(lightningcss@1.32.0)(postcss@8.5.32))
       watchpack: 2.6.3
       webpack-sources: 3.6.0
     transitivePeerDependencies:

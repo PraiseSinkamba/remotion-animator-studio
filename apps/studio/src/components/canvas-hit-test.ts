@@ -6,7 +6,7 @@
  * `PreviewPanel`, which owns the stage rect.
  */
 import { componentBounds, getComponent } from '../registry';
-import type { Clip, Project } from '../types';
+import type { Clip, Project } from '@chart-studio/core';
 
 /** A box in project coordinates. */
 export interface ClipBox {

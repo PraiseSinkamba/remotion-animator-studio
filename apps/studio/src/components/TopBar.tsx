@@ -18,7 +18,7 @@ import { seekTo } from '../playerRef';
 import { migrateProject } from '../project/migrate';
 import { useStore } from '../store';
 import type { WorkspaceUiState } from '../storage/useWorkspace';
-import type { Project } from '../types';
+import type { Project } from '@chart-studio/core';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';

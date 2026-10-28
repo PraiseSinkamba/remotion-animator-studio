@@ -10,7 +10,7 @@
  *   labelled in the rendered output.
  */
 import React from 'react';
-import { computePriceRange, evaluateBarsAtFrame, type OhlcBar } from './ohlc';
+import { computePriceRange, evaluateBarsAtFrame, type OhlcBar } from '@chart-studio/core';
 
 export interface CandlestickChartProps {
   bars: OhlcBar[];

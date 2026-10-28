@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@chart-studio/core": "workspace:*",
     "@remotion/gif": "4.0.538",
     "@remotion/media-utils": "4.0.538",
     "@remotion/noise": "4.0.538",

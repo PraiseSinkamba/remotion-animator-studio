@@ -15,10 +15,9 @@ import '../motion-components/definition';
 import '../motion-components/definitions/soft-blur-in';
 import '../motion-components/definitions/typewriter';
 
-export * from './registry';
-export * from './types';
+export * from '@chart-studio/core';
 
-import type { ComponentCategory } from './types';
+import type { ComponentCategory } from '@chart-studio/core';
 
 /** Order the library panel renders the categories in. */
 export const CATEGORY_ORDER: ComponentCategory[] = ['generic', 'trading', 'motion'];

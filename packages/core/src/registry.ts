@@ -1,5 +1,5 @@
-import type { ComponentCategory, ComponentProps, VideoComponentDefinition } from './types';
-import type { ElementType, Project } from '../types';
+import type { ComponentCategory, ComponentProps, VideoComponentDefinition } from './contract.js';
+import type { ElementType, Project } from './schemas.js';
 
 /**
  * The registry of every exportable video component.

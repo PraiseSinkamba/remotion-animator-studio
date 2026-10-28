@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { getComponent } from './registry';
-import { sampleProject } from './sampleProject';
+import { sampleProject } from '@chart-studio/core';
 import { useStore } from './store';
-import type { Project } from './types';
+import type { Project } from '@chart-studio/core';
 
 /** A project with one empty track, so every clip in it is one we created. */
 const emptyProject = (): Project => ({

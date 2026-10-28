@@ -10,7 +10,7 @@
  * arrives from a message port or from a database row is data from outside
  * the program, so it is checked before anything acts on it.
  */
-import type { Project } from '../../types';
+import type { Project } from '@chart-studio/core';
 import {
   StorageConflictError,
   StorageError,

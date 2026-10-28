@@ -20,7 +20,7 @@ vi.mock('remotion', () => ({
   spring: ({ frame }: { frame: number }) => Math.max(0, Math.min(1, frame / 20)),
 }));
 
-import { getComponent } from '../registry/registry';
+import { getComponent } from '@chart-studio/core';
 import { remocnMarkerHighlightDefinition } from './definition';
 
 afterEach(() => cleanup());

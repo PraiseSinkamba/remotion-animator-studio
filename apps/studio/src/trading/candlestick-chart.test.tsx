@@ -5,10 +5,10 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { CandlestickChart, type CandlestickChartProps } from './candlestick-chart';
 import { CandlestickChartInspector } from './candlestick-chart-inspector';
 import { candlestickChartDefinition } from './definition';
-import { generateSyntheticBars, type OhlcBar } from './ohlc';
-import { getComponent } from '../registry/registry';
+import { generateSyntheticBars, type OhlcBar } from '@chart-studio/core';
+import { getComponent } from '@chart-studio/core';
 import { migrateProject } from '../project/migrate';
-import type { Clip, Project } from '../types';
+import type { Clip, Project } from '@chart-studio/core';
 
 afterEach(() => cleanup());
 

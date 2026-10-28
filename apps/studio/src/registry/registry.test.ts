@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ElementType, Project } from '../types';
-import { buildComponentProps, getComponent, listComponents, listComponentsByCategory, registerComponent } from './registry';
+import type { ElementType, Project } from '@chart-studio/core';
+import { buildComponentProps, getComponent, listComponents, listComponentsByCategory, registerComponent } from '@chart-studio/core';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from './index';
 import './legacy';
 

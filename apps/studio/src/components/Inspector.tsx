@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getComponent } from '../registry';
 import { findClip, useStore } from '../store';
-import type { Clip } from '../types';
+import type { Clip } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
 import { InspectorHeader } from './inspector/header';
 import { numberFieldClass, ParamControl } from './inspector/param-control';

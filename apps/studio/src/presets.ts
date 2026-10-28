@@ -1,4 +1,4 @@
-import type { Clip, EffectInstance, ElementType } from './types';
+import type { Clip, EffectInstance, ElementType } from '@chart-studio/core';
 import { getComponent } from './registry';
 
 let n = 0;

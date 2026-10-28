@@ -1,4 +1,4 @@
-import type { ElementType } from '../../types';
+import type { ElementType } from '@chart-studio/core';
 
 /**
  * The library pane is a filter over the registry and the preset list — every

@@ -6,7 +6,7 @@
  * original `src/elements.ts` catalog so that existing project files, presets and
  * saved scenes keep rendering exactly the same.
  */
-import type { ParamDef } from '../types';
+import type { ParamDef } from '@chart-studio/core';
 import {
   AudioAdapter,
   BlobAdapter,
@@ -31,8 +31,8 @@ import {
   VideoAdapter,
   WaveAdapter,
 } from '../remotion/legacy-elements';
-import { registerComponent } from './registry';
-import { componentBounds, type VideoComponentDefinition } from './types';
+import { registerComponent } from '@chart-studio/core';
+import { componentBounds, type VideoComponentDefinition } from '@chart-studio/core';
 
 const FONTS = [
   'Helvetica, Arial, sans-serif',

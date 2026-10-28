@@ -4,7 +4,7 @@ import { EFFECTS } from '../effects';
 import { listComponents } from '../registry';
 import { PRESETS } from '../presets';
 import { useStore } from '../store';
-import type { EffectType } from '../types';
+import type { EffectType } from '@chart-studio/core';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GROUP_DOT, TABS, type TabDef } from './library/catalog';

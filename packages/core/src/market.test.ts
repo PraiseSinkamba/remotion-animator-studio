@@ -5,7 +5,7 @@ import {
   evaluateBarsAtFrame,
   generateSyntheticBars,
   type OhlcBar,
-} from './ohlc';
+} from './market.js';
 
 const FRAMES_PER_BAR = 12;
 

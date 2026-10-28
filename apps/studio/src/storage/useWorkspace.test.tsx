@@ -2,9 +2,9 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { sampleProject } from '../sampleProject';
+import { sampleProject } from '@chart-studio/core';
 import { useStore } from '../store';
-import type { Project } from '../types';
+import type { Project } from '@chart-studio/core';
 import { useWorkspace } from './useWorkspace';
 import {
   StorageConflictError,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { EFFECTS } from '../../effects';
-import type { EffectType } from '../../types';
+import type { EffectType } from '@chart-studio/core';
 import { GROUP_DOT } from './catalog';
 import { GroupHeader } from './group-header';
 import { LibraryRow, type LibraryItem } from './library-card';

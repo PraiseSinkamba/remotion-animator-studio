@@ -3,7 +3,7 @@ import { Pencil, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EFFECTS, getEasing } from '../../effects';
 import { useStore } from '../../store';
-import type { Clip } from '../../types';
+import type { Clip } from '@chart-studio/core';
 import { ParamControl } from './param-control';
 
 /** Small graph of the selected animation curve. */

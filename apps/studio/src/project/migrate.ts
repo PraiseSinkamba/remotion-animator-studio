@@ -15,7 +15,7 @@
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
 import { getComponent } from '../registry';
-import type { Clip, ElementType, Project, Track } from '../types';
+import type { Clip, ElementType, Project, Track } from '@chart-studio/core';
 
 /** Schema version this build writes and understands. */
 export const CURRENT_PROJECT_SCHEMA_VERSION = 1;

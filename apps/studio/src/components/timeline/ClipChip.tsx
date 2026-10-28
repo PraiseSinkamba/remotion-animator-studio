@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { getComponent } from '../../registry';
 import { useStore } from '../../store';
-import type { Clip, EffectType } from '../../types';
+import type { Clip, EffectType } from '@chart-studio/core';
 import { EFFECT_MIME } from '../Library';
 import { framesToLabel, LANE_HEIGHT, type TrackAccent } from './shared';
 

@@ -12,7 +12,7 @@
  * `docs/architecture/STORAGE.md`; the machine-checked version of it is
  * `contract-suite.ts`, which each adapter runs against itself.
  */
-import type { Project } from '../types';
+import type { Project } from '@chart-studio/core';
 
 /** Which implementation is currently serving the port. */
 export type StorageBackend = 'sqlite-opfs' | 'local-storage' | 'memory';

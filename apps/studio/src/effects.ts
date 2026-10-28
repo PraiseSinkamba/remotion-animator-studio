@@ -1,7 +1,7 @@
 import { noise2D } from '@remotion/noise';
 import { getLength, getPointAtLength, getTangentAtLength } from '@remotion/paths';
 import { Easing, interpolate, spring } from 'remotion';
-import type { EffectInstance, EffectType, ParamDef } from './types';
+import type { EffectInstance, EffectType, ParamDef } from '@chart-studio/core';
 
 /** Named animation curves, selectable on movement effects. */
 export const EASING_NAMES = [

@@ -7,8 +7,8 @@
  * See ../PROVENANCE.md for the upstream source, licence and local modifications.
  */
 import { createElement } from 'react';
-import { registerComponent } from '../../registry/registry';
-import { componentBounds, type ComponentRenderContext, type VideoComponentDefinition } from '../../registry/types';
+import { registerComponent } from '@chart-studio/core';
+import { componentBounds, type ComponentRenderContext, type VideoComponentDefinition } from '@chart-studio/core';
 import { SoftBlurIn } from '../soft-blur-in';
 
 const POSITION_PARAMS = [

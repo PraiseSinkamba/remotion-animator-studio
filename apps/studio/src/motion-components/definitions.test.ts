@@ -23,8 +23,8 @@ vi.mock('remotion', () => ({
   },
 }));
 
-import { getComponent } from '../registry/registry';
-import type { Clip, ElementType } from '../types';
+import { getComponent } from '@chart-studio/core';
+import type { Clip, ElementType } from '@chart-studio/core';
 import { remocnSoftBlurInDefinition } from './definitions/soft-blur-in';
 import { remocnTypewriterDefinition } from './definitions/typewriter';
 

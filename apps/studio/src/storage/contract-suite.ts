@@ -9,7 +9,7 @@
  * definition of what a backend must do.
  */
 import { describe, expect, it } from 'vitest';
-import type { Project } from '../types';
+import type { Project } from '@chart-studio/core';
 import { StorageConflictError, type RepositoryFactory } from './types';
 
 const sampleProject = (name: string): Project => ({

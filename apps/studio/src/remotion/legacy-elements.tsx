@@ -15,8 +15,8 @@ import React from 'react';
 import { AbsoluteFill, Audio, Img, OffthreadVideo, interpolate, spring } from 'remotion';
 import { useAudioData, visualizeAudio } from '@remotion/media-utils';
 import { effectParams, typewriterChars } from '../effects';
-import type { ComponentRenderContext } from '../registry/types';
-import type { Clip } from '../types';
+import type { ComponentRenderContext } from '@chart-studio/core';
+import type { Clip } from '@chart-studio/core';
 import { CommitGraph, IsoCity, NeonSun, NodeTrail, Ridge, SkyCycle, SunMoon, SynthGrid } from './scenes';
 
 /** Letters riding a sine wave; `gain` scales amplitude (1 = manual, >1 = audio-driven). */

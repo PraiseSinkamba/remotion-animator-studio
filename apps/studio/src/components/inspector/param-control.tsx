@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { ParamDef } from '../../types';
+import type { ParamDef } from '@chart-studio/core';
 import { Row } from './row';
 
 /** The value kinds a parameter can hold. */

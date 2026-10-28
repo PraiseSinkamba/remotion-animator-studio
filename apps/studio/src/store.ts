@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { EFFECTS } from './effects';
 import { buildComponentProps, getComponent } from './registry';
 import { buildPresetClips, PRESETS } from './presets';
-import { sampleProject } from './sampleProject';
-import type { Clip, EffectType, ElementType, Project, Track } from './types';
+import { sampleProject } from '@chart-studio/core';
+import type { Clip, EffectType, ElementType, Project, Track } from '@chart-studio/core';
 
 let idCounter = 0;
 export const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idCounter++}`;

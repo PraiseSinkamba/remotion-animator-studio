@@ -1,6 +1,6 @@
 import React from 'react';
 import { interpolate, interpolateColors, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import type { Clip } from '../types';
+import type { Clip } from '@chart-studio/core';
 
 /** Deterministic pseudo-random in [0,1) from a seed + indices. */
 const prand = (seed: string, a: number, b: number): number => {

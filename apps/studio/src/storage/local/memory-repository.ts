@@ -5,7 +5,7 @@
  * read and written differs between the two, so the compare-and-set rules live
  * in one place.
  */
-import type { Project } from '../../types';
+import type { Project } from '@chart-studio/core';
 import {
   StorageConflictError,
   StorageError,

@@ -7,8 +7,8 @@
  * See ./PROVENANCE.md for the upstream source, licence and local modifications.
  */
 import { createElement } from 'react';
-import { registerComponent } from '../registry/registry';
-import type { ComponentRenderContext, VideoComponentDefinition } from '../registry/types';
+import { registerComponent } from '@chart-studio/core';
+import type { ComponentRenderContext, VideoComponentDefinition } from '@chart-studio/core';
 import { MarkerHighlight } from './marker-highlight';
 
 const POSITION_PARAMS = [

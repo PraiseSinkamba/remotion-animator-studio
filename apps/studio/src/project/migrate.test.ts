@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ElementType, Project } from '../types';
+import type { ElementType, Project } from '@chart-studio/core';
 import { CURRENT_PROJECT_SCHEMA_VERSION, migrateProject } from './migrate';
 
 interface TestClip {

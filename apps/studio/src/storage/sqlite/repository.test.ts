@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { describeRepositoryContract } from '../contract-suite';
 import { StorageConflictError } from '../types';
-import type { Project } from '../../types';
+import type { Project } from '@chart-studio/core';
 import { createNodeSqliteDriver, type SqlDriver } from './driver';
 import { isTransientOpenError } from './client';
 import { createSqliteRepository } from './repository';

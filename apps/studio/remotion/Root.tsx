@@ -2,8 +2,7 @@ import React from 'react';
 import { Composition } from 'remotion';
 import { migrateProject } from '../src/project/migrate';
 import { MainComposition } from '../src/remotion/MainComposition';
-import { sampleProject } from '../src/sampleProject';
-import type { Project } from '../src/types';
+import { sampleProject, type Project } from '@chart-studio/core';
 
 export const RemotionRoot: React.FC = () => {
   return (

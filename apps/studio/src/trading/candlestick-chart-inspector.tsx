@@ -8,8 +8,8 @@
  * anything, so one undo step reverts one edit.
  */
 import React from 'react';
-import type { ComponentInspectorContext } from '../registry/types';
-import { barsToFrames, generateSyntheticBars, type OhlcBar } from './ohlc';
+import type { ComponentInspectorContext } from '@chart-studio/core';
+import { barsToFrames, generateSyntheticBars, type OhlcBar } from '@chart-studio/core';
 
 /** `'5m'` -> 300000. Unknown timeframes fall back to one minute. */
 const timeframeToMs = (timeframe: string): number => {
