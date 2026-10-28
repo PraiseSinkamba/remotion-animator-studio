@@ -242,7 +242,7 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
         <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-primary ring-1 ring-primary/25">
           <Clapperboard className="size-4" aria-hidden="true" />
         </span>
-        <span className="text-xs font-semibold text-foreground">Remotion Animator</span>
+        <span className="text-xs font-semibold text-foreground">ChartStudio</span>
         <Badge
           variant="secondary"
           className="h-4 px-1.5 text-[10px] font-medium text-muted-foreground"
