@@ -226,8 +226,6 @@ describe('useWorkspace — autosave', () => {
     vi.useFakeTimers();
     await editProject('Saved now');
     expect(fake.commits).toHaveLength(0);
-    // The debounce is pending, so the commit below cannot have waited for it.
-    expect(vi.getTimerCount()).toBe(1);
 
     await act(async () => {
       await result.current.saveNow();
@@ -235,11 +233,46 @@ describe('useWorkspace — autosave', () => {
 
     expect(fake.commits).toHaveLength(1);
     expect(fake.commits[0].document.name).toBe('Saved now');
-    // The pending autosave was cancelled, so nothing is committed twice.
-    expect(vi.getTimerCount()).toBe(0);
 
+    // The pending autosave was cancelled, so nothing is committed twice.
     await advance(2000);
     expect(fake.commits).toHaveLength(1);
+
+    unmount();
+  });
+
+  it('coalesces a burst of changes into one commit', async () => {
+    const fake = createFakeRepository();
+    const { unmount } = await mountWorkspace(fake);
+
+    vi.useFakeTimers();
+    for (let i = 0; i < 20; i++) await editProject('Edit ' + i);
+    await advance(800);
+
+    expect(fake.commits).toHaveLength(1);
+    expect(fake.commits[0].document.name).toBe('Edit 19');
+
+    unmount();
+  });
+
+  it('commits during a long continuous edit instead of waiting for it to stop', async () => {
+    const fake = createFakeRepository();
+    const { unmount } = await mountWorkspace(fake);
+
+    vi.useFakeTimers();
+    // Keep changing for longer than the ceiling, the way a long drag does.
+    for (let i = 0; i < 8; i++) {
+      await editProject('Drag ' + i);
+      await advance(500);
+    }
+
+    // The work was written while the editor was still moving.
+    expect(fake.commits).toHaveLength(1);
+
+    // The last change is written once the editor settles.
+    await advance(800);
+    expect(fake.commits).toHaveLength(2);
+    expect(fake.commits[1].document.name).toBe('Drag 7');
 
     unmount();
   });

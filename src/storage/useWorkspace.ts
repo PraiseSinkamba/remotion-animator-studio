@@ -38,6 +38,15 @@ export interface WorkspaceUiState {
 /** How long the editor stays quiet before the document is committed. */
 const AUTOSAVE_DELAY_MS = 800;
 
+/**
+ * How long the document may stay unsaved while the editor keeps changing.
+ *
+ * Without this ceiling a long drag or a held slider starves the autosave:
+ * every change restarts the quiet period, so nothing is written until the
+ * editor stops moving.
+ */
+const AUTOSAVE_MAX_WAIT_MS = 3000;
+
 const DEFAULT_NAMESPACE = 'workspace';
 
 /**
@@ -115,6 +124,8 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
 
   const repoRef = useRef<WorkspaceRepository | null>(null);
   const timerRef = useRef<number | null>(null);
+  /** The ceiling timer: it fires even while the editor keeps changing. */
+  const ceilingRef = useRef<number | null>(null);
   /** The document the workspace just handed to the editor, so it is not saved back. */
   const restoredRef = useRef<Project | null>(null);
   /** True while the editor holds a document that storage does not have yet. */
@@ -200,12 +211,35 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
     }
   }, [commitOnce]);
 
+  /**
+   * Schedule a commit.
+   *
+   * Two timers run at once. The quiet timer restarts on every change, so a
+   * burst of edits becomes one write. The ceiling does not restart: it fires
+   * even while the editor keeps changing, so a long drag is saved as it
+   * goes instead of waiting for the editor to stop.
+   */
   const scheduleSave = useCallback(() => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
+      if (ceilingRef.current !== null) {
+        window.clearTimeout(ceilingRef.current);
+        ceilingRef.current = null;
+      }
       void commitDocument();
     }, AUTOSAVE_DELAY_MS);
+
+    if (ceilingRef.current === null) {
+      ceilingRef.current = window.setTimeout(() => {
+        ceilingRef.current = null;
+        if (timerRef.current !== null) {
+          window.clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        void commitDocument();
+      }, AUTOSAVE_MAX_WAIT_MS);
+    }
   }, [commitDocument]);
 
   // The editor changes; the workspace follows a moment later.
@@ -281,6 +315,10 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
         window.clearTimeout(timerRef.current);
         timerRef.current = null;
       }
+      if (ceilingRef.current !== null) {
+        window.clearTimeout(ceilingRef.current);
+        ceilingRef.current = null;
+      }
       listenersFor(namespace).delete(onStatus);
       const repo = repoRef.current;
       repoRef.current = null;
@@ -294,6 +332,10 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
     if (timerRef.current !== null) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
+    }
+    if (ceilingRef.current !== null) {
+      window.clearTimeout(ceilingRef.current);
+      ceilingRef.current = null;
     }
     await commitDocument();
   }, [commitDocument]);
