@@ -220,12 +220,15 @@ what the type checker could not.
 | `remotion/Root.tsx`, `remotion/index.ts` | `packages/video/remotion/` | the Remotion entry point |
 | `render.mjs`, `server.mjs` | `packages/video/tools/` | Node-only render tools |
 | `src/store.ts`, `src/store.test.ts`, `src/playerRef.ts` | `packages/editor/src/` | |
-| `src/components/timeline/**` | `packages/editor/src/timeline/` | |
+| `src/components/timeline/ClipChip.tsx`, `TimelineRuler.tsx`, `TrackRow.tsx`, `shared.ts` | `packages/editor/src/timeline/` | the reusable timeline pieces |
+| `src/components/timeline/Timeline.tsx` | `apps/studio/src/components/timeline/` | the panel itself, like the library and inspector panels |
 | `src/storage/**` | `packages/editor/src/storage/` | `types.ts`, `contract-suite.ts`, `select.ts`, `useWorkspace.ts`, `sqlite/*`, `local/*` |
-| `src/components/ui/**`, `src/components/inspector/**`, `src/components/library/**`, `src/lib/utils.ts` | `packages/ui/src/` | |
+| `src/components/ui/**`, `src/components/inspector/header.tsx`, `param-control.tsx`, `row.tsx`, `section.tsx`, `src/components/library/catalog.tsx`, `group-header.tsx`, `library-card.tsx`, `mime.ts`, `view-toggle.tsx`, `src/lib/utils.ts` | `packages/ui/src/` | the presentational pieces |
+| `src/components/inspector/effect-list.tsx` | `apps/studio/src/components/inspector/` | reads the store, so it cannot live in the presentational package |
+| `src/components/library/effects-section.tsx` | `apps/studio/src/components/library/` | reads the effect catalogue, which belongs to the components package |
 | `src/App.tsx`, `src/main.tsx`, `src/index.css`, `src/lib/theme.tsx` | `apps/studio/src/` | |
 | `src/components/Library.tsx`, `Inspector.tsx`, `PreviewPanel.tsx`, `RenderDialog.tsx`, `SelectionOverlay.tsx`, `selection-overlay.tsx`, `canvas-hit-test.ts`, `StorageIndicator.tsx`, `theme-toggle.tsx`, `HelpModal.tsx`, `ToolRail.tsx`, `TopBar.tsx` | `apps/studio/src/components/` | the editor shell |
-| `src/presets.ts` | `apps/studio/src/presets.ts` | the starter catalogue composes registered components |
+| `src/presets.ts` | `packages/editor/src/presets.ts` | the starter catalogue composes registered components; the store builds the preset clips, so leaving it in the application would make the runtime depend on the shell |
 | `index.html`, `vite.config.ts`, `components.json` | `apps/studio/` | |
 
 The registration mechanism lives in `packages/core`, so a definition can register itself without importing

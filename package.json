@@ -6,12 +6,12 @@
   "packageManager": "pnpm@10.28.2",
   "engines": { "node": ">=24.20.0" },
   "scripts": {
-    "dev": "concurrently -k -n web,render -c cyan,magenta \"pnpm --filter @chart-studio/studio dev\" \"node server.mjs\"",
+    "dev": "concurrently -k -n web,render -c cyan,magenta \"pnpm --filter @chart-studio/studio dev\" \"node packages/video/tools/server.mjs\"",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "vitest run",
     "preview": "pnpm --filter @chart-studio/studio preview",
-    "render": "node render.mjs",
+    "render": "node packages/video/tools/render.mjs",
     "docs:gifs": "node docs-gifs.mjs"
   },
   "devDependencies": {

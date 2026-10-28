@@ -162,7 +162,7 @@ const project = {
 mkdirSync(OUT_DIR, { recursive: true });
 
 console.log('Bundling composition...');
-const serveUrl = await bundle({ entryPoint: path.resolve('apps/studio/remotion/index.ts') });
+const serveUrl = await bundle({ entryPoint: path.resolve('packages/video/remotion/index.ts') });
 
 const inputProps = { project };
 const composition = await selectComposition({ serveUrl, id: 'Main', inputProps });

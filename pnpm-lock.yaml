@@ -41,6 +41,9 @@ importers:
       '@chart-studio/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@chart-studio/video':
+        specifier: workspace:*
+        version: link:../../packages/video
       '@remotion/gif':
         specifier: 4.0.538
         version: 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -263,6 +266,40 @@ importers:
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0
+    devDependencies:
+      '@types/react':
+        specifier: ^18.3.12
+        version: 18.3.31
+      '@types/react-dom':
+        specifier: ^18.3.1
+        version: 18.3.7(@types/react@18.3.31)
+
+  packages/video:
+    dependencies:
+      '@chart-studio/components':
+        specifier: workspace:*
+        version: link:../components
+      '@chart-studio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@remotion/bundler':
+        specifier: 4.0.538
+        version: 4.0.538(lightningcss@1.32.0)(postcss@8.5.32)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@remotion/noise':
+        specifier: 4.0.538
+        version: 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@remotion/renderer':
+        specifier: 4.0.538
+        version: 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.3.1
+        version: 18.3.1(react@18.3.1)
+      remotion:
+        specifier: 4.0.538
+        version: 4.0.538(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@types/react':
         specifier: ^18.3.12

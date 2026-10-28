@@ -18,7 +18,7 @@ const getBundle = () => {
   // Bundle once per server run; restart the dev server if you edit src/remotion/*.
   if (!bundlePromise) {
     console.log('[render] bundling composition (first render only)...');
-    bundlePromise = bundle({ entryPoint: path.resolve('apps/studio/remotion/index.ts') });
+    bundlePromise = bundle({ entryPoint: path.resolve('packages/video/remotion/index.ts') });
   }
   return bundlePromise;
 };

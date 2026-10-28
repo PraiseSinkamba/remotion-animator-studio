@@ -14,6 +14,7 @@
     "@chart-studio/components": "workspace:*",
     "@chart-studio/editor": "workspace:*",
     "@chart-studio/ui": "workspace:*",
+    "@chart-studio/video": "workspace:*",
     "@remotion/gif": "4.0.538",
     "@remotion/media-utils": "4.0.538",
     "@remotion/noise": "4.0.538",

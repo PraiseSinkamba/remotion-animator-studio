@@ -111,7 +111,7 @@ const DEMOS = {
 };
 
 console.log('Bundling composition...');
-const serveUrl = await bundle({ entryPoint: path.resolve('apps/studio/remotion/index.ts') });
+const serveUrl = await bundle({ entryPoint: path.resolve('packages/video/remotion/index.ts') });
 
 for (const [name, proj] of Object.entries(DEMOS)) {
   const inputProps = { project: proj };

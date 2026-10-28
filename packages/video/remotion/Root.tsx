@@ -1,8 +1,8 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { migrateProject } from '@chart-studio/components';
-import { MainComposition } from '../src/remotion/MainComposition';
 import { sampleProject, type Project } from '@chart-studio/core';
+import { MainComposition } from '@chart-studio/video';
 
 export const RemotionRoot: React.FC = () => {
   return (
