@@ -4,18 +4,18 @@
 
 **Goal:** Move the repository onto a pnpm workspace whose source tree matches the documented package boundaries, without changing editor behaviour.
 
-**Architecture:** The editor shell becomes `apps/studio`; twelve packages hold the domain, market data, chart rendering, the three component families, the compositor, editor core, timeline, storage, UI and export. Each package exports built JavaScript for production and source for development through an `exports` map with a `development` condition. Turborepo orders and caches the per-package typecheck, test and build tasks.
+**Architecture:** The editor shell becomes `apps/studio`. Five packages hold the rest: `core` (pure TypeScript — schemas, the component contract, the registration mechanism, the market maths), `components` (the visual catalogue, in `base/`, `trading/` and `motion/` folders), `ui` (the shadcn primitives and the presentational panels), `editor` (the store, the timeline, the persistence) and `video` (the Remotion composition, its entry point and the Node render tools). Packages export built JavaScript for production and source for development through an `exports` map with a `development` condition. Turborepo orders and caches the per-package typecheck, test and build tasks.
 
 **Tech Stack:** pnpm 10.28.2, Turborepo 2.11.10, Node 24.20.0, TypeScript 5.6.3, Vite 5.4.11, React 18.3.1, Remotion 4.0.538, Zustand 5.0.3, Tailwind CSS 4.3.3, Vitest 3.2.7
 
-**Design spec:** `docs/superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md` (commit `5924496`)
+**Design spec:** `docs/superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md` (commit `5924496`, revised for the five-package layout)
 
 ## Global Constraints
 
 - No editor behaviour changes. The 153 existing tests must pass with the same names and the same assertions.
 - Remotion packages stay pinned to `4.0.538`; React stays on `18.3.1`; Vite stays on `5.4.11`. No dependency upgrades in this phase.
-- No component `type` is renamed, renumbered or reused.
-- `packages/domain` and `packages/market-data` import no React, Remotion, Zustand or storage code.
+- No component `type` is renamed, renumbered or reused. The `category` value `generic` becomes `base`; category is registry metadata and never reaches a saved project.
+- `packages/core` imports no React, Remotion, Zustand or storage code.
 - Every cross-package import uses the package's own name and a `workspace:*` dependency. No TypeScript path alias crosses a package boundary.
 - pnpm 10 lifecycle scripts are allowlisted explicitly in the root `package.json`.
 - The local-first invariant holds: no network call, login or server is required to edit, save, preview or export.
@@ -25,14 +25,23 @@
 
 ### Open questions this plan proceeds on
 
-The spec carries four open questions in its §16. This plan implements the spec's stated defaults, so the reviewer can override any of them and only the named section changes:
+The spec carries three open questions in its §16. This plan implements the spec's stated defaults, so the reviewer can override any of them and only the named section changes:
 
 | # | Default implemented | If overridden |
 |---|---|---|
-| Q1 | `evaluateBarsAtFrame` and `ChartFrameState` live in `market-data` | Task 3 moves two exports and one import |
+| Q1 | `evaluateBarsAtFrame` and `ChartFrameState` live in `packages/core` | Task 2 moves two exports and one import |
 | Q2 | Transitions live on the track boundary | Phase 2 is affected, not this plan |
-| Q3 | The family is `generic-components` | Task 7 renames one directory |
-| Q4 | Remocn wave 1 is six components | Phase 2 is affected, not this plan |
+| Q3 | Remocn wave 1 is six components | Phase 2 is affected, not this plan |
+
+### Dependency order
+
+The packages are created in the order their dependencies allow, so every task ends with a green tree:
+
+```text
+core  ──►  ui  ──►  components  ──►  editor  ──►  video
+  └──────────────────────────────────────►  ▲           │
+                              apps/studio ──┴───────────┘
+```
 
 ---
 
@@ -44,20 +53,12 @@ The spec carries four open questions in its §16. This plan implements the spec'
 | `turbo.json` | task graph and caching |
 | `tsconfig.base.json` | compiler options every package extends |
 | `vitest.config.ts` | one test configuration across the workspace |
-| `apps/studio/` | the editor shell: React entry, Vite config, app panels, the registry aggregator |
-| `apps/studio/remotion/` | the Remotion entry point |
-| `packages/domain/` | project, scene, clip and object schemas; the component contract; the registration mechanism; project migration |
-| `packages/market-data/` | candles, series, time mapping — pure |
-| `packages/chart-renderer/` | evaluated chart to React/SVG |
-| `packages/trading-components/` | the trading component definitions, inspectors and render adapters |
-| `packages/generic-components/` | the 22 generic element definitions, their adapters and the effect stack |
-| `packages/motion-components/` | the adapted Remocn components, their definitions and provenance |
-| `packages/scene-compositor/` | the Remotion composition and the clip dispatch |
-| `packages/editor-core/` | the store: commands, history, selection |
-| `packages/timeline/` | the timeline UI |
-| `packages/storage-sqlite/` | the persistence port and its backends |
-| `packages/ui/` | shadcn wrappers, inspector and library UI |
-| `packages/export/` | the render CLI and the local render server |
+| `apps/studio/` | the editor shell: React entry, Vite config, app panels, the presets |
+| `packages/core/` | schemas, the component contract, the registration mechanism, the market maths |
+| `packages/components/` | `base/`, `trading/`, `motion/` — the visual catalogue, the registry aggregator, the project migration |
+| `packages/ui/` | shadcn primitives, inspector sections, library cards |
+| `packages/editor/` | the store, the timeline, the persistence |
+| `packages/video/` | the composition, the Remotion entry point, the render CLI and the local render server |
 | `vendor/remocn/` | verbatim upstream Remocn source, never bundled |
 
 ---
@@ -86,7 +87,7 @@ packages:
 
 - [ ] **Step 2: Create the shared compiler options**
 
-Create `tsconfig.base.json`. It carries today's root `tsconfig.json` options, minus the two that would
+Create `tsconfig.base.json`. It carries today's root `tsconfig.json` options, minus the one that would
 break a package that emits JavaScript:
 
 ```jsonc
@@ -345,15 +346,18 @@ export default defineConfig({
   optimizeDeps: {
     exclude: [
       '@sqlite.org/sqlite-wasm',
-      '@chart-studio/domain',
-      '@chart-studio/market-data',
+      '@chart-studio/core',
+      '@chart-studio/ui',
+      '@chart-studio/components',
+      '@chart-studio/editor',
+      '@chart-studio/video',
     ],
   },
 });
 ```
 
-The `optimizeDeps.exclude` list grows as packages are added in Tasks 2 to 9. The isolation headers and
-their comment are carried over unchanged — they are what let the SQLite OPFS VFS run in a worker.
+The isolation headers and their comment are carried over unchanged — they are what let the SQLite OPFS
+VFS run in a worker.
 
 - [ ] **Step 11: Fix the path references outside the app**
 
@@ -364,7 +368,7 @@ Four scripts resolve paths relative to the repository root. Update each:
 | `render.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')` |
 | `server.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')` |
 | `docs-gifs.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')`; `path.resolve('public/docs/gifs')` → `path.resolve('apps/studio/public/docs/gifs')` |
-| `scripts/verify-r1.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')`; its import of `../src/trading/ohlc.ts` becomes `../apps/studio/src/trading/ohlc.ts` for now, and is repointed at the package in Task 3 |
+| `scripts/verify-r1.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')`; its import of `../src/trading/ohlc.ts` becomes `../apps/studio/src/trading/ohlc.ts` for now, and is repointed at the package in Task 2 |
 
 `out/` stays at the repository root; it is a build output, not application source.
 
@@ -414,24 +418,24 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 2: `packages/domain`
+### Task 2: `packages/core`
 
 **Files:**
-- Create: `packages/domain/package.json`, `packages/domain/tsconfig.json`, `packages/domain/src/index.ts`
-- Move: `apps/studio/src/types.ts` → `packages/domain/src/types.ts`, `apps/studio/src/registry/types.ts` → `packages/domain/src/registry/types.ts`, `apps/studio/src/registry/registry.ts` → `packages/domain/src/registry/registry.ts`, `apps/studio/src/registry/registry.test.ts` → `packages/domain/src/registry/registry.test.ts`, `apps/studio/src/project/migrate.ts` → `packages/domain/src/project/migrate.ts`, `apps/studio/src/project/migrate.test.ts` → `packages/domain/src/project/migrate.test.ts`, `apps/studio/src/sampleProject.ts` → `packages/domain/src/project/sample-project.ts`
+- Create: `packages/core/package.json`, `packages/core/tsconfig.json`, `packages/core/src/index.ts`
+- Move: `apps/studio/src/types.ts` → `packages/core/src/schemas.ts`, `apps/studio/src/registry/types.ts` → `packages/core/src/contract.ts`, `apps/studio/src/registry/registry.ts` → `packages/core/src/registry.ts`, `apps/studio/src/registry/registry.test.ts` → `packages/core/src/registry.test.ts`, `apps/studio/src/trading/ohlc.ts` → `packages/core/src/market.ts`, `apps/studio/src/trading/ohlc.test.ts` → `packages/core/src/market.test.ts`, `apps/studio/src/sampleProject.ts` → `packages/core/src/sample-project.ts`
 - Modify: every file that imported the moved modules
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `@chart-studio/domain` exporting `ElementType`, `EffectType`, `Clip`, `Track`, `Project`, `ParamDef`, the component contract types, `registerComponent`, `getDefinition`, `listComponents`, `CURRENT_PROJECT_SCHEMA_VERSION`, `migrateProject` and the empty-project factory.
+- Produces: `@chart-studio/core` exporting the schemas (`ElementType`, `EffectType`, `Clip`, `Track`, `Project`, `ParamDef`), the component contract (`ComponentProps`, `ComponentDefinition`, `ComponentRenderContext`, `ComponentInspectorContext`, `ComponentCategory`), the registration mechanism (`registerComponent`, `getComponent`, `buildComponentProps`, `listComponents`, `listComponentsByCategory`, `componentBounds`), the market maths (`OhlcBar`, `BarRevealMode`, `PartialBar`, `ChartFrameState`, `generateSyntheticBars`, `evaluateBarsAtFrame`, `computePriceRange`, `barsToFrames`) and the empty-project factory.
 
 - [ ] **Step 1: Create the package manifest**
 
-`packages/domain/package.json`:
+`packages/core/package.json`:
 
 ```jsonc
 {
-  "name": "@chart-studio/domain",
+  "name": "@chart-studio/core",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -450,9 +454,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
+No dependencies. That is the point of the package: it is the layer that stays free of React, Remotion,
+Zustand and storage code.
+
 - [ ] **Step 2: Create the package tsconfig**
 
-`packages/domain/tsconfig.json`:
+`packages/core/tsconfig.json`:
 
 ```jsonc
 {
@@ -467,59 +474,65 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
+Every package in this plan uses this exact tsconfig.
+
 - [ ] **Step 3: Move the sources**
 
 ```bash
-mkdir -p packages/domain/src/registry packages/domain/src/project
-git mv apps/studio/src/types.ts packages/domain/src/types.ts
-git mv apps/studio/src/registry/types.ts packages/domain/src/registry/types.ts
-git mv apps/studio/src/registry/registry.ts packages/domain/src/registry/registry.ts
-git mv apps/studio/src/registry/registry.test.ts packages/domain/src/registry/registry.test.ts
-git mv apps/studio/src/project/migrate.ts packages/domain/src/project/migrate.ts
-git mv apps/studio/src/project/migrate.test.ts packages/domain/src/project/migrate.test.ts
-git mv apps/studio/src/sampleProject.ts packages/domain/src/project/sample-project.ts
+mkdir -p packages/core/src
+git mv apps/studio/src/types.ts packages/core/src/schemas.ts
+git mv apps/studio/src/registry/types.ts packages/core/src/contract.ts
+git mv apps/studio/src/registry/registry.ts packages/core/src/registry.ts
+git mv apps/studio/src/registry/registry.test.ts packages/core/src/registry.test.ts
+git mv apps/studio/src/trading/ohlc.ts packages/core/src/market.ts
+git mv apps/studio/src/trading/ohlc.test.ts packages/core/src/market.test.ts
+git mv apps/studio/src/sampleProject.ts packages/core/src/sample-project.ts
 ```
+
+`apps/studio/src/registry/` and `apps/studio/src/trading/` are now empty and disappear.
 
 - [ ] **Step 4: Create the barrel**
 
-`packages/domain/src/index.ts`:
+`packages/core/src/index.ts`:
 
 ```ts
-export * from './types';
-export * from './registry/types';
-export * from './registry/registry';
-export * from './project/migrate';
-export * from './project/sample-project';
+export * from './schemas';
+export * from './contract';
+export * from './registry';
+export * from './market';
+export * from './sample-project';
 ```
 
 - [ ] **Step 5: Repoint the imports**
 
-Every import of a moved module changes from a relative path to the package name. The patterns:
+Every import of a moved module changes from a relative path to the package name:
 
 ```ts
 // was: import { Clip } from '../types';
 // now:
-import type { Clip } from '@chart-studio/domain';
+import type { Clip } from '@chart-studio/core';
 ```
 
 ```ts
-// was: import { ElementType } from '../types';
+// was: import { getComponent } from '../registry';
 // now:
-import type { ElementType } from '@chart-studio/domain';
+import { getComponent } from '@chart-studio/core';
 ```
 
 Find every affected file:
 
 ```bash
-grep -rln "from '\.\./types'\|from '\./types'\|from '\.\./registry/types'\|from '\.\./registry/registry'\|from '\.\./project/migrate'\|from '\.\./sampleProject'" apps/studio/src packages
+grep -rln "from '\.\./types'\|from '\./types'\|from '\.\./registry'\|from '\./registry'\|from '\.\./registry/types'\|from '\.\./registry/registry'\|from '\.\./trading/ohlc'\|from './ohlc'\|from '\.\./sampleProject'" apps/studio/src packages
 ```
 
-Rewrite each match by hand. Two details matter:
+Two details matter:
 
 - Type-only imports keep the `import type` form where they already had one, so the emitted JavaScript does
   not carry a runtime import of a types-only module.
-- Inside `packages/domain` itself, the relative imports stay relative — a package never imports itself by
-  name.
+- Inside `packages/core` itself, the imports stay relative — a package never imports itself by name.
+
+`src/registry/index.ts` still exists and still side-effect imports the definitions, so it keeps working
+until Task 4 moves it. Its own imports of `./registry` and `./types` now come from `@chart-studio/core`.
 
 - [ ] **Step 6: Declare the dependency in the app**
 
@@ -527,7 +540,7 @@ In `apps/studio/package.json`, add:
 
 ```jsonc
 "dependencies": {
-  "@chart-studio/domain": "workspace:*"
+  "@chart-studio/core": "workspace:*"
 }
 ```
 
@@ -535,20 +548,18 @@ In `apps/studio/package.json`, add:
   `development` condition is proved**
 
 ```bash
-pnpm --filter @chart-studio/studio exec vite build
+pnpm --filter @chart-studio/core build
+pnpm --filter @chart-studio/studio build
 ```
 
-Expected: a successful build. Then confirm the build used the built output, not the source, by checking
-that `packages/domain/dist/index.js` exists and that the app bundle does not contain a source-only marker:
+Expected: a successful build, and `packages/core/dist/index.js` plus `packages/core/dist/index.d.ts`
+exist. Then confirm the app bundle used the built output rather than compiling the TypeScript source:
 
 ```bash
-pnpm --filter @chart-studio/domain build
-ls packages/domain/dist
 grep -c "CURRENT_PROJECT_SCHEMA_VERSION" apps/studio/dist/assets/*.js
 ```
 
-Expected: `dist/index.js`, `dist/index.d.ts` and `dist/types.js` exist. The grep count is non-zero, which
-proves the built output was bundled rather than the TypeScript source being compiled by Vite.
+Expected: a non-zero count, which proves the built output was bundled.
 
 Then prove the development condition resolves source:
 
@@ -556,10 +567,10 @@ Then prove the development condition resolves source:
 pnpm --filter @chart-studio/studio exec vite dev --port 5199
 ```
 
-In a second shell, request the module and confirm the served path is the source file:
+In a second shell:
 
 ```bash
-curl -s "http://localhost:5199/@fs$(pwd)/packages/domain/src/index.ts" | head -1
+curl -s "http://localhost:5199/@fs$(pwd)/packages/core/src/index.ts" | head -1
 ```
 
 Expected: TypeScript source. Stop the dev server.
@@ -573,125 +584,18 @@ pnpm build
 node scripts/verify-r1.mjs
 ```
 
-Expected: 153 tests still pass, the two moved test files now report under the domain package.
+Expected: 153 tests still pass, with the registry and OHLC tests now reporting under the core package.
 
 - [ ] **Step 9: Commit**
 
 ```bash
 git add -A
-git commit -m "Move the project schemas and component contract into their own package
+git commit -m "Move the schemas, the component contract and the candle maths into one pure package
 
-The project document, the component contract and the registry mechanism are
-the one part of the editor that no React, video or storage code may depend
-on. Giving them a package makes that boundary enforceable by the dependency
-list rather than by convention.
-
-No behaviour changes: the same tests pass and the render is unchanged.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-```
-
----
-
-### Task 3: `packages/market-data`
-
-**Files:**
-- Create: `packages/market-data/package.json`, `packages/market-data/tsconfig.json`, `packages/market-data/src/index.ts`
-- Move: `apps/studio/src/trading/ohlc.ts` → `packages/market-data/src/ohlc.ts`, `apps/studio/src/trading/ohlc.test.ts` → `packages/market-data/src/ohlc.test.ts`
-- Modify: every file that imported the moved module
-
-**Interfaces:**
-- Consumes: nothing.
-- Produces: `@chart-studio/market-data` exporting `OhlcBar`, `BarRevealMode`, `PartialBar`, `ChartFrameState`, `generateSyntheticBars`, `evaluateBarsAtFrame`, `computePriceRange` and `barsToFrames`.
-
-- [ ] **Step 1: Create the package**
-
-`packages/market-data/package.json` — same shape as the domain manifest, with the name
-`@chart-studio/market-data` and no dependencies:
-
-```jsonc
-{
-  "name": "@chart-studio/market-data",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  }
-}
-```
-
-`packages/market-data/tsconfig.json` — identical to the domain one.
-
-- [ ] **Step 2: Move the sources and create the barrel**
-
-```bash
-mkdir -p packages/market-data/src
-git mv apps/studio/src/trading/ohlc.ts packages/market-data/src/ohlc.ts
-git mv apps/studio/src/trading/ohlc.test.ts packages/market-data/src/ohlc.test.ts
-```
-
-`packages/market-data/src/index.ts`:
-
-```ts
-export * from './ohlc';
-```
-
-- [ ] **Step 3: Repoint the imports**
-
-```bash
-grep -rln "trading/ohlc\|from './ohlc'\|from '../ohlc'" apps/studio/src packages
-```
-
-Rewrite each to:
-
-```ts
-import { evaluateBarsAtFrame, type OhlcBar } from '@chart-studio/market-data';
-```
-
-Preserve the split between value imports and type imports exactly as the original did.
-
-`scripts/verify-r1.mjs` also imports this module. Change its import to the package's source file, which
-Node 24 runs natively:
-
-```js
-import { generateSyntheticBars } from '../packages/market-data/src/ohlc.ts';
-```
-
-- [ ] **Step 4: Declare the dependency**
-
-Add `"@chart-studio/market-data": "workspace:*"` to the `dependencies` of `apps/studio/package.json` and of
-any package that imports it.
-
-- [ ] **Step 5: Run the gates**
-
-```bash
-pnpm typecheck
-pnpm test
-pnpm build
-node scripts/verify-r1.mjs
-```
-
-Expected: 153 tests pass, with the OHLC tests now reporting under `packages/market-data`.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A
-git commit -m "Move the candle maths into a package that knows nothing about video
-
-Candle generation and frame evaluation are pure market-time functions. Keeping
-them in their own package means the chart renderer and the storage layer
-depend on one small, testable surface instead of on each other.
+The project document, the component contract, the registration mechanism and
+the market maths are the one part of the editor that no React, video or
+storage code may depend on. Giving them a package makes that boundary
+enforceable by the dependency list rather than by convention.
 
 No behaviour changes: the same tests pass and the render is unchanged.
 
@@ -700,282 +604,15 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 4: `packages/storage-sqlite`
+### Task 3: `packages/ui`
 
 **Files:**
-- Create: `packages/storage-sqlite/package.json`, `packages/storage-sqlite/tsconfig.json`, `packages/storage-sqlite/src/index.ts`
-- Move: `apps/studio/src/storage/**` → `packages/storage-sqlite/src/**`
-- Modify: every file that imported the storage modules
-
-**Interfaces:**
-- Consumes: `@chart-studio/domain` for the project document types.
-- Produces: `@chart-studio/storage-sqlite` exporting the `WorkspaceRepository` port, the contract suite, `select`, `useWorkspace` and the three backends.
-
-- [ ] **Step 1: Create the package**
-
-`packages/storage-sqlite/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/storage-sqlite",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@chart-studio/domain": "workspace:*",
-    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
-    "react": "^18.3.1"
-  }
-}
-```
-
-`react` is a peer in practice but a direct dependency here, because `useWorkspace.ts` is a React hook and
-the package ships compiled JavaScript that imports it.
-
-- [ ] **Step 2: Move the sources**
-
-```bash
-git mv apps/studio/src/storage packages/storage-sqlite/src
-```
-
-The internal layout (`types.ts`, `contract-suite.ts`, `select.ts`, `useWorkspace.ts`, `sqlite/`, `local/`)
-is unchanged.
-
-- [ ] **Step 3: Create the barrel and repoint the imports**
-
-`packages/storage-sqlite/src/index.ts` exports the package's public surface:
-
-```ts
-export * from './types';
-export * from './contract-suite';
-export * from './select';
-export * from './useWorkspace';
-```
-
-Do not export the driver internals — the worker and its client are implementation details of the SQLite
-backend.
-
-```bash
-grep -rln "storage/types\|storage/select\|storage/useWorkspace\|from '\.\./storage'\|from '\./storage'" apps/studio/src packages
-```
-
-Rewrite each to the package name. The `StorageIndicator` component imports the storage types; it becomes:
-
-```ts
-import { type WorkspaceRepository } from '@chart-studio/storage-sqlite';
-```
-
-- [ ] **Step 4: Declare the dependency and run the gates**
-
-Add `"@chart-studio/storage-sqlite": "workspace:*"` to `apps/studio/package.json`.
-
-```bash
-pnpm typecheck
-pnpm test
-pnpm build
-node scripts/verify-r1.mjs
-```
-
-Expected: 153 tests pass. The storage contract suite is the largest test file in the repository; it must
-still pass unchanged.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add -A
-git commit -m "Give the local database its own package so one worker owns all writes
-
-The SQLite worker, its RPC boundary and the two fallback backends now sit
-behind a single package, which makes the one-writer rule and the
-optimistic-revision check enforceable from the dependency list.
-
-No behaviour changes: the storage contract suite passes unchanged.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-```
-
----
-
-### Task 5: `packages/editor-core` and `packages/timeline`
-
-**Files:**
-- Create: `packages/editor-core/{package.json,tsconfig.json,src/index.ts}`, `packages/timeline/{package.json,tsconfig.json,src/index.ts}`
-- Move: `apps/studio/src/store.ts`, `apps/studio/src/store.test.ts`, `apps/studio/src/playerRef.ts` → `packages/editor-core/src/`; `apps/studio/src/components/timeline/**` → `packages/timeline/src/`
-- Modify: every file that imported the moved modules
-
-**Interfaces:**
-- Consumes: `@chart-studio/domain`, `@chart-studio/storage-sqlite`, `@chart-studio/market-data`.
-- Produces: `@chart-studio/editor-core` exporting the store and its actions; `@chart-studio/timeline` exporting `Timeline`, `ClipChip`, `TimelineRuler`, `TrackRow` and the shared timeline helpers.
-
-- [ ] **Step 1: Create the two package manifests**
-
-`packages/editor-core/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/editor-core",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@chart-studio/domain": "workspace:*",
-    "@chart-studio/market-data": "workspace:*",
-    "@chart-studio/storage-sqlite": "workspace:*",
-    "zustand": "^5.0.3"
-  }
-}
-```
-
-`packages/timeline/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/timeline",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@chart-studio/domain": "workspace:*",
-    "@chart-studio/editor-core": "workspace:*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "zustand": "^5.0.3"
-  }
-}
-```
-
-Both `tsconfig.json` files are identical to the domain one.
-
-- [ ] **Step 2: Move the sources**
-
-```bash
-mkdir -p packages/editor-core/src packages/timeline/src
-git mv apps/studio/src/store.ts packages/editor-core/src/store.ts
-git mv apps/studio/src/store.test.ts packages/editor-core/src/store.test.ts
-git mv apps/studio/src/playerRef.ts packages/editor-core/src/playerRef.ts
-git mv apps/studio/src/components/timeline/ClipChip.tsx packages/timeline/src/ClipChip.tsx
-git mv apps/studio/src/components/timeline/TimelineRuler.tsx packages/timeline/src/TimelineRuler.tsx
-git mv apps/studio/src/components/timeline/TrackRow.tsx packages/timeline/src/TrackRow.tsx
-git mv apps/studio/src/components/timeline/Timeline.tsx packages/timeline/src/Timeline.tsx
-git mv apps/studio/src/components/timeline/shared.ts packages/timeline/src/shared.ts
-git mv apps/studio/src/components/timeline/shared.test.ts packages/timeline/src/shared.test.ts
-```
-
-- [ ] **Step 3: Create the barrels**
-
-`packages/editor-core/src/index.ts`:
-
-```ts
-export * from './store';
-export * from './playerRef';
-```
-
-`packages/timeline/src/index.ts`:
-
-```ts
-export { Timeline } from './Timeline';
-export { ClipChip } from './ClipChip';
-export { TimelineRuler } from './TimelineRuler';
-export { TrackRow } from './TrackRow';
-export * from './shared';
-```
-
-- [ ] **Step 4: Repoint the imports**
-
-```bash
-grep -rln "from '\.\./\.\./store'\|from '\.\./store'\|from '\.\./playerRef'\|components/timeline\|from './timeline'" apps/studio/src packages
-```
-
-The store is imported by many panels. Every one becomes:
-
-```ts
-import { useStore } from '@chart-studio/editor-core';
-```
-
-The timeline becomes:
-
-```tsx
-import { Timeline } from '@chart-studio/timeline';
-```
-
-Preserve the original import's shape — some are `import { useStore }`, some `import { useStore, type EditorState }`. Split value imports from type imports the same way the original did.
-
-- [ ] **Step 5: Declare the dependencies and run the gates**
-
-Add `"@chart-studio/editor-core": "workspace:*"` and `"@chart-studio/timeline": "workspace:*"` to
-`apps/studio/package.json`.
-
-```bash
-pnpm typecheck
-pnpm test
-pnpm build
-node scripts/verify-r1.mjs
-```
-
-Expected: 153 tests pass.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add -A
-git commit -m "Split the editor commands from the timeline that issues them
-
-The store owns commands and history; the timeline owns the interactions that
-issue them. Separating them stops the timeline from reaching into persistence
-and makes the documented boundary real rather than aspirational.
-
-No behaviour changes: the same tests pass and the render is unchanged.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-```
-
----
-
-### Task 6: `packages/ui`
-
-**Files:**
-- Create: `packages/ui/{package.json,tsconfig.json,src/index.ts}`
+- Create: `packages/ui/package.json`, `packages/ui/tsconfig.json`, `packages/ui/src/index.ts`
 - Move: `apps/studio/src/components/ui/**` → `packages/ui/src/components/ui/**`, `apps/studio/src/components/inspector/**` → `packages/ui/src/components/inspector/**`, `apps/studio/src/components/library/**` → `packages/ui/src/components/library/**`, `apps/studio/src/lib/utils.ts` → `packages/ui/src/lib/utils.ts`
 - Modify: every file that imported the moved modules
 
 **Interfaces:**
-- Consumes: `@chart-studio/domain` for the component contract types.
+- Consumes: `@chart-studio/core` for the component contract types.
 - Produces: `@chart-studio/ui` exporting the shadcn primitives, the inspector sections and the library cards.
 
 - [ ] **Step 1: Create the package**
@@ -993,8 +630,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
       "development": "./src/index.ts",
       "types": "./src/index.ts",
       "default": "./dist/index.js"
-    },
-    "./styles.css": "./src/styles.css"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -1002,19 +638,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     "test": "vitest run"
   },
   "dependencies": {
-    "@chart-studio/domain": "workspace:*",
-    "@radix-ui/react-checkbox": "1.3.3",
-    "@radix-ui/react-dialog": "1.1.15",
-    "@radix-ui/react-dropdown-menu": "2.1.16",
-    "@radix-ui/react-label": "2.1.8",
-    "@radix-ui/react-scroll-area": "1.2.10",
-    "@radix-ui/react-select": "2.2.6",
-    "@radix-ui/react-separator": "1.1.8",
-    "@radix-ui/react-slider": "1.3.6",
-    "@radix-ui/react-slot": "1.2.4",
-    "@radix-ui/react-switch": "1.2.6",
-    "@radix-ui/react-tabs": "1.1.13",
-    "@radix-ui/react-tooltip": "1.2.8",
+    "@chart-studio/core": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.61.0",
@@ -1028,10 +652,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
-**Do not invent these versions.** Run `pnpm list --depth 1` in `apps/studio` and copy the exact installed
-version of every `@radix-ui/react-*` package that the moved files import. If the app currently depends on
-the `radix-ui` umbrella package rather than individual packages, keep that single dependency instead of
-listing both.
+**Do not invent versions.** Run `pnpm list --depth 1` and copy the exact installed version of every package
+the moved files import. If the app depends on the `radix-ui` umbrella package rather than individual
+`@radix-ui/react-*` packages, keep that single dependency instead of listing both.
+
+`packages/ui/tsconfig.json` is identical to the core one.
 
 - [ ] **Step 2: Move the sources**
 
@@ -1084,32 +709,32 @@ export { cn } from './lib/utils';
 grep -rln "components/ui/\|components/inspector/\|components/library/\|lib/utils" apps/studio/src packages
 ```
 
-Every one becomes an import from `@chart-studio/ui`. For the primitive components:
+Every one becomes an import from `@chart-studio/ui`:
 
 ```tsx
 import { Button } from '@chart-studio/ui';
 ```
 
-For the library and inspector pieces, import the named export directly from the package root.
+**Check one thing before you commit:** `packages/ui/src/components/library/catalog.tsx` must not import the
+component registry. If it does, the library package would depend on the components package, and the
+components package depends on the library package for its inspectors — a cycle. In that case, pass the
+component list in as a prop instead, which is what the presentational design already implies.
 
 - [ ] **Step 5: Handle the stylesheet**
 
 The global stylesheet stays with the application, because it defines the theme tokens every shadcn class
-uses:
+uses. `apps/studio/src/index.css` does not move.
 
-```bash
-git mv apps/studio/src/index.css apps/studio/src/index.css
-```
-
-No move is needed — it is already there. Confirm `apps/studio/src/main.tsx` imports `./index.css` and that
-`apps/studio/src/index.css` contains the `@import "tailwindcss"` line. If the stylesheet references paths
-under `src/components/ui`, repoint them at the package:
+Confirm `apps/studio/src/main.tsx` imports `./index.css` and that the stylesheet contains the
+`@import "tailwindcss"` line. If the stylesheet scans `src/components/ui` for class names, repoint it at
+the package:
 
 ```css
 @source "../../../packages/ui/src";
 ```
 
-Tailwind v4 scans source files; without this the shadcn classes lose their styles.
+Tailwind v4 scans source files; without this the shadcn classes lose their styles while the build still
+succeeds.
 
 - [ ] **Step 6: Declare the dependency and run the gates**
 
@@ -1138,7 +763,7 @@ server.
 
 ```bash
 git add -A
-git commit -m "Move the interface primitives into the package the panels share
+git commit -m "Move the interface primitives into the package every panel shares
 
 The editor controls and the library and inspector pieces are used by every
 panel, and they now live behind one package instead of being reached through
@@ -1151,24 +776,24 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 7: `packages/generic-components`, `packages/chart-renderer` and `packages/trading-components`
+### Task 4: `packages/components`
 
 **Files:**
-- Create: the three packages' manifests, tsconfigs and barrels
-- Move: `apps/studio/src/registry/legacy.ts` → `packages/generic-components/src/definitions.ts`; `apps/studio/src/remotion/legacy-elements.tsx` → `packages/generic-components/src/legacy-elements.tsx`; `apps/studio/src/remotion/scenes.tsx` → `packages/generic-components/src/scenes.tsx`; `apps/studio/src/effects.ts` → `packages/generic-components/src/effects.ts`; `apps/studio/src/trading/candlestick-chart.tsx` → `packages/chart-renderer/src/candlestick-chart.tsx`; `apps/studio/src/trading/definition.ts` → `packages/trading-components/src/definitions/candlestick-chart.ts`; `apps/studio/src/trading/candlestick-chart-inspector.tsx` → `packages/trading-components/src/inspectors/candlestick-chart.tsx`; `apps/studio/src/trading/candlestick-chart.test.tsx` → `packages/trading-components/src/candlestick-chart.test.tsx`
-- Modify: every file that imported the moved modules; `apps/studio/src/registry/index.ts` → `apps/studio/src/registry.ts`
+- Create: `packages/components/package.json`, `packages/components/tsconfig.json`, `packages/components/src/index.ts`, `vendor/remocn/README.md`
+- Move: `apps/studio/src/registry/legacy.ts` → `packages/components/src/base/definitions.ts`; `apps/studio/src/remotion/legacy-elements.tsx` → `packages/components/src/base/adapters.tsx`; `apps/studio/src/remotion/scenes.tsx` → `packages/components/src/base/scenes.tsx`; `apps/studio/src/effects.ts` → `packages/components/src/base/effects.ts`; `apps/studio/src/trading/definition.ts` → `packages/components/src/trading/definitions/candlestick-chart.ts`; `apps/studio/src/trading/candlestick-chart-inspector.tsx` → `packages/components/src/trading/inspectors/candlestick-chart.tsx`; `apps/studio/src/trading/candlestick-chart.tsx` → `packages/components/src/trading/chart.tsx`; `apps/studio/src/trading/candlestick-chart.test.tsx` → `packages/components/src/trading/candlestick-chart.test.tsx`; `apps/studio/src/project/migrate.ts` → `packages/components/src/project-migrate.ts`; `apps/studio/src/project/migrate.test.ts` → `packages/components/src/project-migrate.test.ts`; `apps/studio/src/motion-components/**` → `packages/components/src/motion/**` except `upstream/**` → `vendor/remocn/source/`; `apps/studio/src/registry/index.ts` → `packages/components/src/registry.ts`
+- Delete: `apps/studio/src/motion-components/upstream-modules.d.ts`
 
 **Interfaces:**
-- Consumes: `@chart-studio/domain`, `@chart-studio/market-data`.
-- Produces: `@chart-studio/generic-components` (the 22 definitions, their adapters and the effect stack), `@chart-studio/chart-renderer` (the chart renderer), `@chart-studio/trading-components` (the trading definitions and inspectors).
+- Consumes: `@chart-studio/core`, `@chart-studio/ui`.
+- Produces: `@chart-studio/components` exporting the registry aggregator and its catalogue, the three families, and the project migration.
 
-- [ ] **Step 1: Create the three manifests**
+- [ ] **Step 1: Create the package manifest**
 
-`packages/generic-components/package.json`:
+`packages/components/package.json`:
 
 ```jsonc
 {
-  "name": "@chart-studio/generic-components",
+  "name": "@chart-studio/components",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -1185,66 +810,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     "test": "vitest run"
   },
   "dependencies": {
-    "@chart-studio/domain": "workspace:*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "remotion": "4.0.538"
-  }
-}
-```
-
-`packages/chart-renderer/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/chart-renderer",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@chart-studio/market-data": "workspace:*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  }
-}
-```
-
-`packages/trading-components/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/trading-components",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@chart-studio/chart-renderer": "workspace:*",
-    "@chart-studio/domain": "workspace:*",
-    "@chart-studio/market-data": "workspace:*",
+    "@chart-studio/core": "workspace:*",
     "@chart-studio/ui": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -1253,193 +819,124 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
-All three `tsconfig.json` files are identical to the domain one.
+`packages/components/tsconfig.json` is identical to the core one.
 
-- [ ] **Step 2: Move the sources**
-
-```bash
-mkdir -p packages/generic-components/src packages/chart-renderer/src packages/trading-components/src/definitions packages/trading-components/src/inspectors
-git mv apps/studio/src/registry/legacy.ts packages/generic-components/src/definitions.ts
-git mv apps/studio/src/remotion/legacy-elements.tsx packages/generic-components/src/legacy-elements.tsx
-git mv apps/studio/src/remotion/scenes.tsx packages/generic-components/src/scenes.tsx
-git mv apps/studio/src/effects.ts packages/generic-components/src/effects.ts
-git mv apps/studio/src/trading/candlestick-chart.tsx packages/chart-renderer/src/candlestick-chart.tsx
-git mv apps/studio/src/trading/definition.ts packages/trading-components/src/definitions/candlestick-chart.ts
-git mv apps/studio/src/trading/candlestick-chart-inspector.tsx packages/trading-components/src/inspectors/candlestick-chart.tsx
-git mv apps/studio/src/trading/candlestick-chart.test.tsx packages/trading-components/src/candlestick-chart.test.tsx
-```
-
-`apps/studio/src/trading/` is now empty and disappears.
-
-- [ ] **Step 3: Create the barrels**
-
-`packages/generic-components/src/index.ts`:
-
-```ts
-export * from './definitions';
-export * from './legacy-elements';
-export * from './scenes';
-export * from './effects';
-```
-
-`packages/chart-renderer/src/index.ts`:
-
-```ts
-export * from './candlestick-chart';
-```
-
-`packages/trading-components/src/index.ts`:
-
-```ts
-export * from './definitions/candlestick-chart';
-export * from './inspectors/candlestick-chart';
-```
-
-- [ ] **Step 4: Repoint the imports and move the registry aggregator**
-
-The aggregator — today `apps/studio/src/registry/index.ts` — imports every family definition and registers
-them. It is the composition root, so it stays in the application:
+- [ ] **Step 2: Move the base family**
 
 ```bash
-git mv apps/studio/src/registry/index.ts apps/studio/src/registry.ts
+mkdir -p packages/components/src/base packages/components/src/trading/definitions packages/components/src/trading/inspectors packages/components/src/motion vendor/remocn
+git mv apps/studio/src/registry/legacy.ts packages/components/src/base/definitions.ts
+git mv apps/studio/src/remotion/legacy-elements.tsx packages/components/src/base/adapters.tsx
+git mv apps/studio/src/remotion/scenes.tsx packages/components/src/base/scenes.tsx
+git mv apps/studio/src/effects.ts packages/components/src/base/effects.ts
 ```
 
-Inside it, the family imports become:
-
-```ts
-import { LEGACY_DEFINITIONS } from '@chart-studio/generic-components';
-import { candlestickChartDefinition } from '@chart-studio/trading-components';
-```
+- [ ] **Step 3: Move the trading family**
 
 ```bash
-grep -rln "registry/legacy\|trading/definition\|trading/candlestick-chart\|remotion/legacy-elements\|remotion/scenes\|from '\.\./effects'\|from './effects'" apps/studio/src packages
+git mv apps/studio/src/trading/definition.ts packages/components/src/trading/definitions/candlestick-chart.ts
+git mv apps/studio/src/trading/candlestick-chart-inspector.tsx packages/components/src/trading/inspectors/candlestick-chart.tsx
+git mv apps/studio/src/trading/candlestick-chart.tsx packages/components/src/trading/chart.tsx
+git mv apps/studio/src/trading/candlestick-chart.test.tsx packages/components/src/trading/candlestick-chart.test.tsx
 ```
 
-Rewrite each match to the owning package. Inside `packages/generic-components` and
-`packages/trading-components`, the imports between their own files stay relative.
-
-- [ ] **Step 5: Declare the dependencies**
-
-Add to `apps/studio/package.json`:
-
-```jsonc
-"@chart-studio/generic-components": "workspace:*",
-"@chart-studio/chart-renderer": "workspace:*",
-"@chart-studio/trading-components": "workspace:*"
-```
-
-- [ ] **Step 6: Run the gates**
+- [ ] **Step 4: Move the motion family and the verbatim upstream record**
 
 ```bash
-pnpm typecheck
-pnpm test
-pnpm build
-node scripts/verify-r1.mjs
-```
-
-Expected: 153 tests pass. The chart renderer's tests are the largest single file in the repository and
-cover the no-lookahead rule; they must pass unchanged.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add -A
-git commit -m "Give each component family a package of its own
-
-The generic elements, the chart renderer and the trading components now sit
-in separate packages, so a trading component cannot reach into a generic
-one and the chart renderer cannot reach into the editor. The registry
-aggregator moved to the application, where it can import all three without
-any of them importing each other.
-
-No behaviour changes: the same tests pass and the render is unchanged.
-
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-```
-
----
-
-### Task 8: `packages/motion-components` and `vendor/remocn/`
-
-**Files:**
-- Create: `packages/motion-components/{package.json,tsconfig.json,src/index.ts}`, `vendor/remocn/README.md`
-- Move: `apps/studio/src/motion-components/**` → `packages/motion-components/src/**`, except `upstream/**` → `vendor/remocn/`
-- Delete: `apps/studio/src/motion-components/upstream-modules.d.ts`
-- Modify: `packages/motion-components/PROVENANCE.md`
-
-**Interfaces:**
-- Consumes: `@chart-studio/domain`.
-- Produces: `@chart-studio/motion-components` exporting the three adapted Remocn components and their definitions.
-
-- [ ] **Step 1: Move the sources**
-
-```bash
-mkdir -p packages/motion-components/src vendor/remocn
 git mv apps/studio/src/motion-components/upstream vendor/remocn/source
-git mv apps/studio/src/motion-components/LICENSE.remocn packages/motion-components/LICENSE.remocn
-git mv apps/studio/src/motion-components/PROVENANCE.md packages/motion-components/PROVENANCE.md
-git mv apps/studio/src/motion-components/caret.tsx packages/motion-components/src/caret.tsx
-git mv apps/studio/src/motion-components/marker-highlight.tsx packages/motion-components/src/marker-highlight.tsx
-git mv apps/studio/src/motion-components/remocn-ui.ts packages/motion-components/src/remocn-ui.ts
-git mv apps/studio/src/motion-components/remocn-ui-types.ts packages/motion-components/src/remocn-ui-types.ts
-git mv apps/studio/src/motion-components/soft-blur-in.tsx packages/motion-components/src/soft-blur-in.tsx
-git mv apps/studio/src/motion-components/typewriter.tsx packages/motion-components/src/typewriter.tsx
-git mv apps/studio/src/motion-components/definitions packages/motion-components/src/definitions
-git mv apps/studio/src/motion-components/definition.ts packages/motion-components/src/definitions/marker-highlight.ts
-git mv apps/studio/src/motion-components/definition.test.ts packages/motion-components/src/definitions/marker-highlight.test.ts
+git mv apps/studio/src/motion-components/LICENSE.remocn packages/components/src/motion/LICENSE.remocn
+git mv apps/studio/src/motion-components/PROVENANCE.md packages/components/src/motion/PROVENANCE.md
+git mv apps/studio/src/motion-components/caret.tsx packages/components/src/motion/caret.tsx
+git mv apps/studio/src/motion-components/marker-highlight.tsx packages/components/src/motion/marker-highlight.tsx
+git mv apps/studio/src/motion-components/remocn-ui.ts packages/components/src/motion/remocn-ui.ts
+git mv apps/studio/src/motion-components/remocn-ui-types.ts packages/components/src/motion/remocn-ui-types.ts
+git mv apps/studio/src/motion-components/soft-blur-in.tsx packages/components/src/motion/soft-blur-in.tsx
+git mv apps/studio/src/motion-components/typewriter.tsx packages/components/src/motion/typewriter.tsx
+git mv apps/studio/src/motion-components/definitions packages/components/src/motion/definitions
+git mv apps/studio/src/motion-components/definition.ts packages/components/src/motion/definitions/marker-highlight.ts
+git mv apps/studio/src/motion-components/definition.test.ts packages/components/src/motion/definitions/marker-highlight.test.ts
 git rm apps/studio/src/motion-components/upstream-modules.d.ts
 ```
 
 The `definitions/` directory moves first, so that the single `definition.ts` lands beside its two siblings
 as `marker-highlight.ts`.
 
-- [ ] **Step 2: Create the package**
+- [ ] **Step 5: Move the aggregator and the migration**
 
-`packages/motion-components/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/motion-components",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "development": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "@chart-studio/domain": "workspace:*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "remotion": "4.0.538"
-  }
-}
+```bash
+git mv apps/studio/src/registry/index.ts packages/components/src/registry.ts
+git mv apps/studio/src/project/migrate.ts packages/components/src/project-migrate.ts
+git mv apps/studio/src/project/migrate.test.ts packages/components/src/project-migrate.test.ts
 ```
 
-`packages/motion-components/tsconfig.json` is identical to the domain one.
-
-- [ ] **Step 3: Create the barrel**
-
-`packages/motion-components/src/index.ts`:
+The aggregator keeps its side-effect imports — it is what registers all 26 definitions when the package is
+imported:
 
 ```ts
-export * from './definitions/marker-highlight';
-export * from './definitions/soft-blur-in';
-export * from './definitions/typewriter';
-export * from './marker-highlight';
-export * from './soft-blur-in';
-export * from './typewriter';
+import './base/definitions';
+import './trading/definitions/candlestick-chart';
+import './motion/definitions/marker-highlight';
+import './motion/definitions/soft-blur-in';
+import './motion/definitions/typewriter';
+
+export * from '@chart-studio/core';
 ```
 
-- [ ] **Step 4: Write the vendor record**
+- [ ] **Step 6: Create the barrels**
+
+`packages/components/src/index.ts`:
+
+```ts
+export * from './registry';
+export * from './project-migrate';
+export * from './base/definitions';
+export * from './trading/definitions/candlestick-chart';
+export * from './trading/inspectors/candlestick-chart';
+export * from './trading/chart';
+export * from './motion/definitions/marker-highlight';
+export * from './motion/definitions/soft-blur-in';
+export * from './motion/definitions/typewriter';
+```
+
+- [ ] **Step 7: Rename the `generic` category to `base`**
+
+`ComponentCategory` in `packages/core/src/contract.ts` gains `base` in place of `generic`, and
+`packages/components/src/registry.ts` updates `CATEGORY_ORDER` and `CATEGORY_LABELS` to match:
+
+```ts
+export const CATEGORY_ORDER: ComponentCategory[] = ['base', 'trading', 'motion'];
+
+export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
+  base: 'Elements',
+  trading: 'Trading',
+  motion: 'Motion',
+};
+```
+
+```bash
+grep -rn "'generic'" packages apps/studio/src
+```
+
+Every remaining hit is a category reference and becomes `'base'`. Confirm no `type` identifier changes —
+the grep must not match any of the 26 component type names.
+
+This is safe for saved projects: `category` is registry metadata, never serialised into a project document.
+
+- [ ] **Step 8: Repoint the imports**
+
+```bash
+grep -rln "registry/legacy\|trading/definition\|trading/candlestick-chart\|remotion/legacy-elements\|remotion/scenes\|project/migrate\|motion-components" apps/studio/src packages
+```
+
+Every one becomes an import from `@chart-studio/components`:
+
+```ts
+import { getComponent, listComponents, CATEGORY_ORDER } from '@chart-studio/components';
+```
+
+Inside `packages/components`, the imports between its own files stay relative.
+
+- [ ] **Step 9: Write the vendor record**
 
 Create `vendor/remocn/README.md`:
 
@@ -1452,42 +949,35 @@ the upstream files they depend on.
 
 They are a **record, not application code**. They are outside `tsconfig.json`'s
 `include`, they are never bundled, and they are not imported by anything in
-`packages/`. The adapted copies live in `packages/motion-components/src/`, and
-`packages/motion-components/PROVENANCE.md` records what changed in each.
+`packages/`. The adapted copies live in `packages/components/src/motion/`, and
+`packages/components/src/motion/PROVENANCE.md` records what changed in each.
 
-The upstream licence is MIT and is kept at `packages/motion-components/LICENSE.remocn`.
-The fetch date, the source URLs and the sha256 hashes of the snapshot these came
-from are recorded in `docs/reference/remocn/README.md`.
+The upstream licence is MIT and is kept at
+`packages/components/src/motion/LICENSE.remocn`. The fetch date, the source URLs
+and the sha256 hashes of the snapshot these came from are recorded in
+`docs/reference/remocn/README.md`.
 
 The original upstream import paths — `@/components/remocn/caret` and
 `@/lib/remocn-ui` — refer to the upstream project's own layout, not this
 repository's.
 ```
 
-- [ ] **Step 5: Update the provenance record**
+- [ ] **Step 10: Update the provenance record**
 
-In `packages/motion-components/PROVENANCE.md`, change every path of the form
+In `packages/components/src/motion/PROVENANCE.md`, change every path of the form
 `src/motion-components/upstream/<name>.tsx` to `vendor/remocn/source/<name>.tsx`, and every path of the
 form `src/motion-components/definition.ts` to
-`packages/motion-components/src/definitions/marker-highlight.ts`. Change nothing else — the upstream URLs,
+`packages/components/src/motion/definitions/marker-highlight.ts`. Change nothing else — the upstream URLs,
 the licences, the retrieval dates, the enumerated local modifications and the "Unchanged" notes are the
 record.
 
-- [ ] **Step 6: Repoint the imports**
+- [ ] **Step 11: Declare the dependencies and run the gates**
 
-```bash
-grep -rln "motion-components" apps/studio/src packages
+Add to `apps/studio/package.json`:
+
+```jsonc
+"@chart-studio/components": "workspace:*"
 ```
-
-The app's registry aggregator imports the three definitions from the package:
-
-```ts
-import { markerHighlightDefinition, softBlurInDefinition, typewriterDefinition } from '@chart-studio/motion-components';
-```
-
-- [ ] **Step 7: Declare the dependency and run the gates**
-
-Add `"@chart-studio/motion-components": "workspace:*"` to `apps/studio/package.json`.
 
 ```bash
 pnpm typecheck
@@ -1496,55 +986,58 @@ pnpm build
 node scripts/verify-r1.mjs
 ```
 
-Expected: 153 tests pass. The motion component tests are the ones that check the adapted components read
-only `fps` and never the composition length — they must pass unchanged.
+Expected: 153 tests pass. The chart test file is the largest single file in the repository and covers the
+no-lookahead rule; it must pass unchanged. The motion component tests check that the adapted components
+read only `fps` and never the composition length — they must pass unchanged.
 
-- [ ] **Step 8: Confirm the verbatim copies are not compiled**
+- [ ] **Step 12: Confirm the verbatim copies are not compiled**
 
 ```bash
-grep -c "marker-highlight" packages/motion-components/dist/*.js || true
-pnpm --filter @chart-studio/motion-components typecheck
+grep -c "marker-highlight" packages/components/dist/*.js || true
+pnpm --filter @chart-studio/components typecheck
 ```
 
 Expected: the verbatim source does not appear in the package's output, and the package typechecks without
 the ambient declaration file that used to make the copies compile.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
 git add -A
-git commit -m "Move the adapted Remocn components into their own package and keep the originals as a record
+git commit -m "Gather the whole component catalogue into one package, grouped by family
 
-The upstream copies were never bundled, could not compile against themselves,
-and read as application source. They now sit outside the compiled tree as
-the licence and provenance record, while the adapted components and their
-definitions live in one package.
+The base elements, the trading components and the adapted Remocn sources now
+sit in one package with three folders, instead of three packages that would
+have needed a dependency graph to keep straight. The registry aggregator and
+the project migration moved with them, because the migration validates stored
+clips against that same catalogue.
 
-No behaviour changes: the same tests pass and the render is unchanged.
+The generic category is now called base, to match the folder. It is registry
+metadata and never reaches a saved project.
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 9: `packages/scene-compositor` and `packages/export`
+### Task 5: `packages/editor`
 
 **Files:**
-- Create: the two packages' manifests, tsconfigs and barrels
-- Move: `apps/studio/src/remotion/MainComposition.tsx` → `packages/scene-compositor/src/MainComposition.tsx`; `render.mjs` → `packages/export/src/render.mjs`; `server.mjs` → `packages/export/src/server.mjs`
-- Modify: `apps/studio/remotion/Root.tsx`, `apps/studio/remotion/index.ts`
+- Create: `packages/editor/package.json`, `packages/editor/tsconfig.json`, `packages/editor/src/index.ts`
+- Move: `apps/studio/src/store.ts` → `packages/editor/src/store.ts`, `apps/studio/src/store.test.ts` → `packages/editor/src/store.test.ts`, `apps/studio/src/playerRef.ts` → `packages/editor/src/playerRef.ts`; `apps/studio/src/components/timeline/**` → `packages/editor/src/timeline/**`; `apps/studio/src/storage/**` → `packages/editor/src/storage/**`
+- Modify: every file that imported the moved modules
 
 **Interfaces:**
-- Consumes: `@chart-studio/domain`, `@chart-studio/generic-components`, `@chart-studio/trading-components`, `@chart-studio/motion-components`, `@chart-studio/chart-renderer`.
-- Produces: `@chart-studio/scene-compositor` exporting the composition; `@chart-studio/export` exporting the render entry points.
+- Consumes: `@chart-studio/core`, `@chart-studio/components`, `@chart-studio/ui`.
+- Produces: `@chart-studio/editor` exporting the store and its actions, the player bridge, the timeline components and the storage port with its three backends.
 
-- [ ] **Step 1: Create the two manifests**
+- [ ] **Step 1: Create the package**
 
-`packages/scene-compositor/package.json`:
+`packages/editor/package.json`:
 
 ```jsonc
 {
-  "name": "@chart-studio/scene-compositor",
+  "name": "@chart-studio/editor",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -1561,11 +1054,148 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
     "test": "vitest run"
   },
   "dependencies": {
-    "@chart-studio/chart-renderer": "workspace:*",
-    "@chart-studio/domain": "workspace:*",
-    "@chart-studio/generic-components": "workspace:*",
-    "@chart-studio/motion-components": "workspace:*",
-    "@chart-studio/trading-components": "workspace:*",
+    "@chart-studio/components": "workspace:*",
+    "@chart-studio/core": "workspace:*",
+    "@chart-studio/ui": "workspace:*",
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.3"
+  }
+}
+```
+
+`packages/editor/tsconfig.json` is identical to the core one.
+
+- [ ] **Step 2: Move the sources**
+
+```bash
+mkdir -p packages/editor/src/timeline
+git mv apps/studio/src/store.ts packages/editor/src/store.ts
+git mv apps/studio/src/store.test.ts packages/editor/src/store.test.ts
+git mv apps/studio/src/playerRef.ts packages/editor/src/playerRef.ts
+git mv apps/studio/src/components/timeline/ClipChip.tsx packages/editor/src/timeline/ClipChip.tsx
+git mv apps/studio/src/components/timeline/TimelineRuler.tsx packages/editor/src/timeline/TimelineRuler.tsx
+git mv apps/studio/src/components/timeline/TrackRow.tsx packages/editor/src/timeline/TrackRow.tsx
+git mv apps/studio/src/components/timeline/Timeline.tsx packages/editor/src/timeline/Timeline.tsx
+git mv apps/studio/src/components/timeline/shared.ts packages/editor/src/timeline/shared.ts
+git mv apps/studio/src/components/timeline/shared.test.ts packages/editor/src/timeline/shared.test.ts
+git mv apps/studio/src/storage packages/editor/src/storage
+```
+
+- [ ] **Step 3: Create the barrels**
+
+`packages/editor/src/index.ts`:
+
+```ts
+export * from './store';
+export * from './playerRef';
+export { Timeline } from './timeline/Timeline';
+export { ClipChip } from './timeline/ClipChip';
+export { TimelineRuler } from './timeline/TimelineRuler';
+export { TrackRow } from './timeline/TrackRow';
+export * from './timeline/shared';
+export * from './storage/types';
+export * from './storage/contract-suite';
+export * from './storage/select';
+export * from './storage/useWorkspace';
+```
+
+The SQLite driver, worker and client are not exported — they are implementation details of the backend.
+
+- [ ] **Step 4: Repoint the imports**
+
+```bash
+grep -rln "from '\.\./\.\./store'\|from '\.\./store'\|from '\.\./playerRef'\|components/timeline\|from './timeline'\|storage/types\|storage/select\|storage/useWorkspace" apps/studio/src packages
+```
+
+The store is imported by many panels. Every one becomes:
+
+```ts
+import { useStore } from '@chart-studio/editor';
+```
+
+The timeline becomes:
+
+```tsx
+import { Timeline } from '@chart-studio/editor';
+```
+
+Preserve the original import's shape — some are `import { useStore }`, some
+`import { useStore, type EditorState }`. Split value imports from type imports the same way the original
+did.
+
+- [ ] **Step 5: Declare the dependency and run the gates**
+
+Add `"@chart-studio/editor": "workspace:*"` to `apps/studio/package.json`.
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm build
+node scripts/verify-r1.mjs
+```
+
+Expected: 153 tests pass. The storage contract suite is the largest test file in the repository; it must
+still pass unchanged.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add -A
+git commit -m "Gather the editor runtime into one package
+
+The store, the timeline and the local database now live together, behind one
+package name. That keeps the shell replaceable — the runtime that owns the
+project survives a swap of the shell that displays it — and it puts the
+one-writer rule on the database inside a boundary the render path never
+crosses.
+
+No behaviour changes: the same tests pass and the render is unchanged.
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+### Task 6: `packages/video`
+
+**Files:**
+- Create: `packages/video/package.json`, `packages/video/tsconfig.json`, `packages/video/src/index.ts`
+- Move: `apps/studio/src/remotion/MainComposition.tsx` → `packages/video/src/composition.tsx`; `remotion/Root.tsx` → `packages/video/remotion/Root.tsx`; `remotion/index.ts` → `packages/video/remotion/index.ts`; `render.mjs` → `packages/video/tools/render.mjs`; `server.mjs` → `packages/video/tools/server.mjs`
+- Modify: the root `package.json`, `scripts/verify-r1.mjs`, `docs-gifs.mjs`
+
+**Interfaces:**
+- Consumes: `@chart-studio/core`, `@chart-studio/components`.
+- Produces: `@chart-studio/video` exporting the composition and the Remotion entry point.
+
+- [ ] **Step 1: Create the package**
+
+`packages/video/package.json`:
+
+```jsonc
+{
+  "name": "@chart-studio/video",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && node --check tools/render.mjs && node --check tools/server.mjs",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@chart-studio/components": "workspace:*",
+    "@chart-studio/core": "workspace:*",
+    "@remotion/bundler": "4.0.538",
+    "@remotion/renderer": "4.0.538",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "4.0.538"
@@ -1573,96 +1203,82 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 }
 ```
 
-`packages/export/package.json`:
-
-```jsonc
-{
-  "name": "@chart-studio/export",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
-  "scripts": {
-    "build": "node -e \"process.exit(0)\"",
-    "typecheck": "node --check src/render.mjs && node --check src/server.mjs",
-    "test": "vitest run --passWithNoTests"
-  },
-  "dependencies": {
-    "@remotion/bundler": "4.0.538",
-    "@remotion/renderer": "4.0.538",
-    "remotion": "4.0.538"
-  }
-}
-```
-
-`packages/export` holds Node scripts, not a compiled library, so it has no `exports` map and no `dist`.
-Its `typecheck` is a syntax check.
+The package holds both the React composition and the Node render tools, so it declares React and the
+server-side renderer together. `packages/video/tsconfig.json` is identical to the core one, with
+`"include": ["src"]` — the `remotion/` and `tools/` directories are entry points and scripts, not compiled
+modules.
 
 - [ ] **Step 2: Move the sources**
 
 ```bash
-mkdir -p packages/scene-compositor/src packages/export/src
-git mv apps/studio/src/remotion/MainComposition.tsx packages/scene-compositor/src/MainComposition.tsx
-git mv render.mjs packages/export/src/render.mjs
-git mv server.mjs packages/export/src/server.mjs
+mkdir -p packages/video/src packages/video/remotion packages/video/tools
+git mv apps/studio/src/remotion/MainComposition.tsx packages/video/src/composition.tsx
+git mv remotion/Root.tsx packages/video/remotion/Root.tsx
+git mv remotion/index.ts packages/video/remotion/index.ts
+git mv render.mjs packages/video/tools/render.mjs
+git mv server.mjs packages/video/tools/server.mjs
 ```
 
 `apps/studio/src/remotion/` is now empty and disappears.
 
-- [ ] **Step 3: Create the barrel and fix the Remotion entry**
+- [ ] **Step 3: Create the barrel**
 
-`packages/scene-compositor/src/index.ts`:
+`packages/video/src/index.ts`:
 
 ```ts
-export * from './MainComposition';
+export * from './composition';
 ```
 
-`apps/studio/remotion/Root.tsx` imports the composition from the package:
+- [ ] **Step 4: Fix the entry point and the tool paths**
+
+`packages/video/remotion/Root.tsx` imports the composition from the package:
 
 ```tsx
-import { MainComposition } from '@chart-studio/scene-compositor';
+import { MainComposition } from '@chart-studio/video';
 ```
 
-- [ ] **Step 4: Fix the paths inside the render scripts**
+In `packages/video/tools/render.mjs`:
 
-In `packages/export/src/render.mjs`:
+- `path.resolve('remotion/index.ts')` → `path.resolve('packages/video/remotion/index.ts')`
+- the default input stays `project.json` at the repository root
+- the default output stays `out/animation.mp4` at the repository root
 
-- `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')`
-- the default input `project.json` stays at the repository root, so the default becomes
-  `path.resolve('project.json')`
-- the default output `path.join('out', 'animation.mp4')` stays at the repository root
+In `packages/video/tools/server.mjs`:
 
-In `packages/export/src/server.mjs`:
-
-- `path.resolve('remotion/index.ts')` → `path.resolve('apps/studio/remotion/index.ts')`
+- `path.resolve('remotion/index.ts')` → `path.resolve('packages/video/remotion/index.ts')`
 - `path.resolve('out')` stays at the repository root
 
 Both scripts run from the repository root, which is how the root `package.json` invokes them.
 
-- [ ] **Step 5: Update the root scripts**
+- [ ] **Step 5: Update the root scripts and the remaining path references**
 
 In the root `package.json`:
 
 ```jsonc
 "scripts": {
-  "dev": "concurrently -k -n web,render -c cyan,magenta \"pnpm --filter @chart-studio/studio dev\" \"node packages/export/src/server.mjs\"",
-  "render": "node packages/export/src/render.mjs",
+  "dev": "concurrently -k -n web,render -c cyan,magenta \"pnpm --filter @chart-studio/studio dev\" \"node packages/video/tools/server.mjs\"",
+  "render": "node packages/video/tools/render.mjs",
   "docs:gifs": "node docs-gifs.mjs"
 }
 ```
 
-`scripts/verify-r1.mjs` also bundles the Remotion entry; update its path to
-`path.resolve('apps/studio/remotion/index.ts')`.
+`scripts/verify-r1.mjs` and `docs-gifs.mjs` also bundle the Remotion entry. Update both:
 
-- [ ] **Step 6: Declare the dependencies and run the gates**
+| File | Change |
+|---|---|
+| `scripts/verify-r1.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('packages/video/remotion/index.ts')` |
+| `docs-gifs.mjs` | `path.resolve('remotion/index.ts')` → `path.resolve('packages/video/remotion/index.ts')`; `path.resolve('public/docs/gifs')` → `path.resolve('apps/studio/public/docs/gifs')` |
 
-Add `"@chart-studio/scene-compositor": "workspace:*"` to `apps/studio/package.json`.
+- [ ] **Step 6: Declare the dependency and run the gates**
+
+Add `"@chart-studio/video": "workspace:*"` to `apps/studio/package.json`.
 
 ```bash
 pnpm typecheck
 pnpm test
 pnpm build
 node scripts/verify-r1.mjs
-node packages/export/src/render.mjs
+node packages/video/tools/render.mjs
 ```
 
 Expected: 153 tests pass, `verify-r1.mjs` writes `out/verify/chart-studio-r1.mp4`, and the render CLI
@@ -1672,11 +1288,12 @@ writes `out/animation.mp4`.
 
 ```bash
 git add -A
-git commit -m "Move the composition and the render tools into the packages that own them
+git commit -m "Gather the composition and the render tools into the package that produces the video
 
-The composition and the render scripts were the last pieces living outside a
-package. They now sit behind the scene-compositor and export packages, so the
-Remotion entry point depends on named packages instead of relative paths.
+The composition, the Remotion entry point and the Node render tools were the
+last pieces living outside a package. They now sit behind one package name,
+so the render path depends on named packages rather than on relative paths
+that reach across the tree.
 
 No behaviour changes: the same tests pass and both render paths still work.
 
@@ -1685,14 +1302,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 10: Documentation and ADRs
+### Task 7: Documentation and ADRs
 
 **Files:**
 - Create: `docs/decisions/ADR-004-SHELL-TECHNOLOGY.md`
 - Modify: `AGENTS.md`, `DOCS.md`, `docs/architecture/UPSTREAM_AUDIT.md`, `docs/architecture/TECHNICAL_ARCHITECTURE.md`, `docs/architecture/REMOCN-CATALOGUE.md`, `docs/roadmap/ROADMAP.md`, `docs/quality/TEST_STRATEGY.md`, `docs/decisions/ADR-003-COMPONENT-SYSTEM.md`, `docs/README.md`
 
 **Interfaces:**
-- Consumes: the finished tree from Tasks 1 to 9.
+- Consumes: the finished tree from Tasks 1 to 6.
 - Produces: documentation that matches the code.
 
 - [ ] **Step 1: Write ADR-004**
@@ -1700,7 +1317,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Create `docs/decisions/ADR-004-SHELL-TECHNOLOGY.md`. It records that the application shell is a Vite SPA
 under `apps/studio` and that Next.js is deferred; it cites ADR-002's offline-refresh requirement and
 `TECHNICAL_ARCHITECTURE.md` §17; it states the trigger for revisiting the decision; and it states that the
-domain and renderer packages stay unchanged either way. Follow the format of ADR-001 to ADR-003: status,
+core and component packages stay unchanged either way. Follow the format of ADR-001 to ADR-003: status,
 date, context, decision, consequences.
 
 - [ ] **Step 2: Correct `AGENTS.md`**
@@ -1710,7 +1327,8 @@ date, context, decision, consequences.
   ADR-004.
 - Replace the dnd-kit sentence with the truth: dnd-kit was not adopted, and the timeline keeps its own
   pointer handling.
-- Replace the package-boundary paragraph with the table from the spec's §6.
+- Replace the package-boundary paragraph with the five-package map and the ownership table from the spec's
+  §6.
 - Keep every product invariant, the dependency-adoption rule list, the verification list, the PR template
   and the out-of-MVP list unchanged.
 
@@ -1720,8 +1338,8 @@ Replace the `packages/*` to `src/*` table with the spec's §6 ownership map. Kee
 
 - [ ] **Step 4: Correct `TECHNICAL_ARCHITECTURE.md`**
 
-Update §2 to add the three component families and to state that the shell is a Vite SPA under
-`apps/studio`. Leave the other 480 lines alone.
+Update §2 to show the five packages and the three component families, and to state that the shell is a
+Vite SPA under `apps/studio`. Leave the other 480 lines alone.
 
 - [ ] **Step 5: Correct `ROADMAP.md`**
 
@@ -1740,18 +1358,18 @@ sections.
 - [ ] **Step 7: Correct `DOCS.md` and `REMOCN-CATALOGUE.md`**
 
 `DOCS.md`: replace the pre-registry `ELEMENTS` map with the registry, state 26 components grouped into
-generic, trading and motion, correct the preset count, the library tabs and the SQLite autosave path, and
+base, trading and motion, correct the preset count, the library tabs and the SQLite autosave path, and
 replace the path table with the new layout.
 
 `REMOCN-CATALOGUE.md`: change "23 elements" to 26 in both places it appears, with the breakdown of 22
-generic, 1 trading and 3 motion.
+base, 1 trading and 3 motion.
 
 - [ ] **Step 8: Add the ADR-003 addendum**
 
-Append an addendum to `docs/decisions/ADR-003-COMPONENT-SYSTEM.md` recording the three family packages,
-the transition slot on the track boundary, and the four adoption rules: the composition-length gotcha,
-`speed` as the only retiming lever, provenance travelling with the copy, and additions rather than
-replacements.
+Append an addendum to `docs/decisions/ADR-003-COMPONENT-SYSTEM.md` recording the three family folders
+inside one package, the transition slot on the track boundary, and the four adoption rules: the
+composition-length gotcha, `speed` as the only retiming lever, provenance travelling with the copy, and
+additions rather than replacements.
 
 - [ ] **Step 9: Update the docs index**
 
@@ -1760,12 +1378,13 @@ replacements.
 - [ ] **Step 10: Verify the claims**
 
 ```bash
-grep -rn "packages/domain\|apps/studio" AGENTS.md docs/ | wc -l
+grep -rn "packages/core\|apps/studio" AGENTS.md docs/ | wc -l
 grep -rn "does not include an implemented app" docs/ || echo "no stale claim"
 grep -rn "23 elements" docs/ || echo "no stale count"
+grep -rn "packages/domain\|packages/market-data\|packages/editor-core\|packages/generic-components" docs/ AGENTS.md || echo "no stale package names"
 ```
 
-Expected: the first command finds many matches; the second and third find nothing.
+Expected: the first command finds many matches; the other three find nothing.
 
 - [ ] **Step 11: Commit**
 
@@ -1776,7 +1395,7 @@ git commit -m "Bring the documentation back in line with the code it describes
 The agent guide, the architecture notes, the roadmap and the developer
 documentation all described a repository that did not exist: a Next.js shell,
 fourteen packages and a catalogue of twenty-three components. They now
-describe the pnpm workspace, the twelve packages that hold real code and the
+describe the pnpm workspace, the five packages that hold real code and the
 twenty-six components grouped by family, and the shell decision is recorded
 formally.
 
@@ -1785,7 +1404,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 11: Cleanup and final verification
+### Task 8: Cleanup and final verification
 
 **Files:**
 - Delete: `scripts/gen-showcase.mjs`, `scripts/preset-stills.mjs`, `examples/showcase.json`
@@ -1830,7 +1449,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 node scripts/verify-r1.mjs
-node packages/export/src/render.mjs
+node packages/video/tools/render.mjs
 ```
 
 Expected: a clean install from the lockfile, zero type errors, 153 tests passing across 12 files, a
@@ -1850,7 +1469,7 @@ for (const pkg of fs.readdirSync('packages')) {
   const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
     const full = path.join(dir, e.name);
     if (e.isDirectory()) walk(full);
-    else if (/\.(ts|tsx)$/.test(e.name)) files.push(full);
+    else if (/\.(ts|tsx)\$/.test(e.name)) files.push(full);
   });
   walk(path.join('packages', pkg, 'src'));
   for (const file of files) {
@@ -1875,9 +1494,9 @@ the import before continuing.
 pnpm dev
 ```
 
-Open the served URL and confirm: the library lists all 26 components, the canvas renders the sample
-project, the inspector edits a parameter, a change survives a reload, and the Export button produces an
-MP4. Stop the server.
+Open the served URL and confirm: the library lists all 26 components grouped under Elements, Trading and
+Motion; the canvas renders the sample project; the inspector edits a parameter; a change survives a
+reload; and the Export button produces an MP4. Stop the server.
 
 - [ ] **Step 7: Commit**
 
@@ -1895,23 +1514,22 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Self-review
 
-**Spec coverage.** Every Phase 1 requirement in the spec is covered: the pnpm workspace, the twelve
+**Spec coverage.** Every Phase 1 requirement in the spec is covered: the pnpm workspace, the five
 packages, the ownership map, the app shell at `apps/studio`, the package consumption contract, the
 Turborepo task graph, the single Vitest configuration, the CI gate, ADR-004, the ADR-003 addendum, the
 seven documentation corrections, the cleanup list, and the Phase 1 gate itself. The spec's §16 open
 questions are listed at the top of this plan with the section each would change.
 
 **Placeholder scan.** No `TBD`, `TODO` or unfinished steps. One instruction is deliberately deferred to
-the implementer — copying the exact installed `@radix-ui` versions in Task 6 Step 1 — because inventing
+the implementer — copying the exact installed dependency versions in Task 3 Step 1 — because inventing
 them would be wrong; the step says to read them from the lockfile.
 
-**Type consistency.** The package names used across tasks are `@chart-studio/domain`,
-`@chart-studio/market-data`, `@chart-studio/storage-sqlite`, `@chart-studio/editor-core`,
-`@chart-studio/timeline`, `@chart-studio/ui`, `@chart-studio/generic-components`,
-`@chart-studio/chart-renderer`, `@chart-studio/trading-components`, `@chart-studio/motion-components`,
-`@chart-studio/scene-compositor`, `@chart-studio/export` and `@chart-studio/studio`. The `@chart-studio/*`
-scope is used consistently in every manifest, import and grep.
+**Type consistency.** The package names used across tasks are `@chart-studio/core`,
+`@chart-studio/ui`, `@chart-studio/components`, `@chart-studio/editor`, `@chart-studio/video` and
+`@chart-studio/studio`. The `@chart-studio/*` scope is used consistently in every manifest, import and
+grep.
 
-**Ordering.** Each task leaves the tree green, and the dependency order is respected: `domain` and
-`market-data` first because everything else depends on them; the component families before the compositor
-that renders them; the compositor before the export tools that bundle it.
+**Ordering.** Each task leaves the tree green, and the dependency order is respected: `core` first because
+everything depends on it; `ui` before `components` because the trading inspector needs it; `components`
+before `editor` because the store reads the catalogue; `editor` before `video` because the compositor
+renders what the editor produces.

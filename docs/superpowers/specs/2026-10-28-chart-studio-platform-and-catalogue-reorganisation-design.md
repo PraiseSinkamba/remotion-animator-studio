@@ -61,7 +61,7 @@ This spec defines the restructure that closes the gap, and the sequence in which
 | # | Decision | Rationale | Alternative rejected |
 |---|---|---|---|
 | D1 | Move to a pnpm workspace, `apps/*` and `packages/*` | `AGENTS.md` and `TECHNICAL_ARCHITECTURE.md` §2 both specify it; the instruction from the repo owner. | Staying on npm leaves the documented architecture unreachable |
-| D2 | Twelve packages, not fourteen | `smt-mtf`, `project-archive` and `testing` have no code. An empty package is scaffolding for later, which the repository rules forbid. | Creating all fourteen now |
+| D2 | Five packages, not fourteen | The repository owner rejected a twelve-package split as ceremony. The boundaries that carry weight are the pure core, the component catalogue, the interface primitives, the editor runtime and the video output. `smt-mtf`, `project-archive` and `testing` have no code either, so they stay absent. | One package per documented package name, or a separate package per component family |
 | D3 | App shell at `apps/studio`, still a Vite SPA | The documented shell path, with the Next.js swap isolated to one package when it is approved. | Keeping the app at the repository root leaves no seam for the swap |
 | D4 | Package consumption: built `dist/`, with a `development` export condition pointing at source | Dev and Vitest resolve source through the `development` condition, so there is no stale-build class of bug; production and the Remotion webpack bundler resolve `dist/`. The build graph is real, which is what makes Turborepo worth having. | Source-only consumption leaves Turborepo with no graph and the package boundaries unenforced |
 | D5 | One root Vitest configuration, include globs over `packages/*/src` and `apps/*/src` | The existing suite already runs this way and 26 test files do not justify per-package configuration. | Per-package Vitest configs |
@@ -69,7 +69,9 @@ This spec defines the restructure that closes the gap, and the sequence in which
 | D7 | A transition slot is designed before any transition component is adopted | `REMOCN-CATALOGUE.md` §6.5: the object model has nowhere to put a `presentation()` wrapper. | Adopting transitions first, with no place to mount them |
 | D8 | Remocn wave 1 is six new motion elements, not replacements | `REMOCN-CATALOGUE.md` §6.3 names the candidates; §3 shows upstream is additive. | Replacing existing elements, which the analysis rules out |
 | D9 | Verbatim upstream copies move to `vendor/remocn/`, outside the compiled source tree | The component contract §4.5 requires the upstream licence and revision to travel with the copied code, and the current location makes them look like application source while being unable to compile. | Deleting them, or leaving them in `src/` behind a shim |
-| D10 | `evaluateBarsAtFrame` and `ChartFrameState` live in `market-data`, not `domain` | They are market-time mapping, and `domain` must stay free of trading concepts. `TECHNICAL_ARCHITECTURE.md` §3 files "time models and frame identity" in the domain chapter, so this is a deliberate reading of that section and is flagged for review. | Moving them to `domain` |
+| D10 | `evaluateBarsAtFrame` and `ChartFrameState` live in the core package | They are market-time mapping, and the core must stay free of React and trading concepts. `TECHNICAL_ARCHITECTURE.md` §3 files "time models and frame identity" in the domain chapter, so this is a deliberate reading of that section and is flagged for review. | Moving them to the schemas module |
+| D11 | The project migration lives in `packages/components`, not in the core | It validates each stored clip against the component catalogue's `propsVersion`, and the catalogue registers itself on import through a module-level map. A migration below the catalogue cannot see the definitions it validates against. | Parameterising the migration with a component lookup, which changes its signature and its callers |
+| D12 | `category: 'generic'` is renamed to `category: 'base'` | It matches the folder name the repository owner chose. `category` is registry metadata and is never serialised into a project document, so no saved project is affected. | Keeping the folder and the category differently named |
 
 ## 5. Target workspace
 
@@ -84,21 +86,29 @@ chart-studio/
   apps/
     studio/                       the editor shell — Vite SPA today, Next.js later
   packages/
-    domain/                       project, scene, clip and object schemas
-    market-data/                  candles, series, sessions, time mapping
-    chart-renderer/               pure evaluated chart to React/SVG
-    trading-components/           candlestickChart and the nine trading objects
-    generic-components/           the 22 inherited generic elements
-    motion-components/            adapted Remocn source and provenance
-    scene-compositor/             Remotion composition and transitions
-    editor-core/                  commands, history, selection coordination
-    timeline/                     project and scene timeline UI
-    storage-sqlite/               single database worker, queries, migrations
+    core/                         pure TypeScript: schemas, component contract, registry mechanism, market maths
+    components/                   base/ trading/ motion/ — the visual catalogue
     ui/                           shadcn wrappers, inspector and library UI
-    export/                       render configurations, freeze, local export
+    editor/                       commands, history, selection, timeline, persistence
+    video/                        Remotion composition, entry point, render CLI and render server
   vendor/
     remocn/                       verbatim upstream source, never bundled
 ```
+
+The dependency graph is acyclic and has no cycle-closing package:
+
+```text
+core  ──────────────►  components  ──────────────►  video
+  ▲                      ▲   ▲                         ▲
+  │                      │   │                         │
+  └──────────────────────┘   └──────►  editor  ────────┘
+                                  ▲        ▲
+                                  └── ui ──┘
+```
+
+`core` imports nothing. `ui` and `components` sit above it. `editor` and `video` sit above `components`,
+because the store reads the component catalogue and the compositor renders it. `apps/studio` sits above
+all five.
 
 `apps/render-worker/` is documented but deferred — there is no server renderer in this product.
 
@@ -108,7 +118,7 @@ Every internal package carries the same shape:
 
 ```jsonc
 {
-  "name": "@chart-studio/domain",
+  "name": "@chart-studio/core",
   "private": true,
   "type": "module",
   "exports": {
@@ -119,7 +129,7 @@ Every internal package carries the same shape:
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   }
@@ -133,8 +143,10 @@ documented ownership rules mechanically rather than by convention.
 Consequences that the implementation plan must handle:
 
 - A package may only import a package listed in its own `dependencies`.
-- `packages/ui` and `packages/motion-components` carry `react` as a peer dependency.
-- `packages/export` is Node-only and has no React dependency.
+- `packages/ui`, `packages/components` and `packages/video` carry `react` as a dependency; `packages/core`
+  carries none, which is what keeps it pure.
+- `packages/video` holds both the React composition and the Node render tools, so it declares `react`,
+  `remotion`, `@remotion/bundler` and `@remotion/renderer`.
 - Global CSS stays with the application (`apps/studio/src/index.css`); `packages/ui` ships class names and
   depends on the CSS variables the application defines.
 
@@ -142,53 +154,61 @@ Consequences that the implementation plan must handle:
 
 | Current path | Target | Notes |
 |---|---|---|
-| `src/types.ts` | `packages/domain/src/types.ts` | `ElementType`, `EffectType`, `Clip`, `Track`, `Project`, `ParamDef` |
-| `src/project/migrate.ts`, `src/project/migrate.test.ts` | `packages/domain/src/project/` | the only place a stored document is reshaped |
-| `src/registry/types.ts` | `packages/domain/src/registry/types.ts` | the component contract |
-| `src/registry/registry.ts` | `packages/domain/src/registry/registry.ts` | the registration mechanism |
-| `src/registry/registry.test.ts` | `packages/domain/src/registry/` | |
-| `src/sampleProject.ts` | `packages/domain/src/project/sample-project.ts` | a project document factory |
-| `src/trading/ohlc.ts`, `src/trading/ohlc.test.ts` | `packages/market-data/src/` | `OhlcBar`, `BarRevealMode`, `PartialBar`, `ChartFrameState`, `generateSyntheticBars`, `evaluateBarsAtFrame`, `computePriceRange`, `barsToFrames` |
-| `src/trading/candlestick-chart.tsx` | `packages/chart-renderer/src/` | evaluated chart to SVG |
-| `src/trading/definition.ts`, `src/trading/candlestick-chart-inspector.tsx`, `src/trading/candlestick-chart.test.tsx` | `packages/trading-components/src/` | manifest, params, inspector, render adapter |
-| `src/registry/legacy.ts` | `packages/generic-components/src/definitions.ts` | the 22 generic element definitions |
-| `src/remotion/legacy-elements.tsx`, `src/remotion/scenes.tsx` | `packages/generic-components/src/` | their render adapters |
-| `src/effects.ts` | `packages/generic-components/src/effects.ts` | the 35-type effect stack |
-| `src/motion-components/**` | `packages/motion-components/src/` | |
+| `src/types.ts` | `packages/core/src/schemas.ts` | `ElementType`, `EffectType`, `Clip`, `Track`, `Project`, `ParamDef` |
+| `src/registry/types.ts` | `packages/core/src/contract.ts` | the component contract |
+| `src/registry/registry.ts` | `packages/core/src/registry.ts` | the registration mechanism |
+| `src/registry/registry.test.ts` | `packages/core/src/registry.test.ts` | |
+| `src/trading/ohlc.ts`, `src/trading/ohlc.test.ts` | `packages/core/src/market.ts` | `OhlcBar`, `BarRevealMode`, `PartialBar`, `ChartFrameState`, `generateSyntheticBars`, `evaluateBarsAtFrame`, `computePriceRange`, `barsToFrames` |
+| `src/sampleProject.ts` | `packages/core/src/sample-project.ts` | a project document factory |
+| `src/project/migrate.ts`, `src/project/migrate.test.ts` | `packages/components/src/project-migrate.ts` | validates stored clips against this build's catalogue |
+| `src/registry/legacy.ts` | `packages/components/src/base/definitions.ts` | the 22 base element definitions |
+| `src/remotion/legacy-elements.tsx` | `packages/components/src/base/adapters.tsx` | their render adapters |
+| `src/remotion/scenes.tsx` | `packages/components/src/base/scenes.tsx` | |
+| `src/effects.ts` | `packages/components/src/base/effects.ts` | the 35-type effect stack |
+| `src/trading/definition.ts` | `packages/components/src/trading/definitions/candlestick-chart.ts` | manifest, params, render adapter |
+| `src/trading/candlestick-chart-inspector.tsx` | `packages/components/src/trading/inspectors/candlestick-chart.tsx` | |
+| `src/trading/candlestick-chart.tsx` | `packages/components/src/trading/chart.tsx` | the evaluated chart to SVG |
+| `src/trading/candlestick-chart.test.tsx` | `packages/components/src/trading/candlestick-chart.test.tsx` | |
+| `src/motion-components/**` | `packages/components/src/motion/` | |
 | `src/motion-components/upstream/**` | `vendor/remocn/` | verbatim, never bundled |
 | `src/motion-components/upstream-modules.d.ts` | deleted | existed only to compile the copies above |
-| `src/motion-components/LICENSE.remocn`, `PROVENANCE.md` | `packages/motion-components/` | travel with the copied source |
-| `src/remotion/MainComposition.tsx` | `packages/scene-compositor/src/` | |
-| `remotion/Root.tsx`, `remotion/index.ts` | `apps/studio/remotion/` | the Remotion entry point |
-| `src/store.ts`, `src/store.test.ts`, `src/playerRef.ts` | `packages/editor-core/src/` | |
-| `src/components/timeline/**` | `packages/timeline/src/` | |
-| `src/storage/**` | `packages/storage-sqlite/src/` | `types.ts`, `contract-suite.ts`, `select.ts`, `useWorkspace.ts`, `sqlite/*`, `local/*` |
+| `src/motion-components/LICENSE.remocn`, `PROVENANCE.md` | `packages/components/src/motion/` | travel with the copied source |
+| `src/registry/index.ts` | `packages/components/src/registry.ts` | the aggregator: imports every definition, so importing the package registers them all |
+| `src/remotion/MainComposition.tsx` | `packages/video/src/composition.tsx` | |
+| `remotion/Root.tsx`, `remotion/index.ts` | `packages/video/remotion/` | the Remotion entry point |
+| `render.mjs`, `server.mjs` | `packages/video/tools/` | Node-only render tools |
+| `src/store.ts`, `src/store.test.ts`, `src/playerRef.ts` | `packages/editor/src/` | |
+| `src/components/timeline/**` | `packages/editor/src/timeline/` | |
+| `src/storage/**` | `packages/editor/src/storage/` | `types.ts`, `contract-suite.ts`, `select.ts`, `useWorkspace.ts`, `sqlite/*`, `local/*` |
 | `src/components/ui/**`, `src/components/inspector/**`, `src/components/library/**`, `src/lib/utils.ts` | `packages/ui/src/` | |
-| `render.mjs`, `server.mjs` | `packages/export/src/` | Node-only; `@remotion/bundler` and `@remotion/renderer` become dependencies |
 | `src/App.tsx`, `src/main.tsx`, `src/index.css`, `src/lib/theme.tsx` | `apps/studio/src/` | |
 | `src/components/Library.tsx`, `Inspector.tsx`, `PreviewPanel.tsx`, `RenderDialog.tsx`, `SelectionOverlay.tsx`, `selection-overlay.tsx`, `canvas-hit-test.ts`, `StorageIndicator.tsx`, `theme-toggle.tsx`, `HelpModal.tsx`, `ToolRail.tsx`, `TopBar.tsx` | `apps/studio/src/components/` | the editor shell |
 | `src/presets.ts` | `apps/studio/src/presets.ts` | the starter catalogue composes registered components |
-| `src/registry/index.ts` | `apps/studio/src/registry.ts` | the composition root: imports all 26 definitions and registers them |
 | `index.html`, `vite.config.ts`, `components.json` | `apps/studio/` | |
 
-The registry aggregator moves to the application because it must import all three families, and
-`packages/domain` must not import the families — the families import the contract from `domain`.
+The registration mechanism lives in `packages/core`, so a definition can register itself without importing
+the families back. The aggregator lives in `packages/components`, because the project migration is in the
+same package and validates stored clips against it.
 
 ## 7. Component family model
 
 Every registered component keeps the contract the repository already enforces: `type`, `label`, `icon`,
 `description`, `category`, `defaults`, `params`, `render`, `provenance`, `bounds`, `propsVersion`,
-`defaultDuration`. `category` gains the three values `generic`, `trading` and `motion`, and the library
+`defaultDuration`. `category` gains the three values `base`, `trading` and `motion`, and the library
 panel groups by it. The `type` union is unchanged, because no component is renamed.
 
-| Family | Category | Package | Components |
+| Family | Category | Folder | Components |
 |---|---|---|---|
-| Generic | `generic` | `generic-components` | text, shape, image, emoji, background, video, audio, gif, counter, wave, blob, particles, html, cursor, synthGrid, neonSun, isoCity, skyCycle, sunMoon, ridge, commitGraph, nodeTrail |
-| Trading | `trading` | `trading-components` | candlestickChart, and the nine planned objects: HighLowLine, HorizontalPriceLine, TrendLine, PriceZone, LongShortPosition, Arrow, TextLabel, SMTComparison, ChartGroup |
-| Motion | `motion` | `motion-components` | the three adopted Remocn components, plus the wave of §9 |
+| Base | `base` | `packages/components/src/base/` | text, shape, image, emoji, background, video, audio, gif, counter, wave, blob, particles, html, cursor, synthGrid, neonSun, isoCity, skyCycle, sunMoon, ridge, commitGraph, nodeTrail |
+| Trading | `trading` | `packages/components/src/trading/` | candlestickChart, and the nine planned objects: HighLowLine, HorizontalPriceLine, TrendLine, PriceZone, LongShortPosition, Arrow, TextLabel, SMTComparison, ChartGroup |
+| Motion | `motion` | `packages/components/src/motion/` | the three adopted Remocn components, plus the wave of §9 |
 
-`type` identifiers are never renamed, renumbered or reused. Adding a family changes a component's
-`category`, not its `type`, so no saved project is invalidated by this reorganisation.
+The three families are folders inside one package, not three packages. They share the contract, the
+registration mechanism and the project migration, and splitting them into packages of their own would
+buy a dependency graph to maintain rather than a boundary worth enforcing.
+
+`type` identifiers are never renamed, renumbered or reused. The `generic` category is renamed to `base`,
+which is registry metadata and never reaches a saved project.
 
 ## 8. Transition slot
 
@@ -301,7 +321,7 @@ Required by `AGENTS.md` before a dependency is proposed.
 | Runtime and browser support | Node-only; it never ships to the browser bundle |
 | Tree-shaking and bundle consequences | none — a development-time task runner, absent from the client bundle |
 | Security posture | no runtime dependencies of its own, no network access at task time, no postinstall script, no transitive native code |
-| How it improves on what exists | replaces twelve independent typecheck and build invocations with one cached, dependency-ordered graph |
+| How it improves on what exists | replaces five independent typecheck and build invocations with one cached, dependency-ordered graph |
 | Exit strategy | deleting `turbo.json` and the `turbo run` wrappers; the per-package scripts remain valid on their own |
 
 pnpm is a tool, not a dependency, and carries the same properties: MIT, Node-only, no client bundle
@@ -352,7 +372,7 @@ configuration, CI, ADR-004, the §11 documentation corrections, the §12 cleanup
 
 | Gate | Check |
 |---|---|
-| Typecheck | `turbo run typecheck` — twelve packages, zero errors |
+| Typecheck | `turbo run typecheck` — five packages and the app, zero errors |
 | Tests | `turbo run test` — the same 153 tests, same names, same results |
 | Build | `turbo run build` produces `apps/studio/dist` |
 | Render | `node packages/export/src/render.mjs` produces an MP4 whose logical frames match the preview |
@@ -418,13 +438,16 @@ A real render is required in every phase. A passing test suite is not proof that
 
 ## 16. Open questions for review
 
-1. **D10** — `evaluateBarsAtFrame` and `ChartFrameState` in `market-data` or `domain`? This spec places
-   them in `market-data`, because `domain` must stay free of trading concepts, even though
-   `TECHNICAL_ARCHITECTURE.md` §3 files "time models and frame identity" in the domain chapter.
+1. **D10** — `evaluateBarsAtFrame` and `ChartFrameState` in the core package, or in the schemas module?
+   This spec places them in the core package, because the core must stay free of React and trading
+   concepts, even though `TECHNICAL_ARCHITECTURE.md` §3 files "time models and frame identity" in the
+   domain chapter.
 2. **The transition's home** — the design places transitions on the track boundary. The alternative is a
    transition attached to the outgoing clip. The track form makes the overlap explicit and keeps the clip's
    own frame range honest.
-3. **The generic family name** — `generic-components` versus `base-components`. The repository owner
-   suggested "generic or base". This spec uses `generic`.
-4. **Wave 1 size** — six components. If the reviewer wants a smaller first wave, `cursor`, `backdrop` and
+3. **Wave 1 size** — six components. If the reviewer wants a smaller first wave, `cursor`, `backdrop` and
    `drift` are the three with the lowest adoption cost and carry no dependency.
+
+Resolved since the first draft: the repository owner rejected the twelve-package split and chose the
+`components/` package with `base`, `trading` and `motion` folders. The family name is `base`, and the
+`category` value is renamed to match it.
