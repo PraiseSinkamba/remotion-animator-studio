@@ -276,6 +276,57 @@ describe('useWorkspace — autosave', () => {
 
     unmount();
   });
+
+  it('saves the pending work when the page is hidden', async () => {
+    const fake = createFakeRepository();
+    const { unmount } = await mountWorkspace(fake);
+
+    vi.useFakeTimers();
+    await editProject('Hidden edit');
+    expect(fake.commits).toHaveLength(0);
+
+    // The page goes to the background before the debounce fires.
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await settle();
+
+    expect(fake.commits).toHaveLength(1);
+    expect(fake.commits[0].document.name).toBe('Hidden edit');
+
+    // The flush replaced the scheduled save; nothing is written twice.
+    await advance(2000);
+    expect(fake.commits).toHaveLength(1);
+
+    unmount();
+  });
+
+  it('warns before the page is left with unsaved work', async () => {
+    const fake = createFakeRepository();
+    const { unmount } = await mountWorkspace(fake);
+
+    vi.useFakeTimers();
+    await editProject('Unsaved work');
+
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+
+    unmount();
+  });
+
+  it('does not warn when there is nothing to save', async () => {
+    const fake = createFakeRepository();
+    const { unmount } = await mountWorkspace(fake);
+
+    vi.useFakeTimers();
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+
+    unmount();
+  });
 });
 
 describe('useWorkspace — restore on boot', () => {

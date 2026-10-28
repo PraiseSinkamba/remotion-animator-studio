@@ -257,6 +257,51 @@ export const useWorkspace = (options?: UseWorkspaceOptions) => {
     return unsubscribe;
   }, [scheduleSave, setDirty]);
 
+  /**
+   * Do not lose the document when the page goes away.
+   *
+   * A scheduled save is a timer, and a timer dies with the page. So when the
+   * page is hidden or going away, the pending save is committed now. The
+   * browser cannot wait for an async commit during an unload, so the
+   * unload handler also asks the user before leaving with unsaved work.
+   */
+  useEffect(() => {
+    const flush = () => {
+      if (!dirtyRef.current) return;
+      // A commit already in flight is carrying the latest change.
+      if (committingRef.current) return;
+      if (timerRef.current !== null) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (ceilingRef.current !== null) {
+        window.clearTimeout(ceilingRef.current);
+        ceilingRef.current = null;
+      }
+      void commitDocument();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      // Let the browser ask whether the work should really be dropped.
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', flush);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [commitDocument]);
+
   // Open the workspace and restore the project that was edited last.
   useEffect(() => {
     let cancelled = false;
