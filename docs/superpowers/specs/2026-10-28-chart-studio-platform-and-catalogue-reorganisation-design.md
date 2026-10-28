@@ -174,6 +174,15 @@ what the type checker could not.
 4. **A package imports another package by name, never by path.** The dependency is declared in
    `package.json`, which is what enforces the ownership rules mechanically rather than by convention.
 
+5. **A package that carries Tailwind classes is named in the application's stylesheet.** Tailwind's
+   automatic detection scans the application only, so a package's classes are never generated unless the
+   stylesheet lists it with `@source`. Without it the build still succeeds and the editor renders
+   unstyled — the stylesheet halves and nothing reports it.
+
+6. **An internal package declares `"sideEffects": false`.** Without it the bundler cannot prove that an
+   unused module is droppable, and the barrel pulls the whole package into the bundle. The declaration
+   restores the tree-shaking the single-package layout had for free.
+
 ## 6. Ownership map
 
 | Current path | Target | Notes |

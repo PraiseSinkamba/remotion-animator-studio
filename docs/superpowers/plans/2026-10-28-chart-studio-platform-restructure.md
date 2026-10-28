@@ -23,6 +23,8 @@
 - **A package's relative imports carry an explicit `.js` extension.** The built output is strict ESM, so Node and webpack require fully-specified paths. Vite's build and the type checker are both silent about this; only the Remotion bundler catches it.
 - **A package has two TypeScript configurations.** `tsconfig.json` typechecks everything under `src` and emits nothing; `tsconfig.build.json` extends it, emits, and excludes the test files. The build script removes `dist` first.
 - React's types are a development dependency. A package that only needs `React.FC` declares `react` and `@types/react` as devDependencies; nothing is bundled.
+- Every internal package declares `"sideEffects": false`, or the bundler cannot drop what is unused and the bundle grows.
+- A package that carries Tailwind classes is listed in `apps/studio/src/index.css` with `@source`, or the build succeeds and the editor renders unstyled.
 - After every task, `node scripts/verify-r1.mjs` still renders an MP4 whose logical frames match the preview.
 - Every task ends with a commit.
 
