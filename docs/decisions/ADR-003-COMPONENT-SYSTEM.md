@@ -134,8 +134,8 @@ do. The decisive reason is narrower and stronger:
 
 > Upstream models **generic motion**. It has no OHLC, no price anchoring, no SMT, no HTF/LTF
 > pairing, no market-time policy, no provenance badge, and no duration derived from a data
-> series. Grepping the whole snapshot for `candlestick|ohlc|smt|divergence|liquidity|support|
-> resistance|pivot` returns nothing. The only trading-flavoured artefact is
+> series. Grepping the whole snapshot for `candlestick`, `ohlc`, `smt`, `divergence`,
+> `liquidity` and `pivot` returns zero hits. The only trading-flavoured artefact is
 > `fomo-limit-orders`, a template film built on fictional market data.
 
 So the boundary is not "upstream components are foreign to our contract". It is **"upstream

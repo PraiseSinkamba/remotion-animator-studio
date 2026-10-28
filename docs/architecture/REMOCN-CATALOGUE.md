@@ -191,9 +191,11 @@ pair, and upstream's `isometric-build` is less capable than our `isoCity`. Keep 
   that would change the export path.
 - **Generic motion is not market semantics.** Upstream's finance-flavoured items
   (`fomo-limit-orders`, `number-wheel`, `icon-dollar-sign`, `slot-machine-roll`) are a
-  product-demo vocabulary. Grepping the whole snapshot for
-  `candlestick|ohlc|smt|divergence|liquidity|support|resistance|pivot` returns nothing.
-  That absence is the reason our trading components are first-party.
+  product-demo vocabulary. Grepping the whole snapshot for the market terms
+  `candlestick`, `ohlc`, `smt`, `divergence`, `liquidity` and `pivot` returns **zero hits**;
+  `support` and `resistance` appear only in non-market senses ("support detection" in the
+  WebGL2 shader docs, and generic English). That absence is the reason our trading
+  components are first-party.
 - **Remotion Studio is not a dependency.** Upstream documents an "Add to Studio" button for
   Remotion Studio ≥ 4.0.502, where elements arrive with editable controls in a sidebar. We
   deliberately do not depend on Remotion's Editor Starter/Timeline (ADR-001), so that flow is
