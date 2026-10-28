@@ -20,14 +20,29 @@
 - pnpm 10 lifecycle scripts are allowlisted explicitly in the root `package.json`.
 - The local-first invariant holds: no network call, login or server is required to edit, save, preview or export.
 - No package imports a package absent from its own `package.json`.
-- **A package's relative imports carry an explicit `.js` extension.** The built output is strict ESM, so Node and webpack require fully-specified paths. Vite's build and the type checker are both silent about this; only the Remotion bundler catches it.
-- **A package has two TypeScript configurations.** `tsconfig.json` typechecks everything under `src` and emits nothing; `tsconfig.build.json` extends it, emits, and excludes the test files. The build script removes `dist` first.
+- **A package's relative imports are extensionless.** Packages are consumed as source, so TypeScript, Vite and webpack all resolve `./schemas` to `schemas.ts`.
+- **A package has one TypeScript configuration.** `tsconfig.json` typechecks everything under `src` and emits nothing. There is no build artefact and no `dist`.
 - React's types are a development dependency. A package that only needs `React.FC` declares `react` and `@types/react` as devDependencies; nothing is bundled.
 - Every internal package declares `"sideEffects": false` **only if all of its modules are free of side effects**. The component catalogue must not: a definition registers itself when imported, so declaring it side-effect free makes the bundler drop the registrations and the library panel silently loses its components.
 - A package that carries Tailwind classes is listed in `apps/studio/src/index.css` with `@source`, or the build succeeds and the editor renders unstyled.
-- A package that creates a worker names it by its built file name, `./worker.js`, because the application consumes the package's built output where only the built file exists.
+- A package that creates a worker names it by its source file name, `./worker.ts`, because the URL resolves against the importing file's own directory — which is the source tree, in development and in the exported bundle alike.
 - After every task, `node scripts/verify-r1.mjs` still renders an MP4 whose logical frames match the preview.
 - Every task ends with a commit.
+
+### One change the plan did not anticipate
+
+The plan built each package to `dist/` and had the application consume the built output. Task 5 broke
+the storage worker in development and Task 6 broke it in the production build, for the same reason: the
+SQLite worker is created with `new URL('./worker.ts', import.meta.url)`, and that URL resolves against
+**the importing file's own directory** — the source tree in development, `dist/` in production. No single
+literal satisfies both. The symptom was the editor quietly falling back from the local database to
+browser storage, which the storage indicator reported and nothing else did.
+
+The fix was to change how packages are consumed, not to work around the URL: **an internal package is
+consumed as source.** These packages are private and never published, so compiling them twice bought
+nothing but a class of stale-build bugs. It also removed the strict-ESM rules that dist consumption
+forced — the explicit `.js` extensions on a package's relative imports, and the second TypeScript
+configuration.
 
 ### Open questions this plan proceeds on
 

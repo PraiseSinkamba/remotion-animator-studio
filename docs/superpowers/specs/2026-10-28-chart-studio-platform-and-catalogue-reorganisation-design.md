@@ -114,7 +114,9 @@ all five.
 
 ### 5.1 Package consumption
 
-Every internal package carries the same shape:
+**An internal package is consumed as source.** There is no build artefact. These packages are private
+and are never published, so the only consumer is this repository, and compiling them twice — once per
+package and once again inside the application bundle — buys nothing but a class of stale-build bugs.
 
 ```jsonc
 {
@@ -123,18 +125,26 @@ Every internal package carries the same shape:
   "type": "module",
   "exports": {
     ".": {
-      "development": "./src/index.ts",   // Vite dev and Vitest
       "types": "./src/index.ts",
-      "default": "./dist/index.js"       // production build and the Remotion bundler
+      "default": "./src/index.ts"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   }
 }
 ```
+
+**Why this was changed.** The first implementation built each package to `dist/` and had the application
+consume the built output. That model has a trap: a library that creates its own worker with
+`new URL('./worker.ts', import.meta.url)` resolves that URL against **the importing file's own
+directory** — the source tree in development, `dist/` in production. No single literal satisfies both, and
+the failure is invisible until the worker silently fails to load and the editor falls back to a weaker
+storage backend. Consuming the packages as source removes the trap: the URL always resolves against the
+source tree, in development and in the exported bundle alike. It also removes the strict-ESM rules that
+dist consumption forced — a package's relative imports no longer need explicit `.js` extensions, and there
+is no `dist` that can go stale.
 
 Cross-package imports use the package's own name and the pnpm `workspace:*` protocol. No TypeScript path
 aliases cross a package boundary — the dependency is declared in `package.json`, which is what enforces the
@@ -152,19 +162,15 @@ Consequences that the implementation plan must handle:
 
 ### 5.2 Package conventions
 
-Four rules every internal package follows. The first three were found by the render gate, which caught
-what the type checker could not.
+Seven rules every internal package follows. Most of them were found by the render gate and the
+build, which caught what the type checker could not.
 
-1. **A package's relative imports carry an explicit `.js` extension.** A package's built output is strict
-   ESM — the package is `"type": "module"` — so Node and webpack both require fully-specified import
-   paths. `import { x } from './schemas.js'` in the source resolves to `schemas.ts` under TypeScript and
-   emits `schemas.js` unchanged. Without the extension, Vite's build succeeds, the type checker is
-   silent, and the Remotion bundler fails with `Can't resolve './schemas'`.
+1. **A package's relative imports are extensionless.** Packages are consumed as source, so TypeScript,
+   Vite and webpack all resolve `./schemas` to `schemas.ts`. The explicit `.js` extension that strict-ESM
+   output required is no longer needed, and its absence is what keeps a package's own file names honest.
 
-2. **A package has two TypeScript configurations.** `tsconfig.json` typechecks everything under `src`,
-   including the tests, and emits nothing. `tsconfig.build.json` extends it, emits JavaScript and
-   declarations, and excludes `*.test.ts` and `*.test.tsx`, so a test file never reaches `dist`. The
-   build script removes `dist` before compiling, so a stale file can never survive a rename.
+2. **A package has one TypeScript configuration.** `tsconfig.json` typechecks everything under `src`,
+   including the tests, and emits nothing. There is no build step and no `dist`.
 
 3. **React's types are a development dependency, not a runtime one.** The component contract types the
    render and inspector adapters as `React.FC`. A package that needs only those types declares `react`
@@ -187,10 +193,10 @@ what the type checker could not.
    registrations, and the library panel silently loses its components while the build still succeeds
    and the bundle gets smaller.
 
-7. **A package that creates a worker names it by its built file name.** `new Worker(new URL('./worker.ts',
-   import.meta.url))` works only when the source and the built output sit side by side. An application
-   consumes a package's built output, where only `worker.js` exists, so the reference is written as
-   `./worker.js` — which Vite resolves back to `worker.ts` when it compiles the source.
+7. **A package that creates a worker names it by its source file name.** `new Worker(new URL('./worker.ts',
+   import.meta.url))` resolves against the importing file's own directory, so the name has to be the one
+   that exists there. Because packages are consumed as source, that directory is the same in development
+   and in the exported bundle.
 
 ## 6. Ownership map
 

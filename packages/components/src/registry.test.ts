@@ -8,7 +8,7 @@ import {
   type ElementType,
   type Project,
 } from '@chart-studio/core';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from './registry.js';
+import { CATEGORY_LABELS, CATEGORY_ORDER } from './registry';
 
 const LEGACY_TYPES: ElementType[] = [
   'text',

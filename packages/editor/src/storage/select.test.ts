@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { chooseBackend, selectRepository } from './select.js';
-import { StorageUnavailableError, type RepositoryFactory, type StorageProblem } from './types.js';
+import { chooseBackend, selectRepository } from './select';
+import { StorageUnavailableError, type RepositoryFactory, type StorageProblem } from './types';
 
 /** Node has no OPFS, so the durable backend cannot run here. */
 const withoutOpfs = () => {

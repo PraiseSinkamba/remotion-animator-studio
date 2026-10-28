@@ -3,9 +3,9 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sampleProject } from '@chart-studio/core';
-import { useStore } from '../store.js';
+import { useStore } from '../store';
 import type { Project } from '@chart-studio/core';
-import { useWorkspace } from './useWorkspace.js';
+import { useWorkspace } from './useWorkspace';
 import {
   StorageConflictError,
   type CommitInput,
@@ -14,7 +14,7 @@ import {
   type StorageStatus,
   type StoredProject,
   type WorkspaceRepository,
-} from './types.js';
+} from './types';
 
 /** A document that is obviously not the editor's default. */
 const makeDocument = (name: string): Project => ({

@@ -25,8 +25,8 @@ vi.mock('remotion', () => ({
 
 import { getComponent } from '@chart-studio/core';
 import type { Clip, ElementType } from '@chart-studio/core';
-import { remocnSoftBlurInDefinition } from './definitions/soft-blur-in.js';
-import { remocnTypewriterDefinition } from './definitions/typewriter.js';
+import { remocnSoftBlurInDefinition } from './definitions/soft-blur-in';
+import { remocnTypewriterDefinition } from './definitions/typewriter';
 
 afterEach(() => cleanup());
 

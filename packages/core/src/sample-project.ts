@@ -1,4 +1,4 @@
-import type { Project } from './schemas.js';
+import type { Project } from './schemas';
 
 export const sampleProject: Project = {
   name: 'My animation',

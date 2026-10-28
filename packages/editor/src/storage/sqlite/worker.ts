@@ -8,11 +8,11 @@
  * Nothing here is exported — the client talks to it over `postMessage`.
  */
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
-import { StorageError, StorageUnavailableError } from '../types.js';
-import { createWasmDriver } from './driver.js';
-import { createSqliteRepository } from './repository.js';
-import { isCommitInput, isRpcRequest, toRpcError, type RpcRequest } from './rpc.js';
-import type { WorkspaceRepository } from '../types.js';
+import { StorageError, StorageUnavailableError } from '../types';
+import { createWasmDriver } from './driver';
+import { createSqliteRepository } from './repository';
+import { isCommitInput, isRpcRequest, toRpcError, type RpcRequest } from './rpc';
+import type { WorkspaceRepository } from '../types';
 
 /**
  * The worker's global scope.

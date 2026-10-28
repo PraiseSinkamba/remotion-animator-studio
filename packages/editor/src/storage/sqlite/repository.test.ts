@@ -8,13 +8,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { describeRepositoryContract } from '../contract-suite.js';
-import { StorageConflictError } from '../types.js';
+import { describeRepositoryContract } from '../contract-suite';
+import { StorageConflictError } from '../types';
 import type { Project } from '@chart-studio/core';
-import { createNodeSqliteDriver, type SqlDriver } from './driver.js';
-import { isTransientOpenError } from './client.js';
-import { createSqliteRepository } from './repository.js';
-import { runMigrations } from './schema.js';
+import { createNodeSqliteDriver, type SqlDriver } from './driver';
+import { isTransientOpenError } from './client';
+import { createSqliteRepository } from './repository';
+import { runMigrations } from './schema';
 
 const root = mkdtempSync(join(tmpdir(), 'chart-studio-sqlite-'));
 

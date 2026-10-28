@@ -1,6 +1,6 @@
 import React from 'react';
 import { LayoutGrid, List } from 'lucide-react';
-import { Button } from '../ui/button.js';
+import { Button } from '../ui/button';
 
 const STORAGE_KEY = 'chart-studio-library-view';
 

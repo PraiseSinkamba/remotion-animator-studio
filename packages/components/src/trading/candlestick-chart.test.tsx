@@ -2,12 +2,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { CandlestickChart, type CandlestickChartProps } from './chart.js';
-import { CandlestickChartInspector } from './inspectors/candlestick-chart.js';
-import { candlestickChartDefinition } from './definitions/candlestick-chart.js';
+import { CandlestickChart, type CandlestickChartProps } from './chart';
+import { CandlestickChartInspector } from './inspectors/candlestick-chart';
+import { candlestickChartDefinition } from './definitions/candlestick-chart';
 import { generateSyntheticBars, type OhlcBar } from '@chart-studio/core';
 import { getComponent } from '@chart-studio/core';
-import { migrateProject } from '../project-migrate.js';
+import { migrateProject } from '../project-migrate';
 import type { Clip, Project } from '@chart-studio/core';
 
 afterEach(() => cleanup());

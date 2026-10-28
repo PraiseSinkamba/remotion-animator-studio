@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '../../lib/utils.js';
+import { cn } from '../../lib/utils';
 
 /**
  * A titled block of inspector rows: an uppercase 10px micro-label with a

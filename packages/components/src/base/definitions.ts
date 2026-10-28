@@ -30,7 +30,7 @@ import {
   TextAdapter,
   VideoAdapter,
   WaveAdapter,
-} from '../base/adapters.js';
+} from '../base/adapters';
 import { registerComponent } from '@chart-studio/core';
 import { componentBounds, type VideoComponentDefinition } from '@chart-studio/core';
 

@@ -23,7 +23,7 @@ export const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
   >
     <DialogContent className="sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle>How to use Remotion Animator</DialogTitle>
+        <DialogTitle>How to use Chart Studio</DialogTitle>
         <DialogDescription>Build animations in the library, arrange them on the timeline, then export an MP4.</DialogDescription>
       </DialogHeader>
 

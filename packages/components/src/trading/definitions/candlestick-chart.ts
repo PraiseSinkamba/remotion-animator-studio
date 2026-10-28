@@ -10,8 +10,8 @@
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
 import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '@chart-studio/core';
-import { CandlestickChart, type CandlestickChartProps } from '../chart.js';
-import { CandlestickChartInspector } from '../inspectors/candlestick-chart.js';
+import { CandlestickChart, type CandlestickChartProps } from '../chart';
+import { CandlestickChartInspector } from '../inspectors/candlestick-chart';
 import { barsToFrames, generateSyntheticBars } from '@chart-studio/core';
 
 const POSITION_PARAMS = [

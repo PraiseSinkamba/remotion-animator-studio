@@ -1,5 +1,5 @@
 import React from 'react';
-import { Badge } from '../ui/badge.js';
+import { Badge } from '../ui/badge';
 
 /**
  * The sticky inspector header: the component's icon, the clip's name and a

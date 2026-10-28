@@ -60,7 +60,7 @@ The repository is five packages and one application:
 | `packages/video` | The Remotion composition, its entry point, and the render server and CLI render script. |
 | `apps/studio` | The editor shell: the panels, the presets, the theme. |
 
-Cross-package imports use the package's own name and a `workspace:*` dependency; no TypeScript path alias crosses a package boundary, because the dependency list is what enforces the ownership rules. The packages `smt-mtf`, `project-archive` and `testing` are documented but do not exist yet — they appear when the roadmap stage that needs them lands, never as empty shells.
+Cross-package imports use the package's own name and a `workspace:*` dependency; no TypeScript path alias crosses a package boundary, because the dependency list is what enforces the ownership rules. **A package is consumed as source** — there is no build artefact and no `dist`, and each package has one TypeScript configuration that typechecks its source and emits nothing. That is deliberate: a library that creates its own worker resolves the worker URL against its own directory, and a built artefact would put that directory somewhere the URL cannot reach. The packages `smt-mtf`, `project-archive` and `testing` are documented but do not exist yet — they appear when the roadmap stage that needs them lands, never as empty shells.
 
 ## Repository shape
 

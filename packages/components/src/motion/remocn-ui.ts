@@ -1,5 +1,5 @@
 import { useCurrentFrame, useVideoConfig } from "remotion";
-import type { Step } from "./remocn-ui-types.js";
+import type { Step } from "./remocn-ui-types";
 
 export function framesFor(
   d: number | { seconds: number },

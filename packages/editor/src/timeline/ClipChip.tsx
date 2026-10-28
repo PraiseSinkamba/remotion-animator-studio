@@ -1,9 +1,9 @@
 import React, { useRef } from 'react';
 import { getComponent } from '@chart-studio/components';
-import { useStore } from '../store.js';
+import { useStore } from '../store';
 import type { Clip, EffectType } from '@chart-studio/core';
 import { EFFECT_MIME } from '@chart-studio/ui';
-import { framesToLabel, LANE_HEIGHT, type TrackAccent } from './shared.js';
+import { framesToLabel, LANE_HEIGHT, type TrackAccent } from './shared';
 
 const isAdditive = (e: React.PointerEvent | React.MouseEvent) => e.metaKey || e.ctrlKey || e.shiftKey;
 

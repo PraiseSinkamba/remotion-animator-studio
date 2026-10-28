@@ -20,7 +20,7 @@ import {
   type ProjectSummary,
   type StorageStatus,
   type StoredProject,
-} from '../types.js';
+} from '../types';
 
 /** The methods the worker serves. */
 export type RpcMethod =

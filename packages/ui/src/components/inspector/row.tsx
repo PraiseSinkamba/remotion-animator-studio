@@ -1,6 +1,6 @@
 import React from 'react';
-import { Label } from '../ui/label.js';
-import { cn } from '../../lib/utils.js';
+import { Label } from '../ui/label';
+import { cn } from '../../lib/utils';
 
 /**
  * A label on the left and its control on the right. `stacked` puts the control

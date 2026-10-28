@@ -21,7 +21,7 @@ vi.mock('remotion', () => ({
 }));
 
 import { getComponent } from '@chart-studio/core';
-import { remocnMarkerHighlightDefinition } from './marker-highlight.js';
+import { remocnMarkerHighlightDefinition } from './marker-highlight';
 
 afterEach(() => cleanup());
 

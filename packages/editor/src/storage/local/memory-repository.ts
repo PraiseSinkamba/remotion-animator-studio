@@ -17,7 +17,7 @@ import {
   type StorageBackend,
   type StorageStatus,
   type WorkspaceRepository,
-} from '../types.js';
+} from '../types';
 
 /**
  * Checks that a value is a project document.

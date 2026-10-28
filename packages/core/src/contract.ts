@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { Clip, ElementType, ParamDef } from './schemas.js';
+import type { Clip, ElementType, ParamDef } from './schemas';
 
 /**
  * Every component's props are a plain, JSON-serialisable bag.

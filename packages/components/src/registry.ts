@@ -8,12 +8,12 @@
  * To add a component: write one definition module that calls `registerComponent`
  * and add its import below. Nothing else needs to change.
  */
-import './base/definitions.js';
+import './base/definitions';
 // Trading components (Chart Studio first-party) register here:
-import './trading/definitions/candlestick-chart.js';
-import './motion/definitions/marker-highlight.js';
-import './motion/definitions/soft-blur-in.js';
-import './motion/definitions/typewriter.js';
+import './trading/definitions/candlestick-chart';
+import './motion/definitions/marker-highlight';
+import './motion/definitions/soft-blur-in';
+import './motion/definitions/typewriter';
 
 export * from '@chart-studio/core';
 
