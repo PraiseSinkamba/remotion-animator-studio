@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@chart-studio/ui';
+import { Badge } from '@chart-studio/ui';
+import { Separator } from '@chart-studio/ui';
 import { seekTo } from '../playerRef';
 import { useStore } from '../store';
 import { TrackRow } from './timeline/TrackRow';

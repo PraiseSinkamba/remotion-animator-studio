@@ -1,8 +1,8 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Badge } from '../ui/badge.js';
+import { Button } from '../ui/button.js';
+import { Card } from '../ui/card.js';
 
 export interface LibraryItem {
   /** Preset key or element type — also the drag payload. */

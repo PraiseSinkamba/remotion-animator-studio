@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@chart-studio/core": "workspace:*",
+    "@chart-studio/ui": "workspace:*",
     "@remotion/gif": "4.0.538",
     "@remotion/media-utils": "4.0.538",
     "@remotion/noise": "4.0.538",

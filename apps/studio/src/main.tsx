@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { playerRef } from './playerRef';
 import { useStore } from './store';
-import { TooltipProvider } from './components/ui/tooltip';
+import { TooltipProvider } from '@chart-studio/ui';
 import { ThemeProvider } from './lib/theme';
 import './index.css';
 

@@ -1,10 +1,9 @@
 import React from 'react';
 import { Pencil, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { EFFECTS, getEasing } from '../../effects';
 import { useStore } from '../../store';
 import type { Clip } from '@chart-studio/core';
-import { ParamControl } from './param-control';
+import { Button, ParamControl } from '@chart-studio/ui';
 
 /** Small graph of the selected animation curve. */
 const EasingPreview: React.FC<{ name: string; bez?: string }> = ({ name, bez }) => {

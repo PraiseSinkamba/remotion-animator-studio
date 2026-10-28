@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@chart-studio/ui';
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@chart-studio/ui';
 
 const CODE = 'rounded border border-border bg-secondary px-1 py-0.5 font-mono text-xs';
 

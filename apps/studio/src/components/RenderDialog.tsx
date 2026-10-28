@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clapperboard, Download } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@chart-studio/ui';
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+} from '@chart-studio/ui';
+import { Label } from '@chart-studio/ui';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@chart-studio/ui';
 import { useStore } from '../store';
 
 type Phase = 'idle' | 'starting' | 'bundling' | 'rendering' | 'done' | 'error' | 'no-server';

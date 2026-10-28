@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '../ui/input.js';
+import { Label } from '../ui/label.js';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '../ui/select.js';
+import { Slider } from '../ui/slider.js';
+import { Switch } from '../ui/switch.js';
+import { Textarea } from '../ui/textarea.js';
 import type { ParamDef } from '@chart-studio/core';
-import { Row } from './row';
+import { Row } from './row.js';
 
 /** The value kinds a parameter can hold. */
 export type ParamValue = string | number | boolean | undefined;

@@ -1,16 +1,22 @@
 import React, { useRef, useState } from 'react';
 import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getComponent } from '../registry';
 import { findClip, useStore } from '../store';
 import type { Clip } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
-import { InspectorHeader } from './inspector/header';
-import { numberFieldClass, ParamControl } from './inspector/param-control';
-import { Row } from './inspector/row';
-import { Section } from './inspector/section';
+import {
+  Button,
+  Input,
+  InspectorHeader,
+  numberFieldClass,
+  ParamControl,
+  Row,
+  Section,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@chart-studio/ui';
 
 /** Very small HTML pretty-printer for the 🧩 HTML element's textarea. */
 const formatHtml = (src: string): string => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Database, HardDrive, TriangleAlert } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@chart-studio/ui';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@chart-studio/ui';
 import type { StorageStatus } from '../storage/types';
 
 export interface StorageIndicatorProps {

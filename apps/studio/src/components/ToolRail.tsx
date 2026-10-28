@@ -1,8 +1,8 @@
 import React from 'react';
 import { MousePointer2, PenTool, Spline } from 'lucide-react';
 import { findClip, useStore } from '../store';
-import { Button } from './ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { Button } from '@chart-studio/ui';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@chart-studio/ui';
 
 /**
  * The 48px tool rail on the left of the shell.

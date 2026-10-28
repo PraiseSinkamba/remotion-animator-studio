@@ -1,6 +1,6 @@
 import { Moon, Sun } from 'lucide-react';
-import { Button } from './ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+import { Button } from '@chart-studio/ui';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@chart-studio/ui';
 import { useTheme } from '../lib/theme';
 
 /**

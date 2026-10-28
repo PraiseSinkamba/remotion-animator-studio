@@ -5,14 +5,28 @@ import { listComponents } from '../registry';
 import { PRESETS } from '../presets';
 import { useStore } from '../store';
 import type { EffectType } from '@chart-studio/core';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { GROUP_DOT, TABS, type TabDef } from './library/catalog';
 import { EffectsSection } from './library/effects-section';
-import { GroupHeader } from './library/group-header';
-import { LibraryCard, LibraryRow, type LibraryItem } from './library/library-card';
-import { ELEMENT_MIME, EFFECT_MIME, PRESET_MIME } from './library/mime';
-import { ViewToggle, readLibraryView, writeLibraryView, type LibraryView } from './library/view-toggle';
+import {
+  ELEMENT_MIME,
+  EFFECT_MIME,
+  GROUP_DOT,
+  GroupHeader,
+  Input,
+  LibraryCard,
+  LibraryRow,
+  type LibraryItem,
+  PRESET_MIME,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  TABS,
+  type TabDef,
+  ViewToggle,
+  readLibraryView,
+  writeLibraryView,
+  type LibraryView,
+} from '@chart-studio/ui';
 
 export { ELEMENT_MIME, EFFECT_MIME, PRESET_MIME };
 

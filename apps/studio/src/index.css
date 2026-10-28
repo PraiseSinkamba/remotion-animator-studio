@@ -4,6 +4,14 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /*
+ * The shadcn primitives and the inspector and library pieces live in the
+ * `packages/ui` package, outside this app's source tree. Tailwind's automatic
+ * detection only scans the app, so without this the primitives' utility
+ * classes are never generated and the editor renders unstyled.
+ */
+@source "../../../packages/ui/src";
+
+/*
  * The active theme is a class on <html> (`.dark`), set by the theme provider
  * and by the pre-paint script in index.html. Tailwind's `dark:` variant
  * follows that class, never the operating system.

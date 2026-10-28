@@ -1,9 +1,7 @@
 import React from 'react';
 import { EFFECTS } from '../../effects';
 import type { EffectType } from '@chart-studio/core';
-import { GROUP_DOT } from './catalog';
-import { GroupHeader } from './group-header';
-import { LibraryRow, type LibraryItem } from './library-card';
+import { GROUP_DOT, GroupHeader, LibraryRow, type LibraryItem } from '@chart-studio/ui';
 
 const EFFECT_GROUPS: Array<{ title: string; match: (def: (typeof EFFECTS)[EffectType]) => boolean }> = [
   { title: 'Text', match: (d) => !!d.textOnly },
