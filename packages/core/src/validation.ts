@@ -188,6 +188,57 @@ const priceRangeSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('fixed'), min: z.number(), max: z.number() }),
 ]);
 
+const curveSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('preset'),
+    name: z.enum(['linear', 'easeIn', 'easeOut', 'easeInOut', 'bounceOut', 'elastic', 'overshoot']),
+  }),
+  z.object({
+    kind: z.literal('cubicBezier'),
+    p: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  }),
+]);
+
+/** The colours of one pane. */
+const paneStyleSchema = z.object({
+  upColor: z.string().optional(),
+  downColor: z.string().optional(),
+  wickColor: z.string().optional(),
+  showGrid: z.boolean().optional(),
+  gridColor: z.string().optional(),
+  showPriceAxis: z.boolean().optional(),
+  axisColor: z.string().optional(),
+  axisLabelColor: z.string().optional(),
+});
+
+/** A pause point: the pane holds on one candle for a frame range. */
+const paneHoldSchema = z.object({
+  barId: z.string().min(1),
+  in: z.number().int(),
+  out: z.number().int(),
+});
+
+/** One camera zoom segment: from one aggregation and bar range to another. */
+const zoomSegmentSchema = z.looseObject({
+  in: z.number().int(),
+  out: z.number().int(),
+  from: z.object({
+    aggregation: z.number().int().positive(),
+    fromBar: z.number().int().nonnegative(),
+  }),
+  to: z.object({
+    aggregation: z.number().int().positive(),
+    fromBar: z.number().int().nonnegative(),
+  }),
+  curve: curveSchema.optional(),
+});
+
+/**
+ * A pane.
+ *
+ * The pause points and the camera zoom track are declared, so they survive a
+ * round trip, and so do the pane's curve and style.
+ */
 const paneSpecSchema = z.object({
   id: z.string().min(1),
   name: z.string().optional(),
@@ -198,11 +249,15 @@ const paneSpecSchema = z.object({
   in: z.number().int().nonnegative(),
   out: z.number().int().nonnegative(),
   opacity: z.number().min(0).max(1),
+  curve: curveSchema.optional(),
   clock: clockBindingSchema,
   priceRange: priceRangeSchema,
   viewport: z
     .object({ fromBar: z.number().int().nonnegative(), barCount: z.number().int().positive() })
     .optional(),
+  holds: z.array(paneHoldSchema).optional(),
+  zoom: z.object({ segments: z.array(zoomSegmentSchema) }).optional(),
+  style: paneStyleSchema.optional(),
 });
 
 const paneRelationSchema = z.discriminatedUnion('kind', [

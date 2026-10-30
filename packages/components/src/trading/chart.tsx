@@ -35,6 +35,8 @@ export interface ChartPaneEvaluation {
   developing: boolean;
   /** The pane's place in the chart box, in 0..1. */
   rect: ElementRect;
+  /** The pause point that freezes this pane at this frame, if any. */
+  hold?: { barId: string; in: number; out: number };
 }
 
 /** The result of the chart's evaluation step. */
@@ -360,6 +362,12 @@ export const renderCandlestickChart = (
       );
     });
 
+    // The pause point: the held candle is marked, so the viewer can see that
+    // the market is standing still rather than moving.
+    const holdIndex = pane.hold
+      ? pane.bars.findIndex((bar) => bar.bar.id === pane.hold?.barId)
+      : -1;
+
     return (
       <g key={paneIndex} data-testid="chart-pane" data-pane={paneIndex}>
         {props.showGrid
@@ -399,6 +407,29 @@ export const renderCandlestickChart = (
           : null}
 
         {candles}
+
+        {holdIndex >= 0 ? (
+          <g data-testid="hold-marker" data-bar={pane.hold?.barId}>
+            <rect
+              x={geometry.plotLeft + holdIndex * geometry.slotWidth}
+              y={geometry.plotTop}
+              width={geometry.slotWidth}
+              height={geometry.plotHeight}
+              fill="none"
+              stroke={props.wickColor}
+              strokeWidth={1}
+              strokeDasharray="4 2"
+            />
+            <text
+              x={geometry.plotLeft + holdIndex * geometry.slotWidth + 4}
+              y={geometry.plotTop + 10}
+              fontSize={9}
+              fill={MUTED}
+            >
+              HOLD
+            </text>
+          </g>
+        ) : null}
 
         {cursorX !== null ? (
           <line

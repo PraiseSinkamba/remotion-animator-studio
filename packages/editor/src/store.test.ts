@@ -301,3 +301,75 @@ describe('store — the drawing tools', () => {
     expect(restored).toHaveLength(1);
   });
 });
+
+describe('store — the pause points of a pane', () => {
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+    });
+  });
+
+  /** A chart with the market it needs, and the pane that market gives it. */
+  const chartWithPane = (): { clipId: string; paneId: string } => {
+    useStore.getState().addClip('candlestickChart', 't-empty', 0);
+    const clip = useStore
+      .getState()
+      .project.tracks.flatMap((t) => t.clips)
+      .find((c) => c.element === 'candlestickChart')!;
+    useStore.getState().ensureChartMarket(clip.id);
+    return { clipId: clip.id, paneId: `${clip.id}-pane-0` };
+  };
+
+  /** The pane as the project holds it. */
+  const pane = (clipId: string, paneId: string) => {
+    const clip = useStore
+      .getState()
+      .project.tracks.flatMap((t) => t.clips)
+      .find((c) => c.id === clipId)!;
+    const panes = clip.props.panes as Array<{ id: string; holds?: unknown[]; zoom?: unknown }>;
+    return panes.find((entry) => entry.id === paneId)!;
+  };
+
+  it('adds a hold to a pane and undoes it', () => {
+    const { clipId, paneId } = chartWithPane();
+
+    useStore.getState().addHold(clipId, paneId, 'series-1:2', 30, 60);
+    expect(pane(clipId, paneId).holds).toEqual([{ barId: 'series-1:2', in: 30, out: 60 }]);
+
+    useStore.getState().undo();
+    expect(pane(clipId, paneId).holds ?? []).toEqual([]);
+  });
+
+  it('changes and removes a hold, one undo step each', () => {
+    const { clipId, paneId } = chartWithPane();
+    useStore.getState().addHold(clipId, paneId, 'series-1:2', 30, 60);
+
+    useStore.getState().updateHold(clipId, paneId, 'series-1:2', { out: 90 });
+    expect(pane(clipId, paneId).holds).toEqual([{ barId: 'series-1:2', in: 30, out: 90 }]);
+
+    useStore.getState().removeHold(clipId, paneId, 'series-1:2');
+    expect(pane(clipId, paneId).holds ?? []).toEqual([]);
+  });
+
+  it('replaces the camera zoom track of a pane', () => {
+    const { clipId, paneId } = chartWithPane();
+    const track = {
+      segments: [
+        { in: 0, out: 60, from: { aggregation: 1, fromBar: 0 }, to: { aggregation: 5, fromBar: 20 } },
+      ],
+    };
+
+    useStore.getState().updateZoomTrack(clipId, paneId, track);
+    expect(pane(clipId, paneId).zoom).toEqual(track);
+
+    useStore.getState().undo();
+    expect(pane(clipId, paneId).zoom ?? null).toBeNull();
+  });
+});

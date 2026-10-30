@@ -13,8 +13,17 @@
  */
 
 import type { Datasource, OhlcBar } from './series';
-import type { MarketClock, PaneRelation, PaneSpec, TimeframeId } from './elements';
+import type {
+  MarketClock,
+  PaneHold,
+  PaneRelation,
+  PaneSpec,
+  PriceRangePolicy,
+  TimeframeId,
+  ZoomTrack,
+} from './elements';
 import { TIMEFRAME_BASE_UNITS } from './elements';
+import { evaluateCurve } from './curve';
 import { computePriceRange } from './market';
 
 /* ------------------------------------------------------------------ */
@@ -249,6 +258,128 @@ export const evaluatePaneAt = (
     activeIndex: bars.length - 1,
     range,
     developing,
+  };
+};
+
+/* ------------------------------------------------------------------ */
+/* holds                                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The hold that covers a chart-local frame, if any.
+ *
+ * A hold's range is relative to the chart clip and half-open: `[in, out)`.
+ */
+export const holdAt = (
+  holds: readonly PaneHold[] | undefined,
+  chartLocalFrame: number,
+): PaneHold | undefined =>
+  holds?.find((hold) => chartLocalFrame >= hold.in && chartLocalFrame < hold.out);
+
+/**
+ * The market frame a chart-local frame shows.
+ *
+ * A hold pauses the market: the frames it covers show the market as it stood
+ * when the hold began, and the market picks up where it left off afterwards.
+ * The frames a hold covers therefore produce no bars at all — the gap is
+ * never filled with an invented one (AN-008).
+ *
+ * With no holds this is the frame itself.
+ */
+export const marketFrameAt = (
+  holds: readonly PaneHold[] | undefined,
+  chartLocalFrame: number,
+): number => {
+  if (!holds || holds.length === 0) return chartLocalFrame;
+  const ordered = [...holds].sort((a, b) => a.in - b.in);
+  let shift = 0;
+  for (const hold of ordered) {
+    if (chartLocalFrame < hold.in) break;
+    if (chartLocalFrame < hold.out) return hold.in - shift;
+    shift += Math.max(0, hold.out - hold.in);
+  }
+  return chartLocalFrame - shift;
+};
+
+/**
+ * Freezes a pane on its held bar.
+ *
+ * Inside a hold the pane shows the bars it had when the hold began and the
+ * held bar is the last one: the market does not advance, and no bar is
+ * fabricated to fill the gap (AN-006, AN-008).
+ *
+ * A hold that names a bar the pane has not revealed yet holds nothing: the
+ * pane keeps its own state, because there is no last-known value to hold.
+ */
+export const applyHold = (
+  state: PaneFrameState,
+  holds: readonly PaneHold[] | undefined,
+  chartLocalFrame: number,
+  priceRange: PriceRangePolicy = { mode: 'auto' },
+): PaneFrameState => {
+  const hold = holdAt(holds, chartLocalFrame);
+  if (!hold) return state;
+  const index = state.bars.findIndex((bar) => bar.id === hold.barId);
+  if (index < 0) return state;
+  const bars = state.bars.slice(0, index + 1);
+  return {
+    bars,
+    activeIndex: index,
+    range: priceRange.mode === 'fixed' ? state.range : computePriceRange(bars),
+    // The held bar is developing exactly as it was when the hold began: a
+    // partly aggregated bucket stays partly aggregated while it stands still.
+    developing: state.developing,
+  };
+};
+
+/* ------------------------------------------------------------------ */
+/* the camera zoom track                                               */
+/* ------------------------------------------------------------------ */
+
+/** The viewport a pane shows: what it aggregates and which bar it starts at. */
+export interface PaneViewport {
+  /** Source bars per candle. */
+  aggregation: number;
+  /** The index of the first bar the pane shows, in the pane's own bar array. */
+  fromBar: number;
+}
+
+/**
+ * The viewport a pane shows at a chart-local frame.
+ *
+ * A zoom track moves the pane's viewport between aggregations and bar ranges
+ * across a frame range. Inside a segment the viewport is interpolated between
+ * the segment's `from` and `to`, shaped by the segment's curve; outside every
+ * segment the pane shows its own aggregation.
+ *
+ * The zoom changes what the pane shows, never a price (TF-006).
+ */
+export const evaluateZoomAt = (
+  pane: PaneSpec,
+  track: ZoomTrack | undefined,
+  chartLocalFrame: number,
+): PaneViewport => {
+  const own: PaneViewport = {
+    aggregation: Math.max(1, Math.floor(pane.aggregation.factor)),
+    fromBar: 0,
+  };
+  if (!track || track.segments.length === 0) return own;
+  const segment = track.segments.find(
+    (entry) => chartLocalFrame >= entry.in && chartLocalFrame < entry.out,
+  );
+  if (!segment) return own;
+  const span = segment.out - segment.in;
+  const raw = span > 0 ? (chartLocalFrame - segment.in) / span : 1;
+  const t = segment.curve ? evaluateCurve(segment.curve, raw) : raw;
+  return {
+    aggregation: Math.max(
+      1,
+      Math.round(segment.from.aggregation + (segment.to.aggregation - segment.from.aggregation) * t),
+    ),
+    fromBar: Math.max(
+      0,
+      Math.round(segment.from.fromBar + (segment.to.fromBar - segment.from.fromBar) * t),
+    ),
   };
 };
 

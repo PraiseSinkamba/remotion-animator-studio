@@ -19,9 +19,12 @@ import type {
   EffectType,
   ElementType,
   OhlcBar,
+  PaneHold,
+  PaneSpec,
   Project,
   SeriesSpec,
   Track,
+  ZoomTrack,
 } from '@chart-studio/core';
 
 let idCounter = 0;
@@ -153,6 +156,32 @@ interface EditorState {
   setDrawingLocked: (clipId: string, locked: boolean) => void;
   setDrawingHidden: (clipId: string, hidden: boolean) => void;
 
+  /**
+   * Adds a pause point to a pane: the pane holds on one candle for a frame
+   * range, relative to the chart clip. One undo step.
+   */
+  addHold: (
+    clipId: string,
+    paneId: string,
+    barId: string,
+    inFrame: number,
+    outFrame: number,
+  ) => void;
+  /**
+   * Changes a pause point. A hold is identified by the candle it holds, so a
+   * pane holds each candle once. One undo step.
+   */
+  updateHold: (
+    clipId: string,
+    paneId: string,
+    holdId: string,
+    patch: Partial<PaneHold>,
+  ) => void;
+  /** Removes a pause point. One undo step. */
+  removeHold: (clipId: string, paneId: string, holdId: string) => void;
+  /** Replaces a pane's camera zoom track. One undo step. */
+  updateZoomTrack: (clipId: string, paneId: string, track: ZoomTrack) => void;
+
   copySelection: () => void;
   /** Paste clipboard clips, re-timed so the earliest starts at `atFrame`. */
   paste: (atFrame: number) => void;
@@ -224,6 +253,30 @@ const withAuthoredPath = (
       : series,
   ),
 });
+
+/**
+ * Rewrites one pane of one chart clip.
+ *
+ * A pane lives inside the chart clip's props, so a pane-level edit is a
+ * project-level edit: the clip keeps its place and only the pane changes.
+ */
+const withPane = (
+  project: Project,
+  clipId: string,
+  paneId: string,
+  change: (pane: PaneSpec) => PaneSpec,
+): Project =>
+  mapClips(project, clipId, (clip) => {
+    const panes = Array.isArray(clip.props.panes) ? (clip.props.panes as PaneSpec[]) : [];
+    if (!panes.some((pane) => pane.id === paneId)) return clip;
+    return {
+      ...clip,
+      props: {
+        ...clip.props,
+        panes: panes.map((pane) => (pane.id === paneId ? change(pane) : pane)),
+      },
+    };
+  });
 
 export const useStore = create<EditorState>((set, get) => ({
   project: sampleProject,
@@ -859,6 +912,50 @@ export const useStore = create<EditorState>((set, get) => ({
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({ ...c, hidden })),
+    }));
+  },
+
+  /* ---------------------------------------------------------------- */
+  /* the pause points and the camera zoom track                        */
+  /* ---------------------------------------------------------------- */
+
+  addHold: (clipId, paneId, barId, inFrame, outFrame) => {
+    get().commit();
+    set((s) => ({
+      project: withPane(s.project, clipId, paneId, (pane) => {
+        // A pane holds each candle once: the candle is the hold's identity.
+        const holds = (pane.holds ?? []).filter((hold) => hold.barId !== barId);
+        return { ...pane, holds: [...holds, { barId, in: inFrame, out: outFrame }] };
+      }),
+    }));
+  },
+
+  updateHold: (clipId, paneId, holdId, patch) => {
+    get().commit();
+    set((s) => ({
+      project: withPane(s.project, clipId, paneId, (pane) => ({
+        ...pane,
+        holds: (pane.holds ?? []).map((hold) =>
+          hold.barId === holdId ? { ...hold, ...patch } : hold,
+        ),
+      })),
+    }));
+  },
+
+  removeHold: (clipId, paneId, holdId) => {
+    get().commit();
+    set((s) => ({
+      project: withPane(s.project, clipId, paneId, (pane) => ({
+        ...pane,
+        holds: (pane.holds ?? []).filter((hold) => hold.barId !== holdId),
+      })),
+    }));
+  },
+
+  updateZoomTrack: (clipId, paneId, track) => {
+    get().commit();
+    set((s) => ({
+      project: withPane(s.project, clipId, paneId, (pane) => ({ ...pane, zoom: track })),
     }));
   },
 

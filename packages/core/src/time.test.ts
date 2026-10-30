@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import type { Datasource, OhlcBar } from './series';
 import type { MarketClock, PaneRelation, PaneSpec } from './elements';
 import {
+  applyHold,
   DEFAULT_FRAMES_PER_STEP,
   evaluateClockAt,
   evaluatePaneAt,
   evaluateRelation,
+  evaluateZoomAt,
   framesPerBar,
+  marketFrameAt,
   paneBarCount,
 } from './time';
 
@@ -301,5 +304,100 @@ describe('evaluateRelation', () => {
       coarseTimeframeId: '6H',
       baseTimeframeId: '1m',
     });
+  });
+});
+
+describe('the pause points of a pane', () => {
+  /** A hold on the third candle, from the frame it appears to the frame after. */
+  const HOLDS = [{ barId: 'bar-2', in: 30, out: 60 }];
+
+  /** The pane's state at a frame, with the holds applied. */
+  const stateAt = (frame: number, holds = HOLDS) => {
+    const pane = makePane({ holds });
+    const marketFrame = marketFrameAt(holds, frame);
+    return applyHold(
+      evaluatePaneAt(pane, datasource, CLOCK, marketFrame),
+      holds,
+      frame,
+    );
+  };
+
+  it('holds the last known values inside a hold', () => {
+    // The hold begins on the frame the third candle appears, and covers the
+    // two frames the market would have moved on.
+    const state = stateAt(45);
+
+    expect(state.bars.map((bar) => bar.id)).toEqual(['bar-0', 'bar-1', 'bar-2']);
+    // The held candle shows the values it had when the hold began.
+    expect(state.bars[2]).toEqual(BARS[2]);
+    expect(state.activeIndex).toBe(2);
+    expect(state.developing).toBe(false);
+  });
+
+  it('fabricates no bar to fill a gap', () => {
+    const known = new Set(BARS.map((bar) => bar.id));
+    const inside = stateAt(45);
+    const later = stateAt(59);
+
+    // The gap the hold covers produces no bar at all: the market stands still.
+    expect(inside.bars).toHaveLength(3);
+    expect(later.bars.map((bar) => bar.id)).toEqual(['bar-0', 'bar-1', 'bar-2']);
+    // And no bar appears that the series does not hold.
+    expect(inside.bars.every((bar) => known.has(bar.id))).toBe(true);
+    // Without the hold the market would have moved on.
+    const moving = evaluatePaneAt(makePane(), datasource, CLOCK, 45);
+    expect(moving.bars).toHaveLength(4);
+  });
+
+  it('resumes the reveal after the hold', () => {
+    // The frame the hold ends on still shows the held candle.
+    expect(stateAt(60).bars.map((bar) => bar.id)).toEqual(['bar-0', 'bar-1', 'bar-2']);
+
+    // The market picks up from the held candle's successor: the frames the
+    // hold covered are gone, not replayed.
+    const resumed = stateAt(75);
+    expect(resumed.bars.map((bar) => bar.id)).toEqual(['bar-0', 'bar-1', 'bar-2', 'bar-3']);
+    expect(resumed.bars[3]).toEqual(BARS[3]);
+  });
+});
+
+describe('the camera zoom track', () => {
+  const TRACK = {
+    segments: [
+      {
+        in: 0,
+        out: 100,
+        from: { aggregation: 1, fromBar: 0 },
+        to: { aggregation: 5, fromBar: 20 },
+      },
+    ],
+  };
+
+  it('keeps the pane own aggregation outside every segment', () => {
+    const pane = makePane({ aggregation: { factor: 3 }, zoom: TRACK });
+
+    expect(evaluateZoomAt(pane, TRACK, 120)).toEqual({ aggregation: 3, fromBar: 0 });
+    expect(evaluateZoomAt(pane, undefined, 50)).toEqual({ aggregation: 3, fromBar: 0 });
+  });
+
+  it('interpolates the viewport inside a segment', () => {
+    const pane = makePane({ zoom: TRACK });
+
+    // Halfway through the segment the viewport is halfway between the two.
+    expect(evaluateZoomAt(pane, TRACK, 50)).toEqual({ aggregation: 3, fromBar: 10 });
+    expect(evaluateZoomAt(pane, TRACK, 0)).toEqual({ aggregation: 1, fromBar: 0 });
+    expect(evaluateZoomAt(pane, TRACK, 99)).toEqual({ aggregation: 5, fromBar: 20 });
+  });
+
+  it('shapes the interpolation with the segment curve', () => {
+    const shaped = {
+      segments: [{ ...TRACK.segments[0], curve: { kind: 'preset' as const, name: 'easeIn' as const } }],
+    };
+    const pane = makePane({ zoom: shaped });
+
+    // The curve shapes the movement: the eased zoom trails the linear one.
+    expect(evaluateZoomAt(pane, shaped, 50).fromBar).toBeLessThan(
+      evaluateZoomAt(makePane({ zoom: TRACK }), TRACK, 50).fromBar,
+    );
   });
 });

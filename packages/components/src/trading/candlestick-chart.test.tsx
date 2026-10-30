@@ -1000,3 +1000,285 @@ describe('the pane and relation panel', () => {
     expect(commit).toHaveBeenCalled();
   });
 });
+
+describe('the pause point of a pane', () => {
+  const BARS: OhlcBar[] = [
+    { id: 'series-h:0', t: 0, o: 100, h: 104, l: 96, c: 102 },
+    { id: 'series-h:1', t: 10_000, o: 102, h: 106, l: 100, c: 104 },
+    { id: 'series-h:2', t: 20_000, o: 104, h: 120, l: 80, c: 110 },
+    { id: 'series-h:3', t: 30_000, o: 110, h: 112, l: 108, c: 111 },
+  ];
+
+  const project = (): Project => ({
+    name: 'Project',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    durationInFrames: 300,
+    backgroundColor: '#000000',
+    schemaVersion: 2,
+    series: [{ id: 'series-h', origin: 'manual', label: 'Series H', timeBasis: 'logical', bars: BARS }],
+    tracks: [],
+  });
+
+  const chartProps = (holds?: Array<{ barId: string; in: number; out: number }>): CandlestickChartProps =>
+    ({
+      ...BASE_PROPS,
+      bars: BARS,
+      dataSource: 'manual',
+      revealMode: 'discrete',
+      framesPerBar: 10,
+      seriesId: 'series-h',
+      panes: [
+        {
+          id: 'pane-0',
+          seriesId: 'series-h',
+          aggregation: { factor: 1 },
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+          in: 0,
+          out: 300,
+          opacity: 1,
+          clock: { kind: 'reference' },
+          priceRange: { mode: 'auto' },
+          ...(holds ? { holds } : {}),
+        },
+      ],
+      clock: {
+        id: 'clock-0',
+        unit: 'logical',
+        referenceSeriesId: 'series-h',
+        stepBars: 1,
+        framesPerStep: 10,
+      },
+    }) as unknown as CandlestickChartProps;
+
+  const evaluate = (props: CandlestickChartProps, sceneFrame: number) =>
+    candlestickChartDefinition.evaluate?.({
+      clip: { from: 0, durationInFrames: 300 } as Clip,
+      props: props as unknown as Record<string, unknown>,
+      sceneFrame,
+      project: project(),
+    });
+
+  const markers = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('[data-testid="hold-marker"]'));
+
+  it('freezes the held candle and shows the hold marker', () => {
+    const held = chartProps([{ barId: 'series-h:1', in: 10, out: 30 }]);
+    const container = render(
+      <CandlestickChart props={held} frame={20} evaluated={evaluate(held, 20)} />,
+    ).container;
+
+    // The hold begins on the frame the second candle appears, so the market
+    // stands still on it: two candles, and no third one.
+    expect(candles(container)).toHaveLength(2);
+    expect(candles(container)[1].getAttribute('data-index')).toBe('1');
+    // The held candle is marked.
+    expect(markers(container)).toHaveLength(1);
+    expect(markers(container)[0].getAttribute('data-bar')).toBe('series-h:1');
+  });
+
+  it('does not let the market advance while the hold lasts', () => {
+    const held = chartProps([{ barId: 'series-h:1', in: 10, out: 30 }]);
+    const frozen = render(
+      <CandlestickChart props={held} frame={20} evaluated={evaluate(held, 20)} />,
+    ).container;
+    const moving = render(
+      <CandlestickChart props={held} frame={20} evaluated={evaluate(chartProps(), 20)} />,
+    ).container;
+
+    // Without the hold the same frame shows the third candle.
+    expect(candles(moving)).toHaveLength(3);
+    expect(candles(frozen)).toHaveLength(2);
+  });
+
+  it('resumes the reveal after the hold', () => {
+    const held = chartProps([{ barId: 'series-h:1', in: 10, out: 30 }]);
+    const container = render(
+      <CandlestickChart props={held} frame={40} evaluated={evaluate(held, 40)} />,
+    ).container;
+
+    // The market picks up from the held candle's successor.
+    expect(candles(container)).toHaveLength(3);
+    expect(candles(container)[2].getAttribute('data-index')).toBe('2');
+    expect(markers(container)).toHaveLength(0);
+  });
+});
+
+describe('the camera zoom of a pane', () => {
+  const BARS: OhlcBar[] = [
+    { id: 'series-z:0', t: 0, o: 100, h: 104, l: 96, c: 102 },
+    { id: 'series-z:1', t: 10_000, o: 102, h: 106, l: 100, c: 104 },
+    { id: 'series-z:2', t: 20_000, o: 104, h: 120, l: 80, c: 110 },
+    { id: 'series-z:3', t: 30_000, o: 110, h: 112, l: 108, c: 111 },
+  ];
+
+  const project = (): Project => ({
+    name: 'Project',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    durationInFrames: 300,
+    backgroundColor: '#000000',
+    schemaVersion: 2,
+    series: [{ id: 'series-z', origin: 'manual', label: 'Series Z', timeBasis: 'logical', bars: BARS }],
+    tracks: [],
+  });
+
+  const chartProps = (zoom?: unknown): CandlestickChartProps =>
+    ({
+      ...BASE_PROPS,
+      bars: BARS,
+      dataSource: 'manual',
+      revealMode: 'discrete',
+      framesPerBar: 10,
+      seriesId: 'series-z',
+      panes: [
+        {
+          id: 'pane-0',
+          seriesId: 'series-z',
+          aggregation: { factor: 1 },
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+          in: 0,
+          out: 300,
+          opacity: 1,
+          clock: { kind: 'reference' },
+          priceRange: { mode: 'auto' },
+          ...(zoom ? { zoom } : {}),
+        },
+      ],
+      clock: {
+        id: 'clock-0',
+        unit: 'logical',
+        referenceSeriesId: 'series-z',
+        stepBars: 1,
+        framesPerStep: 10,
+      },
+    }) as unknown as CandlestickChartProps;
+
+  const evaluate = (props: CandlestickChartProps, sceneFrame: number) =>
+    candlestickChartDefinition.evaluate?.({
+      clip: { from: 0, durationInFrames: 300 } as Clip,
+      props: props as unknown as Record<string, unknown>,
+      sceneFrame,
+      project: project(),
+    });
+
+  it('zooms the viewport without changing a price', () => {
+    const zoom = {
+      segments: [
+        {
+          in: 0,
+          out: 100,
+          from: { aggregation: 1, fromBar: 0 },
+          to: { aggregation: 1, fromBar: 1 },
+        },
+      ],
+    };
+    const zoomed = chartProps(zoom);
+    const container = render(
+      <CandlestickChart props={zoomed} frame={50} evaluated={evaluate(zoomed, 50)} />,
+    ).container;
+    const plain = render(
+      <CandlestickChart props={zoomed} frame={50} evaluated={evaluate(chartProps(), 50)} />,
+    ).container;
+
+    // The viewport moved: the first candle is out of the window.
+    expect(candles(plain)).toHaveLength(4);
+    expect(candles(container)).toHaveLength(3);
+
+    // The candle the zoom kept is drawn at the price it always had.
+    const zoomedY = Number(bodies(container)[0].getAttribute('y'));
+    const plainY = Number(bodies(plain)[1].getAttribute('y'));
+    expect(zoomedY).toBeCloseTo(plainY, 6);
+  });
+});
+
+describe('the pause point and zoom panels', () => {
+  const bars: OhlcBar[] = [
+    { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+    { id: 'b1', t: 60_000, o: 105, h: 112, l: 101, c: 108 },
+  ];
+
+  const pane = (holds?: Array<{ barId: string; in: number; out: number }>) => ({
+    id: 'pane-0',
+    name: 'Pane 1',
+    seriesId: 'series-a',
+    aggregation: { factor: 1 },
+    rect: { x: 0, y: 0, width: 1, height: 1 },
+    in: 0,
+    out: 90,
+    opacity: 1,
+    clock: { kind: 'reference' as const },
+    priceRange: { mode: 'auto' as const },
+    ...(holds ? { holds } : {}),
+  });
+
+  const setup = (panes: unknown[]) => {
+    const props = {
+      ...candlestickChartDefinition.defaults,
+      bars,
+      framesPerBar: 10,
+      panes,
+    } as unknown as Record<string, unknown>;
+    const clip: Clip = {
+      id: 'c1',
+      name: 'Candlestick Chart',
+      element: 'candlestickChart',
+      from: 0,
+      durationInFrames: 90,
+      props: props as unknown as Clip['props'],
+      effects: [],
+      propsVersion: 1,
+    };
+    const onChange = vi.fn();
+    const commit = vi.fn();
+    const updateClip = vi.fn();
+    render(
+      <CandlestickChartInspector
+        clip={clip}
+        props={props}
+        onChange={onChange}
+        updateClip={updateClip}
+        commit={commit}
+      />,
+    );
+    return { onChange, commit };
+  };
+
+  it('adds a hold on the last candle', () => {
+    const { onChange, commit } = setup([pane()]);
+
+    fireEvent.click(screen.getByText('+ Hold on the last candle'));
+    const patch = onChange.mock.calls[0][0] as {
+      panes: Array<{ holds: Array<{ barId: string; in: number; out: number }> }>;
+    };
+    expect(patch.panes[0].holds).toEqual([{ barId: 'b1', in: 0, out: 45 }]);
+    expect(commit).toHaveBeenCalled();
+  });
+
+  it('removes a hold', () => {
+    const { onChange } = setup([pane([{ barId: 'b0', in: 0, out: 30 }])]);
+
+    fireEvent.click(screen.getByLabelText('Remove hold 1 of pane 1'));
+    const patch = onChange.mock.calls[0][0] as { panes: Array<{ holds: unknown[] }> };
+    expect(patch.panes[0].holds).toEqual([]);
+  });
+
+  it('adds a zoom segment', () => {
+    const { onChange } = setup([pane()]);
+
+    fireEvent.click(screen.getByText('+ Zoom segment'));
+    const patch = onChange.mock.calls[0][0] as {
+      panes: Array<{ zoom: { segments: unknown[] } }>;
+    };
+    expect(patch.panes[0].zoom.segments).toEqual([
+      {
+        in: 0,
+        out: 90,
+        from: { aggregation: 1, fromBar: 0 },
+        to: { aggregation: 1, fromBar: 0 },
+      },
+    ]);
+  });
+});

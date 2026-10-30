@@ -17,6 +17,7 @@ import {
   type PaneSpec,
 } from '@chart-studio/core';
 import { PaneRelationPanel } from './pane-relations';
+import { PaneHoldPanel, PaneZoomPanel } from './pane-pauses';
 
 /** `'5m'` -> 300000. Unknown timeframes fall back to one minute. */
 const timeframeToMs = (timeframe: string): number => {
@@ -207,6 +208,25 @@ export const CandlestickChartInspector: React.FC<ComponentInspectorContext> = ({
           onChange={onChange}
           commit={commit}
         />
+      ) : null}
+
+      {panes.length > 0 ? (
+        <>
+          <PaneHoldPanel
+            panes={panes}
+            bars={bars}
+            durationInFrames={clip.durationInFrames}
+            onChange={onChange}
+            commit={commit}
+          />
+          <PaneZoomPanel
+            panes={panes}
+            bars={bars}
+            durationInFrames={clip.durationInFrames}
+            onChange={onChange}
+            commit={commit}
+          />
+        </>
       ) : null}
     </div>
   );

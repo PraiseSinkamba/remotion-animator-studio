@@ -1242,19 +1242,28 @@ Presets cover HTF alone, LTF alone, the splits and PIP.
   - `packages/editor/src/store.ts` — `addHold(clipId, paneId, barId, in, out)`, `updateHold(clipId, paneId, holdId, patch)`, `removeHold(clipId, paneId, holdId)`.
   - `packages/components/src/trading/chart.tsx` — the camera zoom track: a list of segments with a from/to aggregation and from/to bar index, each with an optional curve.
 
-- [ ] **Step 1: Evaluate the holds**
+**A hold pauses the market; it does not pad it.** The covered frames are removed from the market
+clock rather than filled with bars, so the pane stops on the held candle and the reveal picks up at
+its successor. A hold that named a bar the pane had not revealed yet would hold nothing, so it
+holds nothing.
+
+**A hold is identified by the candle it holds.** `PaneHold` has no id and the element model was
+not to be changed, so a pane holds each candle once — adding a hold on a candle that already has
+one replaces it.
+
+- [x] **Step 1: Evaluate the holds**
 
 A `PaneHold` names a `barId` and an `[in,out)` range relative to the chart clip. Inside the range, the pane's state is the state of that bar — frozen at its last-known values. No bar is invented to fill a gap, and the reveal does not advance past the held bar until the hold ends.
 
-- [ ] **Step 2: Add the camera zoom track**
+- [x] **Step 2: Add the camera zoom track**
 
 `ZoomTrack.segments` moves a pane from one aggregation and bar range to another across a frame range, with an optional curve per segment. The zoom changes the viewport only — the underlying bars and their prices are never rewritten (TF-006).
 
-- [ ] **Step 3: Add the hold and zoom controls**
+- [x] **Step 3: Add the hold and zoom controls**
 
 The chart inspector gains a hold panel: pick a bar, set the in/out frames, add, edit, remove a hold. The zoom track is edited as a list of segments.
 
-- [ ] **Step 4: Write the failing tests**
+- [x] **Step 4: Write the failing tests**
 
 `packages/core/src/time.test.ts` (modify):
 
@@ -1271,7 +1280,7 @@ The chart inspector gains a hold panel: pick a bar, set the in/out frames, add, 
 - "freezes the held candle and shows the hold marker" — fails before Step 1; passes after.
 - "zooms the viewport without changing a price" — fails before Step 2; passes after.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 pnpm typecheck
@@ -1282,7 +1291,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 45, 100 and 140 against the hold fixture: the held candle does not advance inside the hold.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A

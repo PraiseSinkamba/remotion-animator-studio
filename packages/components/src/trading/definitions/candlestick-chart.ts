@@ -13,11 +13,15 @@ import { componentBounds, type ComponentProps, type VideoComponentDefinition } f
 import { CandlestickChart, type ChartEvaluation, type CandlestickChartProps } from '../chart';
 import { CandlestickChartInspector } from '../inspectors/candlestick-chart';
 import {
+  applyHold,
   barsToFrames,
   evaluateBarsAtFrame,
   evaluatePaneAt,
+  evaluateZoomAt,
   framesPerBar as framesPerBarOf,
   generateSyntheticBars,
+  holdAt,
+  marketFrameAt,
   materialiseSeries,
   seriesRevision,
   type Project,
@@ -85,20 +89,37 @@ const evaluateChart = ({
   const framesPerBar = Math.max(1, Math.round(framesPerBarOf(clock)));
 
   const evaluatedPanes = panes.map((pane) => {
-    const state = evaluatePaneAt(pane, datasource, clock, chartLocalFrame);
+    // A hold pauses the market: the frames it covers show the market as it
+    // stood when the hold began, and no bar is invented to fill the gap.
+    const marketFrame = marketFrameAt(pane.holds, chartLocalFrame);
+    // The camera zoom track moves the viewport — the aggregation and the bar
+    // range — and never a price.
+    const viewport = evaluateZoomAt(pane, pane.zoom, chartLocalFrame);
+    const factor = viewport.aggregation;
+    const state = evaluatePaneAt(
+      { ...pane, aggregation: { factor } },
+      datasource,
+      clock,
+      marketFrame,
+    );
+    const held = applyHold(state, pane.holds, chartLocalFrame, pane.priceRange ?? { mode: 'auto' });
     const revealed = evaluateBarsAtFrame(
-      state.bars,
-      chartLocalFrame,
+      held.bars,
+      marketFrame,
       framesPerBar,
       props.revealMode === 'simulated' ? 'simulated' : 'discrete',
       props.simulationSeed ?? 'chart',
     );
-    const factor = Math.max(1, Math.floor(pane.aggregation?.factor ?? 1));
+    // The window starts at the zoomed bar; the slots shrink with it, so the
+    // zoomed pane fills the same box.
+    const visible = viewport.fromBar > 0 ? revealed.bars.slice(viewport.fromBar) : revealed.bars;
+    const hold = holdAt(pane.holds, chartLocalFrame);
     return {
-      bars: revealed.bars,
-      totalBars: Math.ceil(datasource.bars.length / factor),
-      developing: state.developing,
+      bars: visible,
+      totalBars: Math.max(0, Math.ceil(datasource.bars.length / factor) - viewport.fromBar),
+      developing: held.developing,
       rect: pane.rect ?? { x: 0, y: 0, width: 1, height: 1 },
+      ...(hold ? { hold: { barId: hold.barId, in: hold.in, out: hold.out } } : {}),
     };
   });
 
