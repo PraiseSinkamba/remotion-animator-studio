@@ -608,6 +608,82 @@ export const generateSeriesFromPath = (
 };
 
 /* ------------------------------------------------------------------ */
+/* authoring operations                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The authoring operations on a swing path.
+ *
+ * Pure and immutable: each returns a new path and leaves the one it was
+ * given untouched. The anchors stay ascending by `barIndex`, and a duplicate
+ * index is rejected rather than silently merged — two anchors on the same bar
+ * have no meaning, and quietly keeping one of them would lose the creator's
+ * intent without telling them.
+ */
+
+/** Sorts the anchors ascending by bar index and rejects a duplicate index. */
+export const normalizeSwingPath = (path: SwingPath): SwingPath => {
+  const anchors = [...path.anchors].sort((a, b) => a.barIndex - b.barIndex);
+  for (let i = 1; i < anchors.length; i++) {
+    if (anchors[i].barIndex === anchors[i - 1].barIndex) {
+      throw new Error(`Two anchors share bar index ${anchors[i].barIndex}.`);
+    }
+  }
+  return { ...path, anchors };
+};
+
+/** Adds an anchor to the path. */
+export const addSwingAnchor = (path: SwingPath, anchor: SwingAnchor): SwingPath => {
+  if (!Number.isInteger(anchor.barIndex) || anchor.barIndex < 0) {
+    throw new Error(`An anchor's bar index must be a whole number, got ${anchor.barIndex}.`);
+  }
+  if (!Number.isFinite(anchor.price)) {
+    throw new Error('An anchor price must be a finite number.');
+  }
+  if (path.anchors.some((existing) => existing.barIndex === anchor.barIndex)) {
+    throw new Error(`An anchor already sits on bar index ${anchor.barIndex}.`);
+  }
+  return normalizeSwingPath({ ...path, anchors: [...path.anchors, anchor] });
+};
+
+/** Moves an anchor's price and/or bar index. */
+export const moveSwingAnchor = (
+  path: SwingPath,
+  anchorId: string,
+  patch: { barIndex?: number; price?: number },
+): SwingPath => {
+  const existing = path.anchors.find((anchor) => anchor.id === anchorId);
+  if (!existing) {
+    throw new Error(`The path has no anchor "${anchorId}".`);
+  }
+  const moved: SwingAnchor = {
+    ...existing,
+    ...(patch.barIndex === undefined ? {} : { barIndex: patch.barIndex }),
+    ...(patch.price === undefined ? {} : { price: patch.price }),
+  };
+  if (!Number.isInteger(moved.barIndex) || moved.barIndex < 0) {
+    throw new Error(`An anchor's bar index must be a whole number, got ${moved.barIndex}.`);
+  }
+  if (!Number.isFinite(moved.price)) {
+    throw new Error('An anchor price must be a finite number.');
+  }
+  const others = path.anchors.filter((anchor) => anchor.id !== anchorId);
+  if (others.some((anchor) => anchor.barIndex === moved.barIndex)) {
+    throw new Error(`Another anchor already sits on bar index ${moved.barIndex}.`);
+  }
+  return normalizeSwingPath({ ...path, anchors: [...others, moved] });
+};
+
+/** Removes an anchor from the path. */
+export const removeSwingAnchor = (path: SwingPath, anchorId: string): SwingPath => {
+  const anchors = path.anchors.filter((anchor) => anchor.id !== anchorId);
+  if (anchors.length === path.anchors.length) {
+    throw new Error(`The path has no anchor "${anchorId}".`);
+  }
+  return normalizeSwingPath({ ...path, anchors });
+};
+
+/* ------------------------------------------------------------------ */
 /* stroke -> anchors                                                  */
 /* ------------------------------------------------------------------ */
 

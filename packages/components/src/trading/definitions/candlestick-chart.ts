@@ -16,6 +16,7 @@ import {
   barsToFrames,
   evaluateBarsAtFrame,
   evaluatePaneAt,
+  framesPerBar as framesPerBarOf,
   generateSyntheticBars,
   materialiseSeries,
   type Project,
@@ -56,7 +57,8 @@ const evaluateChart = ({
 
   // The clock is in chart-local frames; the scene frame is absolute.
   const chartLocalFrame = sceneFrame - clip.from;
-  const framesPerBar = Math.max(1, Math.floor(props.framesPerBar ?? 15));
+  // The clock carries the pace, so the reveal and the market position agree.
+  const framesPerBar = Math.max(1, Math.round(framesPerBarOf(clock)));
 
   const evaluatedPanes = panes.map((pane) => {
     const state = evaluatePaneAt(pane, datasource, clock, chartLocalFrame);

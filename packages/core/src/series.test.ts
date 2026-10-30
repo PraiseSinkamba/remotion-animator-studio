@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { materialiseSeries, seriesRevision, type SeriesSpec } from './series';
+import { moveSwingAnchor } from './path';
 
 type ManualSpec = Extract<SeriesSpec, { origin: 'manual' }>;
 type AuthoredSpec = Extract<SeriesSpec, { origin: 'authored-path' }>;
@@ -104,6 +105,19 @@ describe('seriesRevision', () => {
     const before = seriesRevision(authoredSpec());
     const after = seriesRevision({ ...authoredSpec(), seed: 'other-seed' });
     expect(after).not.toBe(before);
+  });
+
+  it('changes the revision when an anchor moves', () => {
+    const before = seriesRevision(authoredSpec());
+    const moved = moveSwingAnchor(authoredSpec().path, 'a1', { price: 125 });
+    const after = seriesRevision({ ...authoredSpec(), path: moved });
+    expect(after).not.toBe(before);
+  });
+
+  it('keeps the revision when the same path is materialised twice', () => {
+    const spec = authoredSpec();
+    expect(seriesRevision(spec)).toBe(seriesRevision(spec));
+    expect(materialiseSeries(spec).revision).toBe(materialiseSeries(spec).revision);
   });
 
   it('ignores the bar ids, so the same content shares a revision', () => {

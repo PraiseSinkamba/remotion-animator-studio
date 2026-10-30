@@ -711,11 +711,18 @@ the same evaluation.
   - `packages/core/src/path.ts` — `addSwingAnchor(path, anchor): SwingPath`, `moveSwingAnchor(path, anchorId, { barIndex?, price? }): SwingPath`, `removeSwingAnchor(path, anchorId): SwingPath`, `normalizeSwingPath(path): SwingPath` — pure, immutable, anchors ascending by `barIndex`, duplicate indices rejected.
   - `packages/core/src/series.ts` — the `authored-path` revision covers the path, the seed and the algorithm version, so an edited anchor produces a new revision.
 
-- [ ] **Step 1: Write the authoring operations**
+**The segments are independent, and that is what a moved anchor changes.** Measured on a
+three-anchor path: moving the *last* anchor changes only the bars of the segment it ends (11..20);
+moving a *middle* anchor changes the two segments it touches, which is every bar of the path. The
+property the test asserts is therefore the precise one: a moved anchor changes the bars of the
+segments that touch it and leaves the others untouched. The volatility series is drawn once for the
+whole path and is unaffected by any anchor.
+
+- [x] **Step 1: Write the authoring operations**
 
 All four operations are pure and return a new `SwingPath`. `addSwingAnchor` rejects a duplicate `barIndex` and a non-finite price; `moveSwingAnchor` moves an anchor's price and/or bar index and re-normalises; `removeSwingAnchor` drops an anchor; `normalizeSwingPath` sorts ascending by `barIndex` and rejects duplicates.
 
-- [ ] **Step 2: Pin the normative algorithm with the full test suite**
+- [x] **Step 2: Pin the normative algorithm with the full test suite**
 
 The generator landed in Task 1 (per Q3); this task is where the spec's normative algorithm is *proved*, test by test, and where the authoring model above is pinned.
 
@@ -743,11 +750,11 @@ The generator landed in Task 1 (per Q3); this task is where the spec's normative
 - "changes the revision when an anchor moves" (R5) — fails before Step 2; passes after.
 - "keeps the revision when the same path is materialised twice" — fails before Step 2; passes after.
 
-- [ ] **Step 3: Confirm the intrabar reveal path is generalised, not replaced**
+- [x] **Step 3: Confirm the intrabar reveal path is generalised, not replaced**
 
 Assert in `packages/core/src/path.test.ts` that a generated series, evaluated with `evaluateBarsAtFrame` in `simulated` mode, keeps the existing intrabar guarantees — the path stays inside `[low, high]`, visits both extremes, starts at the open and ends at the close. The existing `packages/core/src/market.test.ts` assertions for `evaluateBarsAtFrame` must keep their names and pass unchanged: the intrabar machinery was not touched.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 pnpm typecheck
@@ -758,7 +765,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 45 and 100 against the authored-path fixture added to `scripts/verify-r1.mjs` (three anchors; each anchor bar closes at the placed price, and no anchor bar has a zero range).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A

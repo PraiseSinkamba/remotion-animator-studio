@@ -15,9 +15,12 @@ import { renderMedia, renderStill, selectComposition } from '@remotion/renderer'
 import { mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { generateSyntheticBars } from '../packages/core/src/market.ts';
+import { authoredPathProject } from '../packages/video/remotion/authored-path-fixture.ts';
 
 const OUT_DIR = path.resolve('out', 'verify');
+const AUTHORED_OUT_DIR = path.resolve('out', 'verify', 'authored');
 const STILL_FRAMES = [0, 20, 45, 100, 140, 179];
+const AUTHORED_STILL_FRAMES = [45, 100];
 const FPS = 30;
 
 const bars = generateSyntheticBars({
@@ -174,6 +177,30 @@ for (const frame of STILL_FRAMES) {
   const output = path.join(OUT_DIR, `frame-${String(frame).padStart(4, '0')}.png`);
   await renderStill({ composition, serveUrl, output, inputProps, frame });
   console.log(`still → ${output} (${statSync(output).size} bytes)`);
+}
+
+// The authored path renders as its own composition, so the stills above stay
+// the record that a migrated project renders exactly as it did before.
+const authoredComposition = await selectComposition({
+  serveUrl,
+  id: 'AuthoredPath',
+  inputProps: { project: authoredPathProject },
+});
+console.log(
+  `Composition "${authoredComposition.id}" — ${authoredComposition.width}x${authoredComposition.height} @ ${authoredComposition.fps}fps`,
+);
+
+mkdirSync(AUTHORED_OUT_DIR, { recursive: true });
+for (const frame of AUTHORED_STILL_FRAMES) {
+  const output = path.join(AUTHORED_OUT_DIR, `frame-${String(frame).padStart(4, '0')}.png`);
+  await renderStill({
+    composition: authoredComposition,
+    serveUrl,
+    output,
+    inputProps: { project: authoredPathProject },
+    frame,
+  });
+  console.log(`authored still → ${output} (${statSync(output).size} bytes)`);
 }
 
 if (!process.argv.includes('--stills')) {

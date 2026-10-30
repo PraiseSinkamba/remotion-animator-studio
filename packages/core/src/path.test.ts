@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
-import { hashString } from './market';
+import { evaluateBarsAtFrame, hashString } from './market';
 import type { OhlcBar } from './series';
 import {
+  addSwingAnchor,
   generateSeriesFromPath,
+  moveSwingAnchor,
+  normalizeSwingPath,
+  removeSwingAnchor,
   strokeToAnchorPoints,
   type PathGeneratorOptions,
   type SwingPath,
@@ -390,6 +394,268 @@ describe('strokeToAnchorPoints', () => {
     for (const anchor of anchors) {
       expect(anchor.price).toBeGreaterThanOrEqual(10);
       expect(anchor.price).toBeLessThanOrEqual(110);
+    }
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* the authoring operations                                            */
+/* ------------------------------------------------------------------ */
+
+describe('the authoring operations', () => {
+  const base = (): SwingPath => ({
+    anchors: [
+      { id: 'a0', barIndex: 0, price: 100 },
+      { id: 'a1', barIndex: 10, price: 120 },
+      { id: 'a2', barIndex: 20, price: 95 },
+    ],
+  });
+
+  it('normalises a path by sorting it and rejecting a duplicate index', () => {
+    const sorted = normalizeSwingPath({
+      anchors: [
+        { id: 'a2', barIndex: 20, price: 95 },
+        { id: 'a0', barIndex: 0, price: 100 },
+        { id: 'a1', barIndex: 10, price: 120 },
+      ],
+    });
+    expect(sorted.anchors.map((a) => a.barIndex)).toEqual([0, 10, 20]);
+
+    expect(() =>
+      normalizeSwingPath({
+        anchors: [
+          { id: 'a0', barIndex: 0, price: 100 },
+          { id: 'a1', barIndex: 10, price: 120 },
+          { id: 'a2', barIndex: 10, price: 95 },
+        ],
+      }),
+    ).toThrow(/share bar index 10/);
+  });
+
+  it('sorts the anchors by bar index when they are added out of order', () => {
+    const path = addSwingAnchor(
+      { anchors: [{ id: 'a0', barIndex: 0, price: 100 }] },
+      { id: 'a1', barIndex: 5, price: 110 },
+    );
+    expect(path.anchors.map((a) => a.barIndex)).toEqual([0, 5]);
+  });
+
+  it('rejects an anchor on a bar that already has one', () => {
+    expect(() => addSwingAnchor(base(), { id: 'a3', barIndex: 10, price: 130 })).toThrow(
+      /already sits on bar index 10/,
+    );
+  });
+
+  it('rejects an anchor with a price that is not a finite number', () => {
+    expect(() => addSwingAnchor(base(), { id: 'a3', barIndex: 15, price: Number.NaN })).toThrow(
+      /finite number/,
+    );
+  });
+
+  it('leaves the path it was given untouched', () => {
+    const before = base();
+    const snapshot = JSON.stringify(before);
+    addSwingAnchor(before, { id: 'a3', barIndex: 15, price: 130 });
+    moveSwingAnchor(before, 'a1', { price: 125 });
+    removeSwingAnchor(before, 'a1');
+    expect(JSON.stringify(before)).toBe(snapshot);
+  });
+
+  it('keeps the placed close when an anchor is moved', () => {
+    const moved = moveSwingAnchor(base(), 'a1', { price: 130 });
+    expect(moved.anchors.find((a) => a.id === 'a1')?.price).toBe(130);
+
+    const bars = generateSeriesFromPath(moved, {
+      seed: 'move',
+      algorithmVersion: 1,
+      seriesId: 's',
+    }).bars;
+    expect(bars[10].c).toBe(130);
+  });
+
+  it('rejects a move onto a bar that already has an anchor', () => {
+    expect(() => moveSwingAnchor(base(), 'a1', { barIndex: 0 })).toThrow(
+      /already sits on bar index 0/,
+    );
+  });
+
+  it('rejects a move of an anchor that does not exist', () => {
+    expect(() => moveSwingAnchor(base(), 'nope', { price: 1 })).toThrow(/no anchor "nope"/);
+  });
+
+  it('removes an anchor and keeps the rest in order', () => {
+    const path = removeSwingAnchor(base(), 'a1');
+    expect(path.anchors.map((a) => a.id)).toEqual(['a0', 'a2']);
+  });
+
+  it('rejects the removal of an anchor that does not exist', () => {
+    expect(() => removeSwingAnchor(base(), 'nope')).toThrow(/no anchor "nope"/);
+  });
+
+  it('changes only the bars of the segments the moved anchor touches', () => {
+    const path = base();
+    const before = generateSeriesFromPath(path, {
+      seed: 'segments',
+      algorithmVersion: 1,
+      seriesId: 's',
+    }).bars;
+
+    // The last anchor ends one segment and starts none, so only that
+    // segment's bars move.
+    const moved = moveSwingAnchor(path, 'a2', { price: 105 });
+    const after = generateSeriesFromPath(moved, {
+      seed: 'segments',
+      algorithmVersion: 1,
+      seriesId: 's',
+    }).bars;
+
+    const changed = before
+      .map((bar, index) => ({
+        index,
+        same: bar.c === after[index].c && bar.o === after[index].o && bar.h === after[index].h,
+      }))
+      .filter((entry) => !entry.same)
+      .map((entry) => entry.index);
+
+    expect(changed.every((index) => index >= 11)).toBe(true);
+    expect(changed).toContain(20);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* the generator's properties                                          */
+/* ------------------------------------------------------------------ */
+
+describe('the generator properties', () => {
+  const generate = (path: SwingPath, generator?: PathGeneratorOptions, seed = 'props') =>
+    generateSeriesFromPath(path, { seed, algorithmVersion: 1, seriesId: 's', generator });
+
+  it('gives every bar a non-zero range, including at an anchor', () => {
+    const { bars } = generate(
+      toPath([
+        { barIndex: 0, price: 100 },
+        { barIndex: 10, price: 120 },
+        { barIndex: 20, price: 95 },
+      ]),
+    );
+    for (const bar of bars) {
+      expect(bar.h).toBeGreaterThan(bar.l);
+    }
+  });
+
+  it('classifies a flat leg as a range and a steep leg as a trend', () => {
+    const flat = generate(
+      toPath([
+        { barIndex: 0, price: 100 },
+        { barIndex: 30, price: 100.2 },
+        { barIndex: 60, price: 100 },
+      ]),
+    );
+    expect(flat.segments[0].regime).toBe('range');
+
+    const steep = generate(
+      toPath([
+        { barIndex: 0, price: 100 },
+        { barIndex: 30, price: 180 },
+        { barIndex: 60, price: 100 },
+      ]),
+    );
+    expect(steep.segments[0].regime).toBe('trend');
+  });
+
+  it('honours an explicit regime override over the automatic classification', () => {
+    const overridden = generate(
+      toPath([
+        { barIndex: 0, price: 100, regime: 'trend' },
+        { barIndex: 30, price: 100.2, regime: 'trend' },
+        { barIndex: 60, price: 100 },
+      ]),
+    );
+    expect(overridden.segments[0].regime).toBe('trend');
+  });
+
+  it('gives a different body for the same path under a different seed', () => {
+    const path = toPath([
+      { barIndex: 0, price: 100 },
+      { barIndex: 20, price: 120 },
+    ]);
+    const first = generate(path, undefined, 'seed-one').bars;
+    const second = generate(path, undefined, 'seed-two').bars;
+    expect(first.map((bar) => bar.c)).not.toEqual(second.map((bar) => bar.c));
+  });
+
+  it('keeps the excursion beyond the drawn band bounded relative to the volatility', () => {
+    const path = toPath([
+      { barIndex: 0, price: 100 },
+      { barIndex: 60, price: 120 },
+    ]);
+    const measure = (volatility: number) => {
+      const { bars } = generate(path, { volatility, pathNoise: 0.72 });
+      let worst = 0;
+      for (const bar of bars) {
+        if (bar.t > 0 && bar.t < 60) {
+          worst = Math.max(worst, 100 - bar.c, bar.c - 120);
+        }
+      }
+      return worst;
+    };
+    const calm = measure(0.002);
+    const wild = measure(0.02);
+    // The excursion grows with the volatility, but stays a small fraction of
+    // the price: the drawn path is the skeleton, not a corridor.
+    expect(wild).toBeGreaterThan(calm);
+    expect(wild).toBeLessThan(120 * 0.5);
+  });
+
+  it('produces the same relative output for the same relative path at a different price level', () => {
+    const relative = (scale: number) => {
+      const { bars } = generate(
+        toPath([
+          { barIndex: 0, price: 100 * scale },
+          { barIndex: 40, price: 120 * scale },
+        ]),
+      );
+      return bars.map((bar) => bar.c / scale);
+    };
+    const small = relative(1);
+    const large = relative(100);
+    expect(large[10]).toBeCloseTo(small[10], 6);
+    expect(large[30]).toBeCloseTo(small[30], 6);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* the intrabar reveal is generalised, not replaced                    */
+/* ------------------------------------------------------------------ */
+
+describe('the intrabar reveal of a generated series', () => {
+  it('keeps the intrabar guarantees: inside the range, both extremes, open to close', () => {
+    const { bars } = generateSeriesFromPath(
+      toPath([
+        { barIndex: 0, price: 100 },
+        { barIndex: 30, price: 118 },
+        { barIndex: 60, price: 112 },
+      ]),
+      { seed: 'intrabar', algorithmVersion: 1, seriesId: 's' },
+    );
+
+    for (const bar of bars) {
+      const state = evaluateBarsAtFrame(bars, 0, 1, 'simulated', 'intrabar');
+      expect(state.bars.length).toBeGreaterThan(0);
+      break;
+    }
+
+    // Walk the series the way the renderer does and check the guarantees on
+    // every bar that has been revealed.
+    for (let index = 0; index < bars.length; index++) {
+      const state = evaluateBarsAtFrame(bars, index, 1, 'simulated', 'intrabar');
+      const active = state.bars[state.bars.length - 1];
+      expect(active.h).toBeGreaterThanOrEqual(active.o);
+      expect(active.h).toBeGreaterThanOrEqual(active.c);
+      expect(active.l).toBeLessThanOrEqual(active.o);
+      expect(active.l).toBeLessThanOrEqual(active.c);
+      expect(active.h).toBeGreaterThanOrEqual(active.l);
+      expect(Number.isFinite(active.c)).toBe(true);
     }
   });
 });
