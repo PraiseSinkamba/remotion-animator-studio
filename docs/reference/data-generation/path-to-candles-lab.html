@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Path → Candles | Synthetic Market Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#090d13;--surface:#131923;--surface2:#1a2330;--text:#e8f1f7;--muted:#93a4b8;--border:#293544;--green:#31c3a0;--red:#f37680;--violet:#b3a4ff;--focus:#669bf5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.wrap{max-width:1460px;padding:26px 22px 34px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:22px;flex-wrap:wrap}.topline{font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--green);font-weight:700}h1{font-size:25px;font-weight:750;letter-spacing:-.05em;margin:3px 0 4px}h1 span{color:var(--violet)}.sub{color:var(--muted);margin:0}.actions,.toolbar,.pills{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid #3b4958;background:#192433;color:var(--text);padding:8px 12px;border-radius:8px;font-weight:600;transition:background .12s}.btn:hover{background:#27364a}.btn.primary{border-color:#159f80;background:#0f7f69;color:white}.btn.primary:hover{background:#119b81}.btn.active{border-color:var(--violet);background:#342f4a;color:#ede8ff}.layout{display:grid;grid-template-columns:minmax(0,1fr) 316px;gap:18px}.chartcard,.controls,.stats>div{background:var(--surface);border:1px solid var(--border);border-radius:12px}.chartcard{overflow:hidden}.charthead{display:flex;align-items:center;justify-content:space-between;padding:15px 18px 12px;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--border)}.charttitle{font-weight:650;font-size:14px}.legend{display:flex;align-items:center;gap:15px;color:var(--muted);font-size:11px}.swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:var(--green)}.swatch.red{background:var(--red)}.swatch.path{background:var(--violet)}.chartbox{position:relative;touch-action:pan-y;min-height:440px}.chartbox.draw{touch-action:none;cursor:crosshair}canvas{width:100%;height:440px;display:block}.hint{position:absolute;left:13px;top:12px;padding:6px 9px;border:1px solid #343b54;border-radius:5px;background:#0a1018cc;color:#b8c6d6;font-size:11px;pointer-events:none}.tooltip{position:absolute;pointer-events:none;background:#101826eb;color:#e5edf6;border:1px solid #445366;box-shadow:0 8px 30px #0007;border-radius:7px;padding:9px 11px;font-size:11px;line-height:1.65;min-width:158px;z-index:3}.hidden{display:none}.chartfoot{display:flex;justify-content:space-between;padding:11px 17px;gap:12px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border);color:var(--muted);font-size:11px}.pill{border-radius:20px;border:1px solid #354152;padding:3px 8px;color:#c0cdda;font-size:11px}.pill.green{color:var(--green);background:#07372e;border-color:#116551}.toolbar{padding:13px 16px;justify-content:space-between}.toolbar strong{font-weight:650}.pills{gap:6px}.pills .btn{font-size:11px;padding:6px 9px}.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.stats>div{padding:13px 14px}.stats .val{font-size:19px;letter-spacing:-.035em;font-weight:750}.stats .lab{font-size:11px;margin-top:4px;color:var(--muted)}.controls{padding:16px 17px;align-self:start}.control-title{font-size:15px;font-weight:700;margin:0 0 14px}.section{border-top:1px solid var(--border);padding-top:15px;margin-top:16px}.section:first-of-type{margin-top:0;border:0}.sectiontitle{font-size:11px;color:#c5d2e0;text-transform:uppercase;font-weight:750;letter-spacing:.09em;margin:0 0 12px}.field{margin:0 0 15px}.field:last-child{margin:0}.fieldhead{display:flex;justify-content:space-between;gap:8px;margin-bottom:7px;color:#becbd9}.value{font-weight:700;color:white;font-variant-numeric:tabular-nums}.field input[type=range]{width:100%;height:4px;display:block;accent-color:var(--violet);cursor:pointer}.field small{color:#7f91a5}.toggle{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:11px;color:#c6d4e2}.toggle input{appearance:none;border-radius:20px;width:32px;height:18px;background:#344052;position:relative;cursor:pointer;transition:background .15s}.toggle input:checked{background:#0d9679}.toggle input:before{content:"";position:absolute;width:12px;height:12px;background:white;top:3px;left:3px;border-radius:50%;transition:transform .15s}.toggle input:checked:before{transform:translateX(14px)}.select{display:block;width:100%;border-radius:7px;border:1px solid #354254;background:#1a2531;color:white;padding:8px}.note{padding:11px 13px;border:1px solid #2a3b47;border-radius:8px;color:#9fb0c1;margin-top:15px;font-size:11px}.note strong{color:#d8e2ed}.footer{color:#7c90a5;font-size:11px;margin:15px 1px 0}.status{text-align:right}.cursorval{font-variant-numeric:tabular-nums}.error{color:#ff9e9e;padding:8px 12px;display:none}@media(max-width:1070px){.layout{grid-template-columns:1fr}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.control-title{grid-column:1/-1}.section{border-top:1px solid var(--border);padding-top:15px;margin-top:0}.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:570px){.wrap{padding:15px 10px}.controls{display:block}.section{margin-top:15px}.stats .val{font-size:16px}.legend{gap:8px}.charthead{padding:12px}canvas{height:370px}.chartbox{min-height:370px}.chartfoot{font-size:10px}}
+</style></head>
+<body><div class="wrap">
+<header><div><div class="topline">Synthetic market engine • Interactive demo</div><h1>Path <span>→</span> Candles</h1><p class="sub">Draw a price trajectory. Generate realistic-looking OHLCV using conditioned geometric Brownian motion.</p></div><div class="actions"><button id="random" class="btn primary">↻ New variation</button><button id="png" class="btn">↓ PNG</button><button id="csv" class="btn">↓ CSV</button><button id="json" class="btn">↓ JSON</button></div></header>
+<div class="layout"><div>
+<div class="chartcard"><div class="charthead"><div><span class="charttitle">Synthetic NAS100-like series</span> <span id="ticklabel" class="pill">5-minute candles</span></div><div class="legend"><span><i class="swatch"></i>Bull</span><span><i class="swatch red"></i>Bear</span><span><i class="swatch path"></i>Anchors</span></div></div>
+<div class="toolbar"><div class="pills"><button data-preset="trend" class="btn active">Zigzag</button><button data-preset="range" class="btn">Consolidation</button><button data-preset="breakout" class="btn">Breakout</button><button data-preset="selloff" class="btn">Selloff</button></div><div class="pills"><button id="draw" class="btn">✎ Draw path</button><button id="reset" class="btn" title="Restore selected preset">Reset path</button></div></div>
+<div id="chartbox" class="chartbox"><canvas id="chart"></canvas><div class="hint" id="hint">Drag across the chart with Draw path to create your own anchors</div><div id="tip" class="tooltip hidden"></div></div>
+<div class="chartfoot"><div><span class="pill green" id="modetag">● Generated</span> <span id="anchorsCount" class="pill">6 anchors</span> <span class="pill">Seed <span id="seedLabel">42</span></span></div><span class="status" id="status">All anchor closes preserved</span></div><div class="error" id="error"></div></div>
+<div class="stats"><div><div id="s-bars" class="val">240</div><div class="lab">Candles</div></div><div><div id="s-retr" class="val">—</div><div class="lab">Retracements</div></div><div><div id="s-con" class="val">—</div><div class="lab">Range / pause events</div></div><div><div id="s-wick" class="val">—</div><div class="lab">Avg. wick / body</div></div></div>
+<p class="footer">Synthetic scenarios only. Price anchors constrain closing prices, not high/low extremes. Volume is simulated activity, not exchange-traded volume.</p>
+</div><aside class="controls"><div class="control-title">⚙ Generation controls</div>
+<section class="section"><h2 class="sectiontitle">Price path & resolution</h2>
+<div class="field"><div class="fieldhead"><label for="bars">Candle count</label><span id="bars-v" class="value"></span></div><input type="range" id="bars" min="80" max="400" step="20" value="240"></div>
+<div class="field"><div class="fieldhead"><label for="vol">Per-candle volatility</label><span id="vol-v" class="value"></span></div><input type="range" id="vol" min="0.0002" max="0.006" step="0.0001" value="0.0015"></div>
+<div class="field"><div class="fieldhead"><label for="noise">Path deviation</label><span id="noise-v" class="value"></span></div><input type="range" id="noise" min="0" max="1.8" step="0.05" value="0.75"></div>
+</section><section class="section"><h2 class="sectiontitle">Retracements</h2><label class="toggle">Enable retracements<input id="retEnable" type="checkbox" checked></label>
+<div class="field"><div class="fieldhead"><label for="retChance">Event probability</label><span id="retChance-v" class="value"></span></div><input type="range" id="retChance" min="0" max="1" step="0.05" value="0.85"></div>
+<div class="field"><div class="fieldhead"><label for="retDepth">Maximum retracement</label><span id="retDepth-v" class="value"></span></div><input type="range" id="retDepth" min="0.2" max="0.9" step="0.05" value="0.65"></div>
+</section><section class="section"><h2 class="sectiontitle">Consolidations</h2><label class="toggle">Enable consolidations<input id="conEnable" type="checkbox" checked></label>
+<div class="field"><div class="fieldhead"><label for="rangeWidth">Sideways range width</label><span id="rangeWidth-v" class="value"></span></div><input type="range" id="rangeWidth" min="0.1" max="3" step="0.1" value="1.2"></div>
+<div class="field"><div class="fieldhead"><label for="pause">Trend pause probability</label><span id="pause-v" class="value"></span></div><input type="range" id="pause" min="0" max="1" step="0.05" value="0.6"></div>
+</section><section class="section"><h2 class="sectiontitle">Wicks & volatility</h2>
+<div class="field"><div class="fieldhead"><label for="wick">Wick strength</label><span id="wick-v" class="value"></span></div><input type="range" id="wick" min="0" max="3.5" step="0.05" value="1.45"></div>
+<div class="field"><div class="fieldhead"><label for="slope">Slope sensitivity</label><span id="slope-v" class="value"></span></div><input type="range" id="slope" min="0" max="2.5" step="0.05" value="0.42"></div>
+<div class="field"><div class="fieldhead"><label for="clustering">Volatility clustering</label><span id="clustering-v" class="value"></span></div><input type="range" id="clustering" min="0" max="0.45" step="0.01" value="0.14"></div>
+</section><section class="section"><h2 class="sectiontitle">Instrument</h2><div class="field"><label for="tickSize">Tick size</label><select id="tickSize" class="select"><option value="0.25">0.25 (index futures)</option><option value="0.01">0.01 (decimal)</option><option value="1">1 (whole numbers)</option></select></div></section>
+<div class="note"><strong>How to draw:</strong> Click “Draw path”, then drag left to right across the candlestick chart. Release to generate a new scenario. Regenerate to explore alternate stochastic outcomes while preserving your drawing.</div>
+</aside></div></div>
+<script>
+const candleEngine=(()=>{const module={exports:{}};const exports=module.exports;
+"use strict";
+/**
+ * Path-conditioned synthetic candle generator (dependency-free TypeScript).
+ *
+ * Features:
+ * - Exact closing prices at user-drawn anchors
+ * - Geometric (log-price) Brownian bridges between anchors
+ * - Automatic sideways/ranging regimes, with mean-reverting fluctuations
+ * - Optional trend pauses/consolidations and explicit retracement sub-swings
+ * - Volatility clustering and wick size influenced by anchor price/time slope
+ * - Intrabar Brownian bridges to produce OHLC highs/lows
+ * - Seeded deterministic randomness, optional tick-size quantization
+ * - Pixel-stroke -> price/time anchor conversion
+ *
+ * IMPORTANT: All OHLCV is synthetic. Volume is an activity proxy, NOT actual
+ * exchange volume. This is for UI previews, scenario testing and examples;
+ * matching anchors does not validate a trading strategy against real markets.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateCandlesWithMeta = generateCandlesWithMeta;
+exports.generateCandles = generateCandles;
+exports.strokeToAnchors = strokeToAnchors;
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+const lerp = (a, b, t) => a + (b - a) * t;
+function randomSource(seed) {
+    let state = seed >>> 0;
+    let spare;
+    function uniform() {
+        state = (state + 0x6d2b79f5) | 0;
+        let z = Math.imul(state ^ (state >>> 15), 1 | state);
+        z ^= z + Math.imul(z ^ (z >>> 7), 61 | z);
+        return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+    }
+    function normal() {
+        if (spare !== undefined) {
+            const value = spare;
+            spare = undefined;
+            return value;
+        }
+        const u = Math.max(Number.MIN_VALUE, uniform());
+        const v = uniform();
+        const radius = Math.sqrt(-2 * Math.log(u));
+        spare = radius * Math.sin(2 * Math.PI * v);
+        return radius * Math.cos(2 * Math.PI * v);
+    }
+    function integer(lo, hi) {
+        return lo + Math.floor(uniform() * (hi - lo + 1));
+    }
+    return { uniform, normal, integer };
+}
+function requiredFinite(label, n, min, max = Infinity) {
+    if (!Number.isFinite(n) || n < min || n > max) {
+        throw new RangeError(`${label} must be a finite number in [${min}, ${max}]`);
+    }
+}
+function resolve(options) {
+    const retr = {
+        enabled: options.retracements?.enabled ?? true,
+        probability: options.retracements?.probability ?? 0.85,
+        minBars: options.retracements?.minBars ?? 12,
+        everyBars: options.retracements?.everyBars ?? 26,
+        depthMin: options.retracements?.depthMin ?? 0.30,
+        depthMax: options.retracements?.depthMax ?? 0.65,
+    };
+    const cons = {
+        enabled: options.consolidations?.enabled ?? true,
+        flatThreshold: options.consolidations?.flatThreshold ?? 0.85,
+        meanReversion: options.consolidations?.meanReversion ?? 0.22,
+        rangeWidth: options.consolidations?.rangeWidth ?? 1.2,
+        trendPauseProbability: options.consolidations?.trendPauseProbability ?? 0.60,
+        pauseMinBars: options.consolidations?.pauseMinBars ?? 4,
+        pauseMaxBars: options.consolidations?.pauseMaxBars ?? 10,
+        pauseSpeed: options.consolidations?.pauseSpeed ?? 0.09,
+    };
+    const wick = {
+        strength: options.wicks?.strength ?? 1.45,
+        slopeSensitivity: options.wicks?.slopeSensitivity ?? 0.42,
+        rangeBoost: options.wicks?.rangeBoost ?? 1.30,
+        bodySensitivity: options.wicks?.bodySensitivity ?? 0.32,
+    };
+    const cluster = {
+        persistence: options.volatilityClustering?.persistence ?? 0.93,
+        shock: options.volatilityClustering?.shock ?? 0.14,
+    };
+    const out = {
+        retr, cons, wick, cluster,
+        volatility: options.volatility ?? 0.002,
+        pathNoise: options.pathNoise ?? 0.72,
+        intrabarSteps: options.intrabarSteps ?? 24,
+        baseVolume: options.baseVolume ?? 1000,
+        seed: options.seed ?? 12345,
+        startTimeMs: options.startTimeMs ?? 0,
+        intervalMs: options.intervalMs ?? 60000,
+        tickSize: options.tickSize,
+    };
+    requiredFinite("volatility", out.volatility, Number.MIN_VALUE);
+    requiredFinite("pathNoise", out.pathNoise, 0);
+    requiredFinite("baseVolume", out.baseVolume, Number.MIN_VALUE);
+    requiredFinite("intervalMs", out.intervalMs, Number.MIN_VALUE);
+    requiredFinite("startTimeMs", out.startTimeMs, -Number.MAX_VALUE);
+    requiredFinite("seed", out.seed, -Number.MAX_VALUE);
+    requiredFinite("retracements.probability", retr.probability, 0, 1);
+    requiredFinite("retracements.depthMin", retr.depthMin, 0, 1);
+    requiredFinite("retracements.depthMax", retr.depthMax, retr.depthMin, 1);
+    requiredFinite("consolidations.flatThreshold", cons.flatThreshold, 0);
+    requiredFinite("consolidations.meanReversion", cons.meanReversion, 0, 1);
+    requiredFinite("consolidations.rangeWidth", cons.rangeWidth, 0);
+    requiredFinite("consolidations.trendPauseProbability", cons.trendPauseProbability, 0, 1);
+    requiredFinite("consolidations.pauseSpeed", cons.pauseSpeed, 0, 1);
+    requiredFinite("wicks.strength", wick.strength, 0);
+    requiredFinite("wicks.slopeSensitivity", wick.slopeSensitivity, 0);
+    requiredFinite("wicks.rangeBoost", wick.rangeBoost, 0);
+    requiredFinite("wicks.bodySensitivity", wick.bodySensitivity, 0);
+    requiredFinite("volatilityClustering.persistence", cluster.persistence, 0, 0.999999);
+    requiredFinite("volatilityClustering.shock", cluster.shock, 0);
+    for (const [name, value, min] of [
+        ["intrabarSteps", out.intrabarSteps, 2],
+        ["retracements.minBars", retr.minBars, 4],
+        ["retracements.everyBars", retr.everyBars, 4],
+        ["consolidations.pauseMinBars", cons.pauseMinBars, 1],
+        ["consolidations.pauseMaxBars", cons.pauseMaxBars, cons.pauseMinBars],
+    ]) {
+        if (!Number.isSafeInteger(value) || value < min) {
+            throw new RangeError(`${name} must be an integer >= ${min}`);
+        }
+    }
+    if (out.tickSize !== undefined)
+        requiredFinite("tickSize", out.tickSize, Number.MIN_VALUE);
+    return out;
+}
+function validateAnchors(options, tickSize) {
+    if (!Number.isSafeInteger(options.candleCount) || options.candleCount < 2) {
+        throw new RangeError("candleCount must be an integer >= 2");
+    }
+    if (!Array.isArray(options.anchors) || options.anchors.length < 2) {
+        throw new Error("At least two anchors are required");
+    }
+    const anchors = [...options.anchors].sort((a, b) => a.index - b.index);
+    if (anchors[0].index !== 0 || anchors[anchors.length - 1].index !== options.candleCount - 1) {
+        throw new Error("Anchors must include index 0 and index candleCount - 1");
+    }
+    anchors.forEach((a, i) => {
+        if (!Number.isSafeInteger(a.index) || a.index < 0 || a.index >= options.candleCount) {
+            throw new Error(`Invalid anchor index: ${a.index}`);
+        }
+        requiredFinite(`anchors[${i}].price`, a.price, Number.MIN_VALUE);
+        if (i > 0 && a.index === anchors[i - 1].index) {
+            throw new Error(`Duplicate anchor index: ${a.index}`);
+        }
+        if (a.regime && !["auto", "trend", "range"].includes(a.regime)) {
+            throw new Error(`Unknown regime: ${a.regime}`);
+        }
+        if (tickSize !== undefined) {
+            const units = a.price / tickSize;
+            if (!Number.isSafeInteger(Math.round(units)) || Math.abs(units - Math.round(units)) > 1e-7) {
+                throw new Error(`Anchor price ${a.price} is not on tick grid ${tickSize}`);
+            }
+        }
+    });
+    return anchors;
+}
+/**
+ * Weighted Brownian bridge: retains both zero endpoints even when the
+ * instantaneous volatility varies. Each step's variance determines how much
+ * of the total excursion is removed by the endpoint conditioning.
+ */
+function noiseBridge(sigmas, rng) {
+    const n = sigmas.length;
+    const sums = new Float64Array(n + 1);
+    const variances = new Float64Array(n + 1);
+    for (let j = 1; j <= n; j++) {
+        const s = sigmas[j - 1];
+        sums[j] = sums[j - 1] + s * rng.normal();
+        variances[j] = variances[j - 1] + s * s;
+    }
+    const lastSum = sums[n], lastVar = variances[n];
+    return Array.from(sums, (v, j) => lastVar === 0 ? 0 : v - (variances[j] / lastVar) * lastSum);
+}
+/**
+ * Build log-price structural trajectory for a trend.
+ * - Optional flat/slow intervals simulate consolidation/pause phases.
+ * - Optional retracement sublegs intentionally move opposite the main trend.
+ * Endpoints always match exactly.
+ */
+function trendGuide(n, from, to, rng, cfg) {
+    const { cons, retr } = cfg;
+    const weights = Array(n).fill(1);
+    let pauseCount = 0;
+    if (cons.enabled && n >= cons.pauseMinBars + 6 && rng.uniform() < cons.trendPauseProbability) {
+        const pauseSize = rng.integer(cons.pauseMinBars, Math.min(cons.pauseMaxBars, n - 4));
+        const start = rng.integer(2, n - pauseSize - 2);
+        for (let j = start; j < start + pauseSize; j++)
+            weights[j] = cons.pauseSpeed;
+        pauseCount = 1;
+    }
+    const total = weights.reduce((sum, w) => sum + w, 0);
+    const guide = [from];
+    let progress = 0;
+    for (let j = 1; j <= n; j++) {
+        progress += weights[j - 1] / total;
+        guide[j] = lerp(from, to, progress);
+    }
+    guide[n] = to;
+    let retracementCount = 0;
+    if (retr.enabled && n >= retr.minBars) {
+        const opportunities = Math.max(1, Math.floor(n / retr.everyBars));
+        // Events are allocated to distinct blocks, so they never overlap.
+        for (let k = 0; k < opportunities; k++) {
+            if (rng.uniform() > retr.probability)
+                continue;
+            const blockStart = Math.floor((k * n) / opportunities);
+            const blockEnd = Math.floor(((k + 1) * n) / opportunities);
+            const usable = blockEnd - blockStart;
+            if (usable < 8)
+                continue;
+            const margin = Math.max(1, Math.floor(usable * 0.12));
+            const s = blockStart + margin;
+            const e = blockEnd - margin;
+            if (e - s < 6)
+                continue;
+            const p = s + Math.max(1, Math.floor((e - s) * 0.44));
+            const r = p + Math.max(1, Math.floor((e - s) * 0.24));
+            if (r >= e)
+                continue;
+            const dir = Math.sign(to - from);
+            const distance = dir * (guide[e] - guide[s]);
+            if (distance <= 0)
+                continue;
+            const depth = lerp(retr.depthMin, retr.depthMax, rng.uniform());
+            const peak = guide[s] + dir * distance * 0.84;
+            const trough = guide[s] + dir * distance * 0.84 * (1 - depth);
+            const initial = guide[s], finish = guide[e];
+            for (let j = s + 1; j < e; j++) {
+                guide[j] = j <= p
+                    ? lerp(initial, peak, (j - s) / (p - s))
+                    : j <= r
+                        ? lerp(peak, trough, (j - p) / (r - p))
+                        : lerp(trough, finish, (j - r) / (e - r));
+            }
+            retracementCount++;
+        }
+    }
+    return { guide, retracementCount, pauseCount };
+}
+function rangeGuide(n, from, to, sigmas, rng, cfg) {
+    const output = new Array(n + 1);
+    const ou = new Float64Array(n + 1);
+    const rho = 1 - cfg.cons.meanReversion;
+    for (let j = 1; j <= n; j++) {
+        ou[j] = rho * ou[j - 1] +
+            cfg.cons.rangeWidth * cfg.pathNoise * sigmas[j - 1] * rng.normal();
+    }
+    // Condition mean-reverting offsets on the right endpoint exactly.
+    for (let j = 0; j <= n; j++) {
+        const t = j / n;
+        output[j] = lerp(from, to, t) + ou[j] - t * ou[n];
+    }
+    output[0] = from;
+    output[n] = to;
+    return output;
+}
+function quantize(n, tickSize) {
+    if (tickSize === undefined)
+        return n;
+    return Math.max(tickSize, Math.round(n / tickSize) * tickSize);
+}
+/** Returns candles plus diagnostics useful for chart overlays/UI. */
+function generateCandlesWithMeta(options) {
+    const cfg = resolve(options);
+    const anchors = validateAnchors(options, cfg.tickSize);
+    const rng = randomSource(cfg.seed);
+    const nCandles = options.candleCount;
+    const sigma = new Float64Array(nCandles);
+    let volatilityState = 0;
+    for (let i = 0; i < nCandles; i++) {
+        volatilityState = cfg.cluster.persistence * volatilityState + cfg.cluster.shock * rng.normal();
+        sigma[i] = cfg.volatility * clamp(Math.exp(volatilityState), 0.35, 3);
+    }
+    const logCloses = new Float64Array(nCandles);
+    const wickMultipliers = new Float64Array(nCandles);
+    const regimeAt = new Array(nCandles).fill("trend");
+    const segments = [];
+    for (let k = 0; k < anchors.length - 1; k++) {
+        const a = anchors[k], b = anchors[k + 1];
+        const bars = b.index - a.index;
+        const from = Math.log(a.price), to = Math.log(b.price);
+        const distance = Math.abs(to - from);
+        const significance = distance / (cfg.volatility * Math.sqrt(bars));
+        const regime = a.regime === "trend" || a.regime === "range"
+            ? a.regime
+            : cfg.cons.enabled && significance < cfg.cons.flatThreshold ? "range" : "trend";
+        const slope = distance / bars;
+        const slopeRatio = slope / cfg.volatility;
+        // Same price distance in fewer bars -> greater volatility/wick response.
+        const wickMultiplier = clamp(cfg.wick.strength * (0.85 + cfg.wick.slopeSensitivity * Math.sqrt(slopeRatio)) *
+            (regime === "range" ? cfg.wick.rangeBoost : 1), 0, 6);
+        const localSigmas = [];
+        for (let j = 1; j <= bars; j++)
+            localSigmas.push(sigma[a.index + j]);
+        let guide;
+        let retracementCount = 0, pauseCount = 0;
+        if (regime === "range") {
+            guide = rangeGuide(bars, from, to, localSigmas, rng, cfg);
+        }
+        else {
+            const result = trendGuide(bars, from, to, rng, cfg);
+            guide = result.guide;
+            retracementCount = result.retracementCount;
+            pauseCount = result.pauseCount;
+            const deviations = noiseBridge(localSigmas.map(s => s * cfg.pathNoise), rng);
+            for (let j = 0; j <= bars; j++)
+                guide[j] += deviations[j];
+        }
+        // Assign segment to each candle whose close is in it. At an internal
+        // anchor, the following segment owns the subsequent candle, not the anchor.
+        for (let j = 0; j <= bars; j++) {
+            const index = a.index + j;
+            logCloses[index] = guide[j];
+            if (j > 0 || index === 0) {
+                wickMultipliers[index] = wickMultiplier;
+                regimeAt[index] = regime;
+            }
+        }
+        segments.push({
+            fromIndex: a.index, toIndex: b.index, regime,
+            averageLogMovePerBar: slope,
+            wickMultiplier, retracementCount, pauseCount,
+        });
+    }
+    const exactAnchors = new Map(anchors.map(a => [a.index, a.price]));
+    const candles = [];
+    for (let i = 0; i < nCandles; i++) {
+        const close = exactAnchors.get(i) ?? quantize(Math.exp(logCloses[i]), cfg.tickSize);
+        const open = i === 0 ? close : candles[i - 1].close;
+        const o = Math.log(open), c = Math.log(close);
+        const body = Math.abs(c - o);
+        const wickVol = sigma[i] * wickMultipliers[i] + cfg.wick.bodySensitivity * body;
+        const steps = cfg.intrabarSteps;
+        const stepSigmas = Array(steps).fill(wickVol / Math.sqrt(steps));
+        const wiggles = noiseBridge(stepSigmas, rng);
+        let high = Math.max(open, close), low = Math.min(open, close);
+        for (let j = 1; j < steps; j++) {
+            const t = j / steps;
+            const intrabarPrice = Math.exp(lerp(o, c, t) + wiggles[j]);
+            high = Math.max(high, intrabarPrice);
+            low = Math.min(low, intrabarPrice);
+        }
+        high = Math.max(open, close, quantize(high, cfg.tickSize));
+        low = Math.min(open, close, quantize(low, cfg.tickSize));
+        // Price magnitude is capped only by IEEE-754. Unrealistic volatility
+        // settings are rejected here instead of silently emitting NaNs.
+        if (![open, high, low, close].every(v => v > 0 && Number.isFinite(v))) {
+            throw new RangeError("Price overflow/underflow; reduce volatility or anchor range");
+        }
+        const safeSigma = Math.max(sigma[i], 1e-12);
+        const rangeUnits = clamp(Math.log(high / low) / safeSigma, 0, 10);
+        const volume = Math.max(1, Math.round(cfg.baseVolume * Math.exp(0.22 * rng.normal() + 0.21 * (rangeUnits - 1) + (regimeAt[i] === "range" ? -0.12 : 0.08))));
+        const time = cfg.startTimeMs + i * cfg.intervalMs;
+        if (!Number.isSafeInteger(time)) {
+            throw new RangeError("Candle timestamp is outside JavaScript's safe integer range");
+        }
+        candles.push({ time, open, high, low, close, volume });
+    }
+    return { candles, segments };
+}
+/** Simple API when you only need OHLCV. */
+function generateCandles(options) {
+    return generateCandlesWithMeta(options).candles;
+}
+function simplifyStroke(points, tolerance) {
+    if (points.length <= 2)
+        return [...points];
+    const a = points[0], b = points[points.length - 1];
+    const dx = b.x - a.x, dy = b.y - a.y, lengthSquared = dx * dx + dy * dy;
+    let largestDistance = -1, furthest = -1;
+    for (let i = 1; i < points.length - 1; i++) {
+        const p = points[i];
+        const t = lengthSquared === 0 ? 0 : clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared, 0, 1);
+        const distance = Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+        if (distance > largestDistance) {
+            largestDistance = distance;
+            furthest = i;
+        }
+    }
+    if (largestDistance <= tolerance || furthest < 1)
+        return [a, b];
+    return [
+        ...simplifyStroke(points.slice(0, furthest + 1), tolerance).slice(0, -1),
+        ...simplifyStroke(points.slice(furthest), tolerance),
+    ];
+}
+/**
+ * Map a left-to-right canvas stroke onto the requested candleCount and prices.
+ * X determines relative elapsed candle time; Y is inverted (screen y down,
+ * price up). The stroke's horizontal extent maps to the full series.
+ */
+function strokeToAnchors(points, cfg) {
+    if (points.length < 2 || !Number.isSafeInteger(cfg.candleCount) || cfg.candleCount < 2) {
+        throw new RangeError("At least two stroke points and candleCount >= 2 are required");
+    }
+    for (const [key, value] of Object.entries({
+        width: cfg.width, height: cfg.height,
+        minPrice: cfg.minPrice, maxPrice: cfg.maxPrice,
+        simplifyTolerancePx: cfg.simplifyTolerancePx ?? 6,
+        ...(cfg.tickSize === undefined ? {} : { tickSize: cfg.tickSize }),
+    })) {
+        if (!Number.isFinite(value))
+            throw new RangeError(`${key} must be finite`);
+    }
+    if (cfg.width <= 0 || cfg.height <= 0 || cfg.minPrice <= 0 || cfg.maxPrice <= cfg.minPrice ||
+        (cfg.simplifyTolerancePx ?? 6) < 0 ||
+        (cfg.tickSize !== undefined && cfg.tickSize <= 0)) {
+        throw new RangeError("Invalid chart bounds or simplification tolerance");
+    }
+    if (points.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
+        throw new Error("Stroke coordinates must be finite");
+    }
+    const sorted = [...points].sort((a, b) => a.x - b.x);
+    const reduced = simplifyStroke(sorted, cfg.simplifyTolerancePx ?? 6);
+    const minX = reduced[0].x, maxX = reduced[reduced.length - 1].x;
+    if (maxX <= minX)
+        throw new Error("The stroke must have positive horizontal span");
+    const anchors = new Map();
+    for (const p of reduced) {
+        const index = Math.round(((p.x - minX) / (maxX - minX)) * (cfg.candleCount - 1));
+        const normalizedY = 1 - clamp(p.y / cfg.height, 0, 1);
+        const price = cfg.logScale
+            ? Math.exp(lerp(Math.log(cfg.minPrice), Math.log(cfg.maxPrice), normalizedY))
+            : lerp(cfg.minPrice, cfg.maxPrice, normalizedY);
+        anchors.set(index, quantize(price, cfg.tickSize));
+    }
+    return [...anchors].sort((a, b) => a[0] - b[0])
+        .map(([index, price]) => ({ index, price }));
+}
+/**
+ * Example:
+ *
+ * const anchors: PathAnchor[] = [
+ *   { index: 0, price: 18000 },
+ *   { index: 60, price: 18450, regime: 'range' }, // consolidation until index 100
+ *   { index: 100, price: 18475 },          // then downward move
+ *   { index: 145, price: 18100 },         // downward move
+ *   { index: 199, price: 18325 },
+ * ];
+ *
+ * const { candles, segments } = generateCandlesWithMeta({
+ *   candleCount: 200, anchors,
+ *   startTimeMs: Date.UTC(2026, 0, 1), intervalMs: 60_000,
+ *   volatility: 0.0015, pathNoise: 0.65,
+ *   retracements: { probability: 1, everyBars: 22, depthMin: .35, depthMax: .65 },
+ *   consolidations: { trendPauseProbability: .7, rangeWidth: 1.25 },
+ *   wicks: { strength: 1.6, slopeSensitivity: .5, rangeBoost: 1.35 },
+ *   seed: 42,
+ * });
+ */
+
+return module.exports;})();
+const {generateCandlesWithMeta,strokeToAnchors}=candleEngine;
+const byId=id=>document.getElementById(id);
+const ui={bars:byId('bars'),vol:byId('vol'),noise:byId('noise'),retEnable:byId('retEnable'),retChance:byId('retChance'),retDepth:byId('retDepth'),conEnable:byId('conEnable'),rangeWidth:byId('rangeWidth'),pause:byId('pause'),wick:byId('wick'),slope:byId('slope'),clustering:byId('clustering'),tickSize:byId('tickSize')};
+const canvas=byId('chart'),ctx=canvas.getContext('2d'),chartbox=byId('chartbox'),tip=byId('tip');
+let seed=42,preset='trend',drawMode=false,drawing=false,stroke=[],customAnchors=null,chartData=null,currentAnchors=[],lastBounds=null,cursorIndex=-1;
+const money=v=>v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const clampUi=(v,a,b)=>Math.max(a,Math.min(b,v));
+function presetAnchors(name,n){const specs={trend:[[0,18150],[.22,18720],[.37,18440],[.60,19030],[.75,18700],[1,19110]],range:[[0,18450],[.18,18550],[.40,18490],[.64,18560],[.83,18475],[1,18530]],breakout:[[0,18220],[.20,18480],[.40,18430],[.58,18470],[.66,18680],[.83,19200],[1,18950]],selloff:[[0,19120],[.16,18890],[.34,19010],[.55,18500],[.71,18620],[1,18080]]}[name];return specs.map(([x,price],i)=>({index:Math.round(x*(n-1)),price,regime:name==='range'?'range':(name==='breakout'&&i===2?'range':'auto')}))}
+function fitCustom(n,tick){return customAnchors.map(a=>({index:Math.round(a.fraction*(n-1)),price:Math.max(tick,Math.round(a.price/tick)*tick),regime:'auto'})).filter((a,i,arr)=>i===0||a.index>arr[i-1].index).map(a=>({...a}))}
+function opts(){const n=+ui.bars.value,tick=+ui.tickSize.value;return {anchors:customAnchors?fitCustom(n,tick):presetAnchors(preset,n),candleCount:n,startTimeMs:Date.UTC(2026,0,1),intervalMs:300000,tickSize:tick,volatility:+ui.vol.value,pathNoise:+ui.noise.value,seed,intrabarSteps:24,retracements:{enabled:ui.retEnable.checked,probability:+ui.retChance.value,everyBars:26,depthMin:.30,depthMax:+ui.retDepth.value},consolidations:{enabled:ui.conEnable.checked,rangeWidth:+ui.rangeWidth.value,meanReversion:.22,trendPauseProbability:+ui.pause.value,flatThreshold:.85},wicks:{strength:+ui.wick.value,slopeSensitivity:+ui.slope.value,rangeBoost:1.3,bodySensitivity:.32},volatilityClustering:{persistence:.93,shock:+ui.clustering.value}}}
+function updateValues(){const fmt={bars:v=>v,vol:v=>(v*100).toFixed(2)+'%',noise:v=>Number(v).toFixed(2),retChance:v=>Math.round(v*100)+'%',retDepth:v=>Math.round(v*100)+'%',rangeWidth:v=>Number(v).toFixed(1)+'×',pause:v=>Math.round(v*100)+'%',wick:v=>Number(v).toFixed(2)+'×',slope:v=>Number(v).toFixed(2),clustering:v=>Number(v).toFixed(2)};for(const [k,format]of Object.entries(fmt))byId(k+'-v').textContent=format(ui[k].value);}
+function generate(){try{updateValues();const settings=opts();currentAnchors=settings.anchors;chartData=generateCandlesWithMeta(settings);byId('error').style.display='none';byId('seedLabel').textContent=seed;byId('anchorsCount').textContent=currentAnchors.length+' anchors';byId('s-bars').textContent=settings.candleCount;const seg=chartData.segments;byId('s-retr').textContent=seg.reduce((a,s)=>a+s.retracementCount,0);byId('s-con').textContent=seg.filter(s=>s.regime==='range').length+seg.reduce((a,s)=>a+s.pauseCount,0);const avg=chartData.candles.reduce((a,c)=>a+(c.high-Math.max(c.open,c.close)+Math.min(c.open,c.close)-c.low),0)/chartData.candles.length;const body=chartData.candles.reduce((a,c)=>a+Math.abs(c.close-c.open),0)/chartData.candles.length;byId('s-wick').textContent=body?`${(avg/body).toFixed(2)}×`:'—';byId('status').textContent=seg.filter(s=>s.regime==='range').length+' ranging segments · Exact anchor closes';render();}catch(e){byId('error').style.display='block';byId('error').textContent=e.message;console.error(e)}}
+function getSize(){const W=canvas.clientWidth,H=canvas.clientHeight,dpr=window.devicePixelRatio||1;canvas.width=Math.max(1,Math.round(W*dpr));canvas.height=Math.max(1,Math.round(H*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);return {W,H}}
+function render(){if(!chartData)return;const {W,H}=getSize(),c=chartData.candles;const L=62,R=69,T=28,B=54,volHeight=46,plotBottom=H-B-volHeight,plotH=plotBottom-T,plotW=W-L-R;
+const lo=Math.min(...c.map(d=>d.low)),hi=Math.max(...c.map(d=>d.high)),margin=(hi-lo)*.09||10,min=lo-margin,max=hi+margin;lastBounds={L,R,T,B,plotBottom,plotH,plotW,W,H,min,max};const x=i=>L+i/(c.length-1)*plotW,y=p=>T+(max-p)/(max-min)*plotH;
+ctx.clearRect(0,0,W,H);ctx.fillStyle='#111923';ctx.fillRect(0,0,W,H);
+ctx.strokeStyle='#283342';ctx.lineWidth=1;ctx.font='11px ui-sans-serif,system-ui';ctx.fillStyle='#8396aa';ctx.textBaseline='middle';ctx.textAlign='left';for(let i=0;i<=5;i++){const p=min+(max-min)*i/5,py=y(p);ctx.beginPath();ctx.moveTo(L,py);ctx.lineTo(W-R+9,py);ctx.stroke();ctx.fillText(p.toFixed(2),W-R+14,py)}
+ctx.strokeStyle='#242f40';for(let i=0;i<=6;i++){let px=L+i*plotW/6;ctx.beginPath();ctx.moveTo(px,T);ctx.lineTo(px,H-B+16);ctx.stroke();ctx.fillStyle='#8396aa';ctx.textAlign='center';ctx.fillText('+'+(Math.round(i*(c.length-1)/6)*5)+'m',px,H-19)}
+ctx.textAlign='left';ctx.fillStyle='#8495aa';ctx.fillText('PRICE',8,T+6);ctx.fillText('VOLUME',8,plotBottom+14);
+const maxVol=Math.max(...c.map(d=>d.volume));const cw=Math.max(1,Math.min(9,plotW/c.length*.76));
+for(let i=0;i<c.length;i++){const d=c[i],px=x(i),up=d.close>=d.open,col=up?'#31c3a0':'#f37680';ctx.fillStyle=up?'#145f53':'#6e323e';const volumeH=d.volume/maxVol*(volHeight-12);ctx.fillRect(px-cw/2,plotBottom+volHeight-volumeH,cw,volumeH);
+ctx.strokeStyle=col;ctx.lineWidth=Math.max(1,cw*.16);ctx.beginPath();ctx.moveTo(px,y(d.high));ctx.lineTo(px,y(d.low));ctx.stroke();ctx.fillStyle=col;let by=y(Math.max(d.open,d.close)),bh=Math.max(1,y(Math.min(d.open,d.close))-by);ctx.fillRect(px-cw/2,by,cw,bh)}
+ctx.strokeStyle='#b3a4ff';ctx.lineWidth=1.4;ctx.setLineDash([5,5]);ctx.globalAlpha=.83;ctx.beginPath();currentAnchors.forEach((a,i)=>i?ctx.lineTo(x(a.index),y(a.price)):ctx.moveTo(x(a.index),y(a.price)));ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;for(const a of currentAnchors){ctx.beginPath();ctx.arc(x(a.index),y(a.price),2.8,0,Math.PI*2);ctx.fillStyle='#b3a4ff';ctx.fill()}
+if(cursorIndex>=0&&!drawing){const idx=clampUi(cursorIndex,0,c.length-1);ctx.strokeStyle='#a7b4c4';ctx.globalAlpha=.45;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(x(idx),T);ctx.lineTo(x(idx),H-B+10);ctx.stroke();ctx.globalAlpha=1;ctx.setLineDash([])}
+if(drawing&&stroke.length>1){ctx.strokeStyle='#ffe28d';ctx.lineWidth=2.3;ctx.setLineDash([]);ctx.beginPath();stroke.forEach((p,i)=>i?ctx.lineTo(p.x+L,p.y+T):ctx.moveTo(p.x+L,p.y+T));ctx.stroke()}
+}
+function pointerToXY(e){const r=canvas.getBoundingClientRect(),b=lastBounds;return {x:clampUi(e.clientX-r.left-b.L,0,b.plotW),y:clampUi(e.clientY-r.top-b.T,0,b.plotH),rawX:e.clientX-r.left,rawY:e.clientY-r.top}}
+function updateHover(e){if(!chartData||!lastBounds)return;const p=pointerToXY(e),b=lastBounds,idx=clampUi(Math.round(p.x/b.plotW*(chartData.candles.length-1)),0,chartData.candles.length-1);if(p.rawY<b.T||p.rawY>b.H-b.B){tip.classList.add('hidden');cursorIndex=-1;render();return;}cursorIndex=idx;const d=chartData.candles[idx];tip.innerHTML=`<strong style="color:${d.close>=d.open?'#31c3a0':'#f37680'}">Bar ${idx+1}</strong><br>O ${money(d.open)} &nbsp; H ${money(d.high)}<br>L ${money(d.low)} &nbsp; C ${money(d.close)}<br>V ${d.volume.toLocaleString()}`;tip.classList.remove('hidden');tip.style.left=clampUi(p.rawX+16,12,b.W-176)+'px';tip.style.top=clampUi(p.rawY-40,12,b.H-105)+'px';render()}
+canvas.addEventListener('pointerdown',e=>{if(!drawMode)return;drawing=true;stroke=[];canvas.setPointerCapture(e.pointerId);const p=pointerToXY(e);stroke.push(p);tip.classList.add('hidden');render()});
+canvas.addEventListener('pointermove',e=>{if(drawing){const p=pointerToXY(e);const last=stroke.at(-1);if(p.x>last.x+2)stroke.push(p);render()}else if(!drawMode)updateHover(e)});
+canvas.addEventListener('pointerup',e=>{if(!drawing)return;drawing=false;const b=lastBounds;if(stroke.length>3&&stroke.at(-1).x-stroke[0].x>35){try{const reduced=strokeToAnchors(stroke.map(p=>({x:p.x,y:p.y})),{width:b.plotW,height:b.plotH,candleCount:+ui.bars.value,minPrice:b.min,maxPrice:b.max,simplifyTolerancePx:9,tickSize:+ui.tickSize.value});customAnchors=reduced.map(a=>({fraction:a.index/(+ui.bars.value-1),price:a.price}));drawMode=false;byId('draw').classList.remove('active');chartbox.classList.remove('draw');byId('hint').textContent='Custom path active · Select Draw path to replace';byId('modetag').textContent='● Custom path';generate()}catch(err){console.warn(err)}}else render()});
+canvas.addEventListener('pointercancel',()=>{drawing=false;render()});canvas.addEventListener('pointerleave',()=>{if(!drawing){cursorIndex=-1;tip.classList.add('hidden');render()}});
+function selectPreset(p){preset=p;customAnchors=null;document.querySelectorAll('[data-preset]').forEach(btn=>btn.classList.toggle('active',btn.dataset.preset===p));byId('modetag').textContent='● Generated';generate()}
+document.querySelectorAll('[data-preset]').forEach(btn=>btn.addEventListener('click',()=>selectPreset(btn.dataset.preset)));
+byId('draw').addEventListener('click',()=>{drawMode=!drawMode;byId('draw').classList.toggle('active',drawMode);chartbox.classList.toggle('draw',drawMode);byId('hint').textContent=drawMode?'Drag LEFT → RIGHT to sketch your price trajectory':(customAnchors?'Custom path active · Select Draw path to replace':'Drag across the chart with Draw path to create your own anchors');tip.classList.add('hidden')});
+byId('reset').addEventListener('click',()=>{customAnchors=null;selectPreset(preset)});
+byId('random').addEventListener('click',()=>{seed++;generate()});
+Object.values(ui).forEach(el=>el.addEventListener('input',()=>{if(!drawing)generate()}));
+const save=(name,blob)=>{const a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),500)};
+byId('csv').addEventListener('click',()=>{if(!chartData)return;const head='time,open,high,low,close,volume',lines=chartData.candles.map(c=>[c.time,c.open,c.high,c.low,c.close,c.volume].join(','));save('synthetic-candles.csv',new Blob([[head,...lines].join('\n')],{type:'text/csv'}))});
+byId('json').addEventListener('click',()=>{if(!chartData)return;save('synthetic-market.json',new Blob([JSON.stringify({anchors:currentAnchors,config:opts(),...chartData},null,2)],{type:'application/json'}))});
+byId('png').addEventListener('click',()=>{canvas.toBlob(blob=>blob&&save('synthetic-candles.png',blob))});
+window.addEventListener('resize',render);
+updateValues();generate();
+</script></body></html>
