@@ -6,17 +6,19 @@ inherited from the upstream editor.
 
 Governing decisions: [ADR-003-COMPONENT-SYSTEM](../decisions/ADR-003-COMPONENT-SYSTEM.md)
 (object protocol), [ADR-001-VIDEO-STACK](../decisions/ADR-001-VIDEO-STACK.md) (Remotion-first),
+[ADR-007-CHART-ELEMENT-MODEL](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) (chart element
+model, schema version 2 and the datasource seam),
 [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md) (scene graph boundaries).
 
-Machine-readable form: `src/registry/types.ts`. The registry implementation lives in
-`src/registry/registry.ts`.
+Machine-readable form: `packages/core/src/contract.ts`. The registry implementation lives in
+`packages/core/src/registry.ts`.
 
 ## 1. Identity
 
-- `ElementType` (`src/types.ts`) is the closed union of component IDs. The ID is what a
+- `ElementType` (`packages/core/src/schemas.ts`) is the closed union of component IDs. The ID is what a
   project file persists. **IDs are never renumbered, renamed or reused.**
 - Every registered component has exactly one `VideoComponentDefinition`.
-- Component IDs are grouped by `category`: `generic` (inherited editor elements),
+- Component IDs are grouped by `category`: `base` (inherited editor elements),
   `trading` (Chart Studio first-party), `motion` (adapted Remocn source).
 
 ## 2. `VideoComponentDefinition`
@@ -25,10 +27,12 @@ Machine-readable form: `src/registry/types.ts`. The registry implementation live
 |---|---|---|
 | `type` | yes | Stable component ID (`ElementType`). |
 | `label` / `icon` / `description` | yes | Library and timeline presentation. |
-| `category` | yes | `generic` \| `trading` \| `motion`. |
+| `category` | yes | `base` \| `trading` \| `motion`. |
 | `defaults` | yes | Props applied to a new instance. Must be JSON-serialisable. |
 | `params` | yes | Inspector controls generated from `ParamDef`s. |
 | `render` | yes | Deterministic render adapter, `(clip, props, frame, fps) => ReactNode`. |
+| `evaluate` | no | Pure evaluation step run once per clip per frame before render; its result is passed to the adapter as `evaluated`. |
+| `transportActions` | no | Playback controls the shell renders and executes generically for the selected clip. |
 | `inspector` | no | Custom inspector panel, rendered below the generated params. |
 | `defaultDuration` | no | Frames a new instance occupies. |
 | `propsVersion` | no | Version of the component's props schema. Bump on breaking prop changes. |
@@ -51,7 +55,8 @@ Inspector ─► generated params (definition.params) + custom panel (definition
 Timeline ─► clip.from + clip.durationInFrames define the lifespan [start, end)
         ▼
 MainComposition ─► Sequence(from, duration) ─► ClipRenderer (effects + position)
-                                     └─► definition.render({ clip, props, frame })
+                                     └─► definition.evaluate({ clip, props, sceneFrame, project })
+                                     └─► definition.render({ clip, props, frame, evaluated })
         ▼
 Serialization ─► plain JSON; only IDs, numbers, strings, arrays and objects
 ```
@@ -59,6 +64,67 @@ Serialization ─► plain JSON; only IDs, numbers, strings, arrays and objects
 `frame` is **clip-relative**: 0 is the clip's first frame. Remotion's `useCurrentFrame()`
 inside a `Sequence` returns the same value, so adapted third-party components that own their
 frame access keep working unchanged.
+
+### The evaluate step
+
+A market-anchored drawing cannot resolve its own geometry: it needs the chart clip's pane state
+at the current frame, and `render` receives only `(clip, props, frame, fps)`. The definition may
+therefore declare a pure evaluation step:
+
+```ts
+evaluate?: (input: {
+  clip: Clip;
+  props: ComponentProps;
+  /** Absolute frame in the composition. */
+  sceneFrame: number;
+  /** The immutable project snapshot the frame is evaluated against. */
+  project: Project;
+}) => unknown;
+```
+
+The composition calls `evaluate` once per clip per frame and passes its result to the adapter as
+`ComponentRenderContext.evaluated`. The rules:
+
+- `evaluate` is pure. It receives no editor state, no DOM and no clock.
+- `packages/core` still imports no React, Remotion, Zustand or storage code. `Project` is data.
+- A definition without `evaluate` behaves exactly as it does today.
+
+### Element-declared transport actions
+
+A component may declare extra playback controls:
+
+```ts
+export interface TransportAction {
+  id: string;
+  label: string;
+  icon: string;
+  /** 'seek' jumps the transport; 'toggle' flips a state the component owns. */
+  kind: 'seek' | 'toggle';
+  /** Absolute frame to seek to. Null when the action is not currently applicable. */
+  seekTo?: (input: { props: ComponentProps; sceneFrame: number }) => number | null;
+  /** Toggle target, resolved by the shell through the component's own props. */
+  toggle?: 'hold';
+}
+```
+
+The shell renders the actions of the **selected** clip's definition in the floating transport bar
+and executes them generically: `seek` calls `seekTo`, `toggle` flips the `holds` array of the
+pane the component owns. No component name is hardcoded in `apps/studio`.
+
+### Curves and easing
+
+Two vocabularies coexist, deliberately.
+
+- The **element curve** is a `Curve` value stored as data and evaluated by one pure function in
+  `packages/core`. It drives an element's, a pane's and the chart's own motion, and where
+  meaningful it applies per candle. The same value produces the same frame in preview and export.
+- The **legacy effect easing** stays on Remotion's `Easing`, and the existing effect `easing`
+  parameter keeps its current meaning, so no rendered frame of an existing project changes. That
+  vocabulary is extended rather than replaced: the shared easing control gains a `custom` option
+  with a matching bezier parameter, the effects that are currently static or linear gain an easing
+  parameter, and the effects that carry a hardcoded curve gain one in place of it.
+
+The inspector presents both through one widget, so a creator edits a curve in one place.
 
 ## 4. Rules
 
@@ -76,6 +142,13 @@ frame access keep working unchanged.
    references are persisted.
 5. **Adapted source is vendored, not imported at runtime.** Keep the upstream licence and
    revision with the copy, and record the same information in `provenance`.
+6. **`evaluate` is pure and optional.** It receives `(clip, props, sceneFrame, project)` and
+   nothing else, runs once per clip per frame, and its result reaches the adapter only as
+   `evaluated`. A definition that does not need it never declares it.
+7. **The shell executes what components declare.** Transport actions are rendered and executed
+   from the registry. No component name is hardcoded in `apps/studio`.
+8. **A curve is data.** A curve is stored in the project, evaluated by a pure function, and
+   produces the same frame in preview and export.
 
 ## 5. Schema versioning
 
@@ -84,8 +157,13 @@ frame access keep working unchanged.
 - `Clip.propsVersion` — the props schema version of the clip's component. A clip whose
   `propsVersion` is newer than the registered definition's must be rejected, not coerced.
 
-`src/project/migrate.ts` owns both migrations and is the only place where legacy documents
-are reshaped.
+`packages/components/src/project-migrate.ts` owns both migrations and is the only place where
+legacy documents are reshaped.
+
+Schema version 2 is the version the chart element model introduces: a project-level series
+registry, chart props carrying panes, a clock and a style, stable bar ids, a `durationMode` and
+the transition slot on the track boundary. The migration stays non-destructive and idempotent, and
+a migrated document must render the same candles in the same place as the document it came from.
 
 ## 6. Acceptance mapping
 
@@ -93,7 +171,26 @@ are reshaped.
 |---|---|
 | CPT-001 | Registry dispatch resolves a typed chart component; inspector edits produce an identical frame on reseek. |
 | CPT-002 | An adapted Remocn component is registered with the same lifecycle and records licence/provenance. |
-| CPT-003 | Independent components keep their own frame intervals and transitions. |
+| CPT-003 | Independent components keep their own frame intervals and transitions; the registry-driven `evaluate` step extends it. |
 | CPT-004 | HTF/LTF chart instances keep independent lifespans (R2+; the R1 registry already supports multiple instances). |
 | CPT-005 | Editor handles never reach the render path; price-anchored drawings are unaffected by transform. |
 | CPT-006 | Project and props migrations reject unsupported future versions. |
+| MD-009 | The datasource seam carries identity, origin, revision, ordering and stable bar ids; no importer ships. |
+| MD-010 | A chart consumes its series by reference, so one dataset backs several chart instances. |
+| AP-001 | The swing-path tool places anchors and the generated candles follow the drawn path, the close of each anchor bar equal to the placed price exactly; the drawn path is the skeleton of the series, not a corridor, so closes may overshoot the anchors between them. |
+| AP-002 | Generation is a pure function of `(path, seed, algorithmVersion, generator settings)`; the same inputs produce the same bars, the anchor regime determines the character of the segment from that anchor to the next, and the generated series is scale-invariant. |
+| AP-003 | Moving an anchor regenerates the series deterministically and re-renders without a reload. |
+| AP-004 | An authored path stays distinguishable from synthetic and imported series in the editor and in export metadata. |
+| CH-005 | Panes align through the chart clock and an explicit binding, never by row index; the relation between panes is declared as a rollup or a lockstep. |
+| CH-009 | A chart is a collection of elements, each individually controllable, with the collection controllable as a whole. |
+| CH-010 | A chart declares the relation between its panes as a rollup or a lockstep; a cross-asset link is labelled as authored, never as market time. |
+| OB-010 | Every element inside a chart carries its own `[in,out)` lifecycle, opacity, transform and curve, relative to the chart clip. |
+| CV-001 | Elements, panes and charts accept an editable easing curve, applied per element and where meaningful per candle. |
+| CV-002 | Static and linear effects accept an easing parameter; effects that already expose one accept a custom cubic-bezier. |
+| CV-003 | A curve is stored as data, evaluated by a pure function, and produces identical frames in preview and export. |
+| CV-004 | The inspector provides a curve editor for every element, pane and effect that exposes a curve. |
+| TL-009 | Duration is derived from the elements or set by the author, and the fixed value is adjustable with a draggable slider. |
+| TL-010 | A component declares transport actions that the shell renders and executes generically. |
+| TF-008 | The timeframe ratio of a rollup is derived from the panes, so it always agrees with the data; a lockstep states its shared timeframe and candle count. |
+| CH-011 | The split layouts are a grouped chart of one to three chart objects sharing an arrangement, a clock and declared relations; each chart keeps its own data, scale, viewport and lifecycle. |
+| TF-009 | The timeframes come from a fixed ladder defined against the base rung; a non-whole ratio is shown as the fraction it is, never rounded. |

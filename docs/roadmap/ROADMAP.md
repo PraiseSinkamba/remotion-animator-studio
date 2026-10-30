@@ -1,7 +1,7 @@
 # Chart Studio — Creator-Ready MVP Roadmap and Agent Workstreams
 
 **Status:** Proposed sequencing, not an authorized implementation plan.  
-**Design edition:** 1.2 draft · **Date:** 2026-10-24  
+**Design edition:** 1.3 draft · **Date:** 2026-10-30  
 **Depends on:** [Functional Specification](../spec/FUNCTIONAL_SPEC.md), [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md), [Test Strategy](../quality/TEST_STRATEGY.md), [Video Scenarios](../scenarios/VIDEO_SCENARIOS.md).
 
 ## 1. Delivery strategy
@@ -36,12 +36,18 @@ the plan that executed it is `docs/superpowers/plans/2026-10-28-chart-studio-pla
 **R1 has landed** — the typed registry, the first-party candlestick chart, the project schema and
 migration, the storage port and its backends, and three adapted Remocn components. **R2 is half
 landed** — the persistence side is complete; the source-import side has not started. **R3 has not
-started**: there are no drawing objects, no keyframes and no chart viewport.
+started**: there are no drawing objects, no keyframes and no chart viewport. **R2.5 has not started
+either**: the chart element model, project schema version 2 and the datasource seam are recorded in
+[ADR-007](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) and the design spec, but nothing of them is
+in the tree yet. The numbers below are the delivery stages; where a stage has a sub-stage it keeps
+the same number with a fractional suffix, and the fractional suffix does not renumber the stages
+around it.
 
 **A numbering collision to be aware of.** `docs/architecture/UPSTREAM_AUDIT.md` uses R1 to R4 for the
 *implementation slices* that were taken (component system; shadcn and the editor shell; the cinema
 shell; the upstream catalogue on the record). This roadmap uses R1 to R8 for the *delivery stages*.
-Where both appear, this roadmap's numbers are authoritative for delivery stages.
+Where both appear, this roadmap's numbers are authoritative for delivery stages. R2.5 is a
+sub-stage of R2 and does not renumber any stage after it.
 
 ## 2. Delivery stages and gates
 
@@ -99,12 +105,63 @@ Where both appear, this roadmap's numbers are authoritative for delivery stages.
 **Demo:** import/construct, close browser, reopen, source unchanged after edit, no cloud.  
 **Gate R2:** roundtrip project and dataset survive reload; two-tab writers cannot silently corrupt or overwrite state.
 
+### R2.5 — Chart element model, project schema v2 and the datasource seam
+
+**Goal:** the object model a trading video needs before any tool is drawn — a chart that is a
+collection of elements, series that live at project level and are consumed by reference, an
+explicit market clock, and a component contract that can resolve a market anchor.  
+**Owners:** W2 with W3 and W1.  
+**Design:** [ADR-007 — Chart element model](../decisions/ADR-007-CHART-ELEMENT-MODEL.md),
+[the design spec](../superpowers/specs/2026-10-29-chart-studio-authored-path-and-chart-elements-design.md).  
+**Requirements:** MD-009, MD-010, AP-001–004, CH-009, CH-010, CH-011, TF-008, TF-009, OB-010, CV-001–004, TL-009, TL-010.  
+**Candidate files:** `packages/core/src/series.ts`, `src/path.ts`, `src/elements.ts`, `src/curve.ts`,
+`src/time.ts`, `packages/core/src/contract.ts`, `packages/components/src/project-migrate.ts`,
+`packages/components/src/trading/chart.tsx`, `packages/video/src/composition.tsx`,
+`apps/studio/src/components/PreviewPanel.tsx`.
+
+- [ ] Add the project-level series registry and the datasource seam: identity, origin, revision
+  hash, ascending bars, stable bar ids — with no importer, no file reading and no wizard.
+- [ ] Add the authored swing path and its deterministic generator; the close of each anchor bar
+  equals the placed price exactly, the anchor regime sets the character of the segment from that
+  anchor to the next, the drawn path is the skeleton rather than a corridor with the excursion
+  bounded by the configured volatility, the same path, seed, algorithm version and generator
+  settings always produce the same bars, and the generated series is scale-invariant.
+- [ ] Move `Project.schemaVersion` to 2 and migrate v1 documents non-destructively: the inline
+  chart bars become a series entry, the chart props become panes plus clock plus style, every bar
+  gains a deterministic id, and `durationMode: 'fixed'` keeps the saved length.
+- [ ] Add the `evaluate` step to the component contract and pass its result to the render adapter;
+  a definition without `evaluate` must behave exactly as it does today.
+- [ ] Add `transportActions` to the component contract and render the selected clip's actions in
+  the transport bar; no component name may be hardcoded in `apps/studio`.
+- [ ] Add the curve type and its pure evaluator, and extend the legacy effect easing control with
+  a custom cubic-bezier; no existing rendered frame may change.
+- [ ] Add the shared clock and its authored binding, and the derived-duration mode.
+- [ ] Declare the relation between panes in one of two kinds: one asset at two timeframes (rollup,
+  with the timeframe ratio derived from the two rungs of the fixed ladder) or two assets on one
+  timeframe moving together with the same number of candles (lockstep, authored and labelled as not
+  market time until an importer provides a real clock).
+- [ ] Offer the timeframes from a fixed ladder defined against the base rung, with a fractional
+  ratio shown as the fraction it is rather than rounded into a whole-number multiple.
+- [ ] Deliver the split layouts as a grouped chart of one to three chart objects, with the group
+  owning only the arrangement, the clock and the relations.
+- [ ] Register every new element type and name it in the library tab mapping, so a registered type
+  that no tab names does not disappear from the library.
+
+**Demo:** a chart clip with two panes on one series and one drawing anchored to a candle, edited
+and exported.  
+**Gate R2.5:** `pnpm typecheck` and `pnpm test` complete without error, `node scripts/verify-r1.mjs`
+renders its stills and MP4, and the migrated document renders the same candles in the same place
+as the v1 document it came from.
+
 ### R3 — Chart-object editing and core trading tools
 
 **Goal:** creator can make a polished manually authored or imported chart clip without video screenshots.  
 **Owners:** W1/W2/W3.  
-**Requirements:** CH-001/004/006–008, OB-001–009, SC-003, AN-001–006.  
+**Requirements:** CH-001/004/006–008, CH-009, OB-001–010, SC-003, AN-001–006, AP-001–004, CV-001–004.  
 **Candidate files:** `packages/components/src/trading/chart.tsx`, `src/trading/drawings/`, `packages/editor/src/commands/`, `apps/studio/src/components/Inspector.tsx`, `apps/studio/src/components/ToolRail.tsx`.
+
+R3 builds on the element model of R2.5: the drawing kinds listed below are clips anchored to a
+chart clip, and the chart's panes and drawings are individually controllable as R2.5 defines.
 
 - [ ] Implement chart viewport/pan/zoom with market-to-scene coordinates and drawing anchor transforms.
 - [ ] Create manual candle builder with precise numeric inspector and draggable wick/body handles.
@@ -206,12 +263,13 @@ Owner design approval
   └─ R0 spikes & licenses
       ├─ R1 single-chart Remotion video vertical slice
       └─ R2 SQLite/import foundation
-           └─ R3 drawing/object editing
-                └─ R4 independent charts + MTF
-                     └─ R5 assisted SMT
-                           └─ R6 nested video editor + media
-                                 └─ R7 portable+export
-                                      └─ R8 QA release gate
+           └─ R2.5 chart element model + schema v2 + datasource seam
+                └─ R3 drawing/object editing
+                     └─ R4 independent charts + MTF
+                          └─ R5 assisted SMT
+                                └─ R6 nested video editor + media
+                                      └─ R7 portable+export
+                                           └─ R8 QA release gate
 ```
 
 This is the integration order, not a rule against parallel work. Within R3, W2 can implement pure tool geometry while W1 builds inspector controls. Within R6, media preloading and scene strip can proceed in parallel once the inputProps/scene schema is frozen.
@@ -222,6 +280,7 @@ This is the integration order, not a rule against parallel work. Within R3, W2 c
 |---|---|---|
 | R1 | SVG chart renderer, Remotion composition proof, synthetic path unit tests | Common `OHLCBar`, `Frame`, `ChartObject`, `Eval` signatures |
 | R2 | DB worker/VFS spike, importer row validator, dashboard shell | Schema migration ID and repository RPC defined |
+| R2.5 | Series seam and path generator, curve evaluator, pane evaluation, transport bar rendering | `SeriesSpec`, `PaneSpec`, `Curve` and the `evaluate`/`transportActions` contract fields frozen |
 | R3 | Tool geometry, inspector widgets, selection overlay | Typed object union and transform/market anchor API |
 | R4 | MTF aggregation, layout presets, chart-to-time map | Source time/session conventions and frame evaluator |
 | R5 | SMT pivot ranking, inspector wizard, linked drawing layer | SMTObservation/SwingPair contract and as-of validation |

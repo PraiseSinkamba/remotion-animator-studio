@@ -79,6 +79,38 @@ What it does **not** cover, and what must not be claimed:
   comparison across a range of compositions.
 - No performance measurement. The budgets in section 8 have no baseline behind them.
 
+### 3.1 The new test surface: the chart element model
+
+The chart element model slice — the project-level series registry and the datasource seam
+(MD-009, MD-010), the authored swing path and its deterministic generator (AP-001–AP-004), the
+chart as a collection of elements (CH-009, OB-010), the declared pane relations (CH-010, TF-008), the
+curve vocabulary (CV-001–CV-004) and the
+`evaluate` and `transportActions` contract extensions (TL-010) — is **not yet covered**: none of it
+is implemented. Its design is
+[ADR-007](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) and
+[the design spec](../superpowers/specs/2026-10-29-chart-studio-authored-path-and-chart-elements-design.md);
+the assertion set it must satisfy is recorded here so the slice is written against it.
+
+| New surface | What the suite must assert | Requirement |
+|---|---|---|
+| Series registry and datasource seam | A materialised series carries identity, origin, revision hash, ascending bars and stable bar ids; the same spec always yields the same revision | MD-009, MD-010 |
+| Authored swing path | The close of each anchor bar equals the placed price exactly; the anchor regime determines the character of the segment from that anchor to the next, both under `auto` classification and under an explicit override; the same `(path, seed, algorithmVersion, generator settings)` always produces the same bars; the generated series is scale-invariant, so the same relative path produces the same relative output at a different price level; the drawn path is the skeleton, not a corridor, so the excursion beyond the drawn band is bounded relative to the configured volatility rather than zero; a moved anchor regenerates without a reload | AP-001, AP-002, AP-003 |
+| Provenance | An authored path stays distinguishable from synthetic and imported series in the editor and in export metadata | AP-004, QA-005 |
+| Schema version 2 migration | A v1 document migrates to a v2 document whose single pane renders the same candles in the same place; the migration stays non-destructive and idempotent; a higher version is still rejected | CPT-006 |
+| Pane evaluation | The pane's bars never contain an index beyond the as-of index; with an automatic price range a future bar never moves the axis; a partially aggregated bucket holds no value from a later constituent | CH-003, TF-003, TF-004 |
+| Anchors and drawings | A price-anchored drawing keeps its price when the chart is resized or moved; a drawing anchored to an unrevealed candle is hidden | OB-003, CPT-005 |
+| Clock and binding | One series at two timeframes aligns by construction; two different series align by an author-supplied offset and never by row index | CH-005 |
+| Pane relations | A rollup's timeframe ratio is derived from the two panes' aggregation factors, so the displayed ratio always agrees with the data; a rollup whose factors do not divide into a whole ratio is rejected, and the message names the pane to change; a lockstep pair advances together on the shared clock, with the same number of candles at every frame; a lockstep whose two panes disagree on the candle count or the aggregation factor is rejected; a cross-asset link is labelled as authored rather than market time in the editor and in the export metadata | CH-010, TF-008 |
+| Timeframe ladder | Every offered timeframe is a rung of the fixed ladder, and a pane's aggregation factor is derived from its rung and the base rather than typed in; a pane's buckets fall on the rung's base-unit boundaries, so a `6H` pane buckets on 360, 720, 1080 and so on; a rollup's ratio is derived from the two rungs and always agrees with the data; a fractional ratio is displayed as the fraction it is, so `4H` over `6H` reads 1.5 and not 2, and the two rungs stay comparable through the base; a timeframe that is not a ladder rung is rejected | TF-008, TF-009 |
+| Grouped chart | A group holds one to three chart objects, and a group with more is rejected; the group owns the arrangement, the clock and the relations, and takes no ownership of the charts' data, lifecycles or prices; each chart in a group keeps its own series, price scale, viewport and in/out frames | CH-010, CH-011 |
+| Curves | The same curve evaluated at the same frame produces the same value in preview and export; the legacy effect easing vocabulary keeps its current meaning, so no existing rendered frame changes | CV-001, CV-002, CV-003 |
+| Curve editor and transport actions | Every element, pane and effect that exposes a curve has one inspector control; a component's declared transport action is rendered and executed by the shell with no component name hardcoded in `apps/studio` | CV-004, TL-010 |
+| Duration | A derived duration equals the maximum of every clip's end and every chart element's out, and the fixed value is adjustable with the slider | TL-009 |
+
+The slice must also extend the render gate: `node scripts/verify-r1.mjs` builds its fixture with a
+chart that has panes, a drawing and a curve, and the slice reports the still sizes and the MP4
+outcome. The render gate is the only proof that the change reached the video path.
+
 ## 4. Critical unit assertions
 
 ### Candle integrity

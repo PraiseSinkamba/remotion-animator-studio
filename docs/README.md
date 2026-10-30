@@ -14,20 +14,25 @@ This documentation set began as an **expanded revision of the v1.1 brainstorming
 8. [`decisions/ADR-002-DEPENDENCY-ADOPTION.md`](decisions/ADR-002-DEPENDENCY-ADOPTION.md) — reusable packages, paid starter consideration, Next.js offline strategy.
 9. [`quality/TEST_STRATEGY.md`](quality/TEST_STRATEGY.md) — fixtures, acceptance suites, source-integrity and performance.
 10. [`reference/chart-studio-design-v1.1.md`](reference/chart-studio-design-v1.1.md) — unmodified original design snapshot.
+11. [`reference/data-generation/`](reference/data-generation/) — the authored reference implementation of the candle generator, with the interactive lab. The production port in `packages/core/src/path.ts` is proved bit-identical to it by a parity test.
 
 ## Implementation records
 
-11. [`decisions/ADR-004-STORAGE-PORT.md`](decisions/ADR-004-STORAGE-PORT.md) — why persistence sits behind one interface and what the SQLite backend costs.
-12. [`decisions/ADR-005-SHADCN-AND-TAILWIND.md`](decisions/ADR-005-SHADCN-AND-TAILWIND.md) — the editor control layer: Tailwind v4 and shadcn/ui, what they cost and how to leave them.
-13. [`superpowers/specs/2026-10-26-chart-studio-shadcn-design.md`](superpowers/specs/2026-10-26-chart-studio-shadcn-design.md) — the approved design for the shadcn adoption and the Remocn expansion.
-14. [`superpowers/plans/2026-10-26-chart-studio-shadcn.md`](superpowers/plans/2026-10-26-chart-studio-shadcn.md) — the implementation plan for that slice, task by task.
-15. [`superpowers/plans/2026-10-25-chart-studio-scaffold.md`](superpowers/plans/2026-10-25-chart-studio-scaffold.md) — the scaffold plan: the project document, the registry and the first components.
-16. [`superpowers/plans/2026-10-26-chart-studio-storage.md`](superpowers/plans/2026-10-26-chart-studio-storage.md) — the persistence plan: the storage port, the SQLite backend and the contract suite.
-17. [`superpowers/specs/2026-10-27-chart-studio-cinema-shell-design.md`](superpowers/specs/2026-10-27-chart-studio-cinema-shell-design.md) — the design for the cinema shell, the two modes and the repaired primitives.
-18. [`superpowers/plans/2026-10-27-chart-studio-cinema-shell.md`](superpowers/plans/2026-10-27-chart-studio-cinema-shell.md) — the implementation plan for that slice.
-19. [`superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md`](superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md) — the design for the pnpm workspace, the five packages and the three component families.
-20. [`superpowers/plans/2026-10-28-chart-studio-platform-restructure.md`](superpowers/plans/2026-10-28-chart-studio-platform-restructure.md) — the implementation plan for that restructure, task by task.
-21. [`decisions/ADR-006-SHELL-TECHNOLOGY.md`](decisions/ADR-006-SHELL-TECHNOLOGY.md) — the application shell stays a Vite SPA; Next.js is deferred, with the trigger to revisit.
+12. [`decisions/ADR-004-STORAGE-PORT.md`](decisions/ADR-004-STORAGE-PORT.md) — why persistence sits behind one interface and what the SQLite backend costs.
+13. [`decisions/ADR-005-SHADCN-AND-TAILWIND.md`](decisions/ADR-005-SHADCN-AND-TAILWIND.md) — the editor control layer: Tailwind v4 and shadcn/ui, what they cost and how to leave them.
+14. [`superpowers/specs/2026-10-26-chart-studio-shadcn-design.md`](superpowers/specs/2026-10-26-chart-studio-shadcn-design.md) — the approved design for the shadcn adoption and the Remocn expansion.
+15. [`superpowers/plans/2026-10-26-chart-studio-shadcn.md`](superpowers/plans/2026-10-26-chart-studio-shadcn.md) — the implementation plan for that slice, task by task.
+16. [`superpowers/plans/2026-10-25-chart-studio-scaffold.md`](superpowers/plans/2026-10-25-chart-studio-scaffold.md) — the scaffold plan: the project document, the registry and the first components.
+17. [`superpowers/plans/2026-10-26-chart-studio-storage.md`](superpowers/plans/2026-10-26-chart-studio-storage.md) — the persistence plan: the storage port, the SQLite backend and the contract suite.
+18. [`superpowers/specs/2026-10-27-chart-studio-cinema-shell-design.md`](superpowers/specs/2026-10-27-chart-studio-cinema-shell-design.md) — the design for the cinema shell, the two modes and the repaired primitives.
+19. [`superpowers/plans/2026-10-27-chart-studio-cinema-shell.md`](superpowers/plans/2026-10-27-chart-studio-cinema-shell.md) — the implementation plan for that slice.
+20. [`superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md`](superpowers/specs/2026-10-28-chart-studio-platform-and-catalogue-reorganisation-design.md) — the design for the pnpm workspace, the five packages and the three component families.
+21. [`superpowers/plans/2026-10-28-chart-studio-platform-restructure.md`](superpowers/plans/2026-10-28-chart-studio-platform-restructure.md) — the implementation plan for that restructure, task by task.
+22. [`decisions/ADR-006-SHELL-TECHNOLOGY.md`](decisions/ADR-006-SHELL-TECHNOLOGY.md) — the application shell stays a Vite SPA; Next.js is deferred, with the trigger to revisit.
+23. [`decisions/ADR-007-CHART-ELEMENT-MODEL.md`](decisions/ADR-007-CHART-ELEMENT-MODEL.md) — the chart element model, project schema version 2 and the datasource seam, with the three owner decisions and their alternatives.
+24. [`decisions/ADR-008-ZOD-DOMAIN-SCHEMAS.md`](decisions/ADR-008-ZOD-DOMAIN-SCHEMAS.md) — Zod for the domain schemas, and the dependency record that goes with it.
+25. [`superpowers/specs/2026-10-29-chart-studio-authored-path-and-chart-elements-design.md`](superpowers/specs/2026-10-29-chart-studio-authored-path-and-chart-elements-design.md) — the design for authored swing paths, chart elements and playback control.
+26. [`superpowers/plans/2026-10-29-chart-studio-authored-path-and-chart-elements.md`](superpowers/plans/2026-10-29-chart-studio-authored-path-and-chart-elements.md) — the implementation plan for that slice; it lands with the slice's execution, not with this document set.
 
 ## Records without a written plan
 
