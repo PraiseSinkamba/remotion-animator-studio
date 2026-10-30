@@ -117,6 +117,9 @@ const migrateV1ToV2 = (
                 startPrice: stamped[0]?.o ?? 1,
                 timeframeMs: 60_000,
               },
+              // The bars are the record: version 1 never stored the seed that
+              // produced them, so the recipe cannot make them again.
+              bars: stamped,
             }
           : {
               id: seriesId,

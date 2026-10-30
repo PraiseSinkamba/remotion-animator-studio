@@ -89,6 +89,15 @@ The composition calls `evaluate` once per clip per frame and passes its result t
 - `packages/core` still imports no React, Remotion, Zustand or storage code. `Project` is data.
 - A definition without `evaluate` behaves exactly as it does today.
 
+**The chart is the first user of the step.** It resolves its series from the project registry by
+id, materialises it, evaluates each pane against the chart clock, and returns the pane states and
+the series' provenance. The adapter then draws from those states rather than from inline bars. A
+chart whose project carries no matching series falls back to the inline bars, so a chart written
+before the registry still renders.
+
+Because the evaluation is pure and the composition runs it for the preview and the export alike,
+the same frame always evaluates to the same thing — whatever order the frames were visited in.
+
 ### Element-declared transport actions
 
 A component may declare extra playback controls:

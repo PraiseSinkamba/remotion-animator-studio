@@ -96,6 +96,15 @@ export type SeriesSpec =
         volatility?: number;
         drift?: number;
       };
+      /**
+       * The bars this series was created from.
+       *
+       * The generator is the recipe and the bars are the record. When the bars
+       * are present they are the authority: a project migrated from version 1
+       * keeps the bars it was showing, because the seed that produced them was
+       * never stored and the recipe cannot reproduce them.
+       */
+      bars?: OhlcBar[];
     }
   | {
       id: string;
@@ -134,15 +143,19 @@ export const materialiseSeries = (spec: SeriesSpec): Datasource => {
         return generated.bars;
       }
       case 'synthetic':
-        return generateSyntheticBars({
-          count: spec.generator.count,
-          startPrice: spec.generator.startPrice,
-          seed: spec.seed,
-          timeframeMs: spec.generator.timeframeMs,
-          volatility: spec.generator.volatility,
-          drift: spec.generator.drift,
-          idPrefix: spec.id,
-        });
+        // The bars are the record when they are present; the recipe is only
+        // used to make them again from scratch.
+        return spec.bars
+          ? [...spec.bars]
+          : generateSyntheticBars({
+              count: spec.generator.count,
+              startPrice: spec.generator.startPrice,
+              seed: spec.seed,
+              timeframeMs: spec.generator.timeframeMs,
+              volatility: spec.generator.volatility,
+              drift: spec.generator.drift,
+              idPrefix: spec.id,
+            });
       case 'manual':
       case 'imported':
         return [...spec.bars];
@@ -182,15 +195,19 @@ export const seriesRevision = (spec: SeriesSpec): string => {
         return generated.bars;
       }
       case 'synthetic':
-        return generateSyntheticBars({
-          count: spec.generator.count,
-          startPrice: spec.generator.startPrice,
-          seed: spec.seed,
-          timeframeMs: spec.generator.timeframeMs,
-          volatility: spec.generator.volatility,
-          drift: spec.generator.drift,
-          idPrefix: spec.id,
-        });
+        // The bars are the record when they are present; the recipe is only
+        // used to make them again from scratch.
+        return spec.bars
+          ? [...spec.bars]
+          : generateSyntheticBars({
+              count: spec.generator.count,
+              startPrice: spec.generator.startPrice,
+              seed: spec.seed,
+              timeframeMs: spec.generator.timeframeMs,
+              volatility: spec.generator.volatility,
+              drift: spec.generator.drift,
+              idPrefix: spec.id,
+            });
       case 'manual':
       case 'imported':
         return spec.bars;

@@ -3,6 +3,7 @@ import React from 'react';
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { computeEffectStyle, type ComputedStyle } from '@chart-studio/components';
 import { getComponent } from '@chart-studio/components';
+import { evaluateClip } from './evaluate';
 import type { Clip, Project } from '@chart-studio/core';
 
 /** Renders glitch slice copies on top of the content when the glitch gate is open. */
@@ -42,7 +43,7 @@ const GlitchLayers: React.FC<{
   );
 };
 
-const ClipRenderer: React.FC<{ clip: Clip }> = ({ clip }) => {
+const ClipRenderer: React.FC<{ clip: Clip; project: Project }> = ({ clip, project }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const fx = computeEffectStyle(frame, clip.durationInFrames, fps, clip.effects);
@@ -50,7 +51,15 @@ const ClipRenderer: React.FC<{ clip: Clip }> = ({ clip }) => {
   if (!definition) return null;
 
   const props = clip.props;
-  const content = React.createElement(definition.render, { clip, props, frame, fps });
+  // Inside the Sequence the frame is clip-relative; the evaluation wants the
+  // absolute scene frame.
+  const evaluated = evaluateClip(definition, {
+    clip,
+    props,
+    sceneFrame: clip.from + frame,
+    project,
+  });
+  const content = React.createElement(definition.render, { clip, props, frame, fps, evaluated });
 
   if (definition.renderMode === 'audio') {
     // Audio layers are not wrapped in the positioned box.
@@ -130,7 +139,7 @@ export const MainComposition: React.FC<{ project: Project }> = ({ project }) => 
             durationInFrames={Math.max(1, clip.durationInFrames)}
             layout="none"
           >
-            <ClipRenderer clip={clip} />
+            <ClipRenderer clip={clip} project={project} />
           </Sequence>
         )),
       )}

@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { Clip, ElementType, ParamDef } from './schemas';
+import type { Clip, ElementType, ParamDef, Project } from './schemas';
 
 /**
  * Every component's props are a plain, JSON-serialisable bag.
@@ -26,6 +26,44 @@ export interface ComponentRenderContext {
   frame: number;
   /** Project frame rate — constant for the whole composition. */
   fps: number;
+  /**
+   * The result of the component's own `evaluate` step for this frame, if it
+   * has one. `undefined` for every component that does not evaluate.
+   */
+  evaluated?: unknown;
+}
+
+/**
+ * An action a component offers on the transport bar.
+ *
+ * Declared by the component and executed by the shell, so the shell never
+ * names a component and a component never reaches into the editor.
+ */
+export interface TransportAction {
+  id: string;
+  /** The button's label. */
+  label: string;
+  /** An icon name the shell knows how to draw. */
+  icon: string;
+  /** 'seek' jumps the transport; 'toggle' flips a state the component owns. */
+  kind: 'seek' | 'toggle';
+  /**
+   * Absolute frame to seek to. `null` when the action does not apply at the
+   * current frame.
+   */
+  seekTo?: (input: { props: ComponentProps; sceneFrame: number }) => number | null;
+  /** Toggle target, resolved by the shell through the component's own props. */
+  toggle?: 'hold';
+}
+
+/** What a component's `evaluate` step receives. */
+export interface ComponentEvaluationInput {
+  clip: Clip;
+  props: ComponentProps;
+  /** The absolute scene frame. */
+  sceneFrame: number;
+  /** The project snapshot. */
+  project: Project;
 }
 
 /**
@@ -96,6 +134,23 @@ export interface VideoComponentDefinition {
    * not read editor state, the DOM or the clock.
    */
   render: React.FC<ComponentRenderContext>;
+  /**
+   * Optional pure evaluation step, run once per clip per frame before the
+   * render adapter.
+   *
+   * A market-anchored component cannot resolve its geometry from
+   * (clip, props, frame, fps) alone: it needs the project snapshot at the
+   * current frame. The step is pure — it reads no editor state, no DOM and
+   * no clock — so the preview and the export run the same evaluation and the
+   * same frame always evaluates to the same thing, whatever order the frames
+   * were visited in.
+   */
+  evaluate?: (input: ComponentEvaluationInput) => unknown;
+  /**
+   * Actions this component offers on the transport bar. Declared here and
+   * executed by the shell, so the shell never names a component.
+   */
+  transportActions?: TransportAction[];
   /** Optional custom inspector panel, rendered below the generated params. */
   inspector?: React.FC<ComponentInspectorContext>;
   /**

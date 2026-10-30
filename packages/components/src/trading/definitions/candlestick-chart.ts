@@ -10,14 +10,83 @@
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
 import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '@chart-studio/core';
-import { CandlestickChart, type CandlestickChartProps } from '../chart';
+import { CandlestickChart, type ChartEvaluation, type CandlestickChartProps } from '../chart';
 import { CandlestickChartInspector } from '../inspectors/candlestick-chart';
-import { barsToFrames, generateSyntheticBars } from '@chart-studio/core';
+import {
+  barsToFrames,
+  evaluateBarsAtFrame,
+  evaluatePaneAt,
+  generateSyntheticBars,
+  materialiseSeries,
+  type Project,
+  type SeriesSpec,
+} from '@chart-studio/core';
 
 const POSITION_PARAMS = [
   { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },
   { key: 'y', label: 'Y', kind: 'number' as const, min: -1000, max: 4000, step: 1 },
 ];
+
+/**
+ * Resolves the chart's series from the project registry and evaluates its
+ * panes for this frame.
+ *
+ * Pure: the same project and frame always give the same result, whatever
+ * order the frames were visited in.
+ */
+const evaluateChart = ({
+  clip,
+  props,
+  sceneFrame,
+  project,
+}: {
+  clip: { from: number };
+  props: ComponentProps;
+  sceneFrame: number;
+  project: Project;
+}): ChartEvaluation | undefined => {
+  const seriesId = typeof props.seriesId === 'string' ? props.seriesId : undefined;
+  const spec: SeriesSpec | undefined = project.series?.find((entry) => entry.id === seriesId);
+  if (!spec) return undefined;
+
+  const datasource = materialiseSeries(spec);
+  const clock = props.clock;
+  const panes = Array.isArray(props.panes) ? props.panes : [];
+  if (!clock || panes.length === 0) return undefined;
+
+  // The clock is in chart-local frames; the scene frame is absolute.
+  const chartLocalFrame = sceneFrame - clip.from;
+  const framesPerBar = Math.max(1, Math.floor(props.framesPerBar ?? 15));
+
+  const evaluatedPanes = panes.map((pane) => {
+    const state = evaluatePaneAt(pane, datasource, clock, chartLocalFrame);
+    const revealed = evaluateBarsAtFrame(
+      state.bars,
+      chartLocalFrame,
+      framesPerBar,
+      props.revealMode === 'simulated' ? 'simulated' : 'discrete',
+      props.simulationSeed ?? 'chart',
+    );
+    const factor = Math.max(1, Math.floor(pane.aggregation?.factor ?? 1));
+    return {
+      bars: revealed.bars,
+      totalBars: Math.ceil(datasource.bars.length / factor),
+      developing: state.developing,
+      rect: pane.rect ?? { x: 0, y: 0, width: 1, height: 1 },
+    };
+  });
+
+  return {
+    panes: evaluatedPanes,
+    provenance: {
+      origin: datasource.origin,
+      revision: datasource.revision,
+      label: datasource.label,
+      symbol: datasource.symbol,
+      timeframeId: datasource.timeframeId,
+    },
+  };
+};
 
 export const candlestickChartDefinition: VideoComponentDefinition = {
   type: 'candlestickChart',
@@ -70,7 +139,7 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
   ],
   // A clip may carry a partial props bag (an old file), so the defaults fill
   // the gaps before the adapter sees them.
-  render: ({ props, frame }) =>
+  render: ({ props, frame, evaluated }) =>
     createElement(CandlestickChart, {
       props: {
         ...candlestickChartDefinition.defaults,
@@ -78,8 +147,10 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
         bars: Array.isArray(props.bars) ? props.bars : candlestickChartDefinition.defaults.bars,
       } as CandlestickChartProps,
       frame,
+      evaluated,
     }),
   inspector: CandlestickChartInspector,
+  evaluate: evaluateChart,
   // The chart renders at its own width/height around its anchor.
   bounds: componentBounds,
   // A new chart is long enough to show its whole series.

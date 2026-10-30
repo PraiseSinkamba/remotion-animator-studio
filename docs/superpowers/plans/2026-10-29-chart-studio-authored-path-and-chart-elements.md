@@ -597,13 +597,13 @@ identically before and after the migration.
   - `packages/video/src/evaluate.ts` — `evaluateClip(definition, { clip, props, sceneFrame, project }): unknown` — pure; returns `undefined` for a definition without an `evaluate` step.
   - `packages/components/src/trading/definitions/candlestick-chart.ts` — the chart definition gains an `evaluate` that resolves its series from `project.series` and returns the pane frame states.
 
-- [ ] **Step 1: Extend the contract in `packages/core/src/contract.ts`**
+- [x] **Step 1: Extend the contract in `packages/core/src/contract.ts`**
 
 Add the two optional definition fields and the one optional context field exactly as spec §3.7 and §3.8 specify. `evaluate` is pure and receives no editor state, no DOM and no clock. `ComponentRenderContext` gains `evaluated?: unknown`.
 
 `transportActions` is declared here and executed by the shell in Task 10; in this slice it is a declaration only. `TransportAction.seekTo` returns an absolute frame or `null` when the action does not apply.
 
-- [ ] **Step 2: Write `packages/video/src/evaluate.ts`**
+- [x] **Step 2: Write `packages/video/src/evaluate.ts`**
 
 ```ts
 export const evaluateClip = (
@@ -614,7 +614,7 @@ export const evaluateClip = (
 
 Pure, no Remotion import, callable from a test without a Remotion context.
 
-- [ ] **Step 3: Wire the evaluation into the composition**
+- [x] **Step 3: Wire the evaluation into the composition**
 
 In `packages/video/src/composition.tsx`, `ClipRenderer` (`:45-119`) gains the project and the absolute scene frame. `useCurrentFrame()` inside the `<Sequence from={clip.from}>` (`:127-132`) is clip-relative; the absolute frame is `clip.from + frame`. The composition calls `evaluateClip` once per clip per frame and passes the result to the adapter:
 
@@ -625,7 +625,15 @@ const content = React.createElement(definition.render, { clip, props, frame, fps
 
 `MainComposition` (`:121-139`) threads the `project` prop down to `ClipRenderer`. A definition without `evaluate` behaves exactly as it does today — `evaluated` is `undefined` and nothing else changes.
 
-- [ ] **Step 4: Give the chart its `evaluate` step and switch the renderer to the pane state**
+**A migrated synthetic series carries the bars it was created from.** Version 1 stored the
+bars inline and never stored the seed that produced them, so the recipe in the generator cannot
+make them again — a migrated synthetic series would materialise to *different* bars and the chart
+would render something other than what the project showed. The synthetic origin therefore takes an
+optional `bars` field: the generator is the recipe, the bars are the record, and the bars win when
+they are present. A migrated chart keeps its own bars, its own origin and its own badge, so the
+render is unchanged — the stills and the video are byte-identical to the pre-migration render.
+
+- [x] **Step 4: Give the chart its `evaluate` step and switch the renderer to the pane state**
 
 In `packages/components/src/trading/definitions/candlestick-chart.ts`, the definition gains:
 
@@ -639,7 +647,7 @@ The chart renderer (`packages/components/src/trading/chart.tsx`) then draws from
 
 The `evaluate` step is the first use of the contract extension, so it also proves the extension works end to end: preview and export both go through `MainComposition`, so they run the same evaluation.
 
-- [ ] **Step 5: Write the failing tests**
+- [x] **Step 5: Write the failing tests**
 
 `packages/video/src/evaluate.test.ts` (new):
 
@@ -654,7 +662,7 @@ The `evaluate` step is the first use of the contract extension, so it also prove
 - "renders no future candle from the evaluated pane state" — fails before Step 4; passes after.
 - "labels the series origin from the evaluated provenance" — fails before Step 4; passes after.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 ```bash
 pnpm typecheck
@@ -665,7 +673,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 0, 45 and 179 and confirm they are unchanged against Task 1's migrated-document render. Any difference in a still is a migration regression (R7) and blocks the slice.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A

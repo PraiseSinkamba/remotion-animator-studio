@@ -10,7 +10,41 @@
  *   labelled in the rendered output.
  */
 import React from 'react';
-import { computePriceRange, evaluateBarsAtFrame, type OhlcBar } from '@chart-studio/core';
+import {
+  computePriceRange,
+  evaluateBarsAtFrame,
+  type ElementRect,
+  type OhlcBar,
+  type PartialBar,
+  type SeriesOrigin,
+} from '@chart-studio/core';
+
+/** What one pane of an evaluated chart holds. */
+export interface ChartPaneEvaluation {
+  /** The bars to draw; the active one is revealed part-way. */
+  bars: PartialBar[];
+  /**
+   * The authored bar count of the pane. The layout uses this, not the visible
+   * count, so revealing a bar never moves the others.
+   */
+  totalBars: number;
+  /** True when the active bar is a partially aggregated bucket. */
+  developing: boolean;
+  /** The pane's place in the chart box, in 0..1. */
+  rect: ElementRect;
+}
+
+/** The result of the chart's evaluation step. */
+export interface ChartEvaluation {
+  panes: ChartPaneEvaluation[];
+  provenance: {
+    origin: SeriesOrigin;
+    revision: string;
+    label: string;
+    symbol?: string;
+    timeframeId?: string;
+  };
+}
 
 export interface CandlestickChartProps {
   bars: OhlcBar[];
@@ -65,13 +99,21 @@ export interface ChartGeometry {
  * Layout of the plot area. Slot width is derived from the *authored* bar count:
  * bar positions are layout, not market data, so revealing a bar must not move
  * the others.
+ *
+ * The rect is the pane's place in the chart box, in 0..1. A pane covering the
+ * whole box — the default — lays out exactly as it always did.
  */
-export const chartGeometry = (props: CandlestickChartProps, barCount: number): ChartGeometry => {
+export const chartGeometry = (
+  props: CandlestickChartProps,
+  barCount: number,
+  rect?: ElementRect,
+): ChartGeometry => {
   const axis = props.showPriceAxis ? PRICE_AXIS_WIDTH : 0;
-  const plotLeft = CHART_PADDING;
-  const plotTop = CHART_TOP;
-  const plotWidth = Math.max(1, props.width - CHART_PADDING * 2 - axis);
-  const plotHeight = Math.max(1, props.height - CHART_TOP - CHART_BOTTOM);
+  const box = rect ?? { x: 0, y: 0, width: 1, height: 1 };
+  const plotLeft = box.x * props.width + CHART_PADDING;
+  const plotTop = box.y * props.height + CHART_TOP;
+  const plotWidth = Math.max(1, box.width * props.width - CHART_PADDING * 2 - axis);
+  const plotHeight = Math.max(1, box.height * props.height - CHART_TOP - CHART_BOTTOM);
   const slotWidth = barCount > 0 ? plotWidth / barCount : 0;
   return {
     plotLeft,
@@ -97,25 +139,50 @@ export const priceToY = (
   return geometry.plotBottom - ratio * geometry.plotHeight;
 };
 
-/** The provenance line: synthetic data and/or a simulated intrabar path. */
-export const provenanceLabel = (props: CandlestickChartProps): string =>
+/** What each origin is called in the badge. */
+const ORIGIN_LABELS: Record<SeriesOrigin, string> = {
+  'authored-path': 'AUTHORED PATH',
+  synthetic: 'SYNTHETIC DATA',
+  imported: 'IMPORTED',
+  manual: '',
+};
+
+/**
+ * The provenance line: where the data came from and whether the intrabar path
+ * is simulated.
+ *
+ * The origin label comes from the resolved series when the chart is driven by
+ * the project registry, and from the legacy prop when it is not.
+ */
+export const provenanceLabel = (
+  props: CandlestickChartProps,
+  origin?: SeriesOrigin,
+): string =>
   [
-    props.dataSource === 'synthetic' ? 'SYNTHETIC DATA' : null,
+    origin ? ORIGIN_LABELS[origin] : props.dataSource === 'synthetic' ? 'SYNTHETIC DATA' : null,
     props.revealMode === 'simulated' ? 'SIMULATED INTRABAR' : null,
   ]
     .filter(Boolean)
     .join(' · ');
 
 /**
- * Render the chart. `props` are the merged component props, `frame` is the
- * clip-relative frame.
+ * The panes a chart draws.
+ *
+ * When the chart is driven by the project registry the panes come from the
+ * evaluation. Otherwise the chart falls back to the inline bars, which keeps a
+ * chart that predates the registry rendering.
  */
-export const renderCandlestickChart = (
+const panesToDraw = (
   props: CandlestickChartProps,
   frame: number,
-): React.ReactElement => {
+  evaluated: unknown,
+): { panes: ChartPaneEvaluation[]; origin?: SeriesOrigin } => {
+  const evaluation = evaluated as ChartEvaluation | undefined;
+  if (evaluation && evaluation.panes.length > 0) {
+    return { panes: evaluation.panes, origin: evaluation.provenance.origin };
+  }
+
   const bars = Array.isArray(props.bars) ? props.bars : [];
-  const geometry = chartGeometry(props, bars.length);
   const state = evaluateBarsAtFrame(
     bars,
     frame,
@@ -123,8 +190,32 @@ export const renderCandlestickChart = (
     props.revealMode,
     props.simulationSeed,
   );
+  return {
+    panes: [
+      {
+        bars: state.bars,
+        totalBars: bars.length,
+        developing: false,
+        rect: { x: 0, y: 0, width: 1, height: 1 },
+      },
+    ],
+  };
+};
 
-  if (state.bars.length === 0) {
+/**
+ * Render the chart. `props` are the merged component props, `frame` is the
+ * clip-relative frame, and `evaluated` is the result of the chart's own
+ * evaluation step.
+ */
+export const renderCandlestickChart = (
+  props: CandlestickChartProps,
+  frame: number,
+  evaluated?: unknown,
+): React.ReactElement => {
+  const { panes, origin } = panesToDraw(props, frame, evaluated);
+  const drawn = panes.filter((pane) => pane.bars.length > 0);
+
+  if (drawn.length === 0) {
     return (
       <svg
         data-testid="candlestick-chart"
@@ -135,58 +226,104 @@ export const renderCandlestickChart = (
     );
   }
 
-  // The scale comes from the visible bars only — a future bar never moves it.
-  const visible = computePriceRange(
-    state.bars.map((bar) => ({ t: bar.bar.t, o: bar.o, h: bar.h, l: bar.l, c: bar.c })),
-  );
-  // A bar that has not moved yet (a simulated bar at progress 0) collapses the
-  // scale onto one price. Widen it symmetrically by a fixed fraction so the
-  // grid stays readable without borrowing a price from a future bar.
-  const range =
-    visible.max > visible.min
-      ? visible
-      : {
-          min: visible.min - Math.max(Math.abs(visible.min) * 0.005, 0.5),
-          max: visible.max + Math.max(Math.abs(visible.max) * 0.005, 0.5),
-        };
+  const paneElements = drawn.map((pane, paneIndex) => {
+    const geometry = chartGeometry(props, pane.totalBars, pane.rect);
 
-  const gridPrices: number[] = [];
-  for (let i = 0; i < GRID_LINES; i++) {
-    gridPrices.push(range.max - ((range.max - range.min) * i) / (GRID_LINES - 1));
-  }
+    // The scale comes from the visible bars only — a future bar never moves it.
+    const visible = computePriceRange(
+      pane.bars.map((bar) => ({ t: bar.bar.t, o: bar.o, h: bar.h, l: bar.l, c: bar.c })),
+    );
+    // A bar that has not moved yet (a simulated bar at progress 0) collapses
+    // the scale onto one price. Widen it symmetrically by a fixed fraction so
+    // the grid stays readable without borrowing a price from a future bar.
+    const range =
+      visible.max > visible.min
+        ? visible
+        : {
+            min: visible.min - Math.max(Math.abs(visible.min) * 0.005, 0.5),
+            max: visible.max + Math.max(Math.abs(visible.max) * 0.005, 0.5),
+          };
 
-  const candles = state.bars.map((bar, index) => {
-    const centre = geometry.plotLeft + (index + 0.5) * geometry.slotWidth;
-    const yHigh = priceToY(bar.h, range.min, range.max, geometry);
-    const yLow = priceToY(bar.l, range.min, range.max, geometry);
-    const yOpen = priceToY(bar.o, range.min, range.max, geometry);
-    const yClose = priceToY(bar.c, range.min, range.max, geometry);
-    const top = Math.min(yOpen, yClose);
-    const height = Math.max(1, Math.abs(yClose - yOpen));
+    const gridPrices: number[] = [];
+    for (let i = 0; i < GRID_LINES; i++) {
+      gridPrices.push(range.max - ((range.max - range.min) * i) / (GRID_LINES - 1));
+    }
+
+    const candles = pane.bars.map((bar, index) => {
+      const centre = geometry.plotLeft + (index + 0.5) * geometry.slotWidth;
+      const yHigh = priceToY(bar.h, range.min, range.max, geometry);
+      const yLow = priceToY(bar.l, range.min, range.max, geometry);
+      const yOpen = priceToY(bar.o, range.min, range.max, geometry);
+      const yClose = priceToY(bar.c, range.min, range.max, geometry);
+      const top = Math.min(yOpen, yClose);
+      const height = Math.max(1, Math.abs(yClose - yOpen));
+      return (
+        <g key={index} data-testid="candle" data-index={index}>
+          <line
+            data-testid="candle-wick"
+            x1={centre}
+            x2={centre}
+            y1={yHigh}
+            y2={yLow}
+            stroke={props.wickColor}
+            strokeWidth={1}
+          />
+          <rect
+            data-testid="candle-body"
+            x={centre - geometry.bodyWidth / 2}
+            y={top}
+            width={geometry.bodyWidth}
+            height={height}
+            fill={bar.c >= bar.o ? props.upColor : props.downColor}
+          />
+        </g>
+      );
+    });
+
     return (
-      <g key={index} data-testid="candle" data-index={index}>
-        <line
-          data-testid="candle-wick"
-          x1={centre}
-          x2={centre}
-          y1={yHigh}
-          y2={yLow}
-          stroke={props.wickColor}
-          strokeWidth={1}
-        />
-        <rect
-          data-testid="candle-body"
-          x={centre - geometry.bodyWidth / 2}
-          y={top}
-          width={geometry.bodyWidth}
-          height={height}
-          fill={bar.c >= bar.o ? props.upColor : props.downColor}
-        />
+      <g key={paneIndex} data-testid="chart-pane" data-pane={paneIndex}>
+        {props.showGrid
+          ? gridPrices.map((price, i) => {
+              const y = priceToY(price, range.min, range.max, geometry);
+              return (
+                <line
+                  key={i}
+                  data-testid="grid-line"
+                  x1={geometry.plotLeft}
+                  x2={geometry.plotRight}
+                  y1={y}
+                  y2={y}
+                  stroke={props.gridColor}
+                  strokeWidth={1}
+                />
+              );
+            })
+          : null}
+
+        {props.showPriceAxis
+          ? gridPrices.map((price, i) => {
+              const y = priceToY(price, range.min, range.max, geometry);
+              return (
+                <text
+                  key={i}
+                  data-testid="price-label"
+                  x={geometry.plotRight + 6}
+                  y={y + 4}
+                  fontSize={10}
+                  fill={MUTED}
+                >
+                  {price.toFixed(2)}
+                </text>
+              );
+            })
+          : null}
+
+        {candles}
       </g>
     );
   });
 
-  const provenance = provenanceLabel(props);
+  const provenance = provenanceLabel(props, origin);
 
   return (
     <svg
@@ -202,43 +339,7 @@ export const renderCandlestickChart = (
         </tspan>
       </text>
 
-      {props.showGrid
-        ? gridPrices.map((price, i) => {
-            const y = priceToY(price, range.min, range.max, geometry);
-            return (
-              <line
-                key={i}
-                data-testid="grid-line"
-                x1={geometry.plotLeft}
-                x2={geometry.plotRight}
-                y1={y}
-                y2={y}
-                stroke={props.gridColor}
-                strokeWidth={1}
-              />
-            );
-          })
-        : null}
-
-      {props.showPriceAxis
-        ? gridPrices.map((price, i) => {
-            const y = priceToY(price, range.min, range.max, geometry);
-            return (
-              <text
-                key={i}
-                data-testid="price-label"
-                x={geometry.plotRight + 6}
-                y={y + 4}
-                fontSize={10}
-                fill={MUTED}
-              >
-                {price.toFixed(2)}
-              </text>
-            );
-          })
-        : null}
-
-      {candles}
+      {paneElements}
 
       {props.showProvenanceBadge && provenance ? (
         <text
@@ -257,7 +358,8 @@ export const renderCandlestickChart = (
 };
 
 /** Component wrapper so the adapter can be used as a React element. */
-export const CandlestickChart: React.FC<{ props: CandlestickChartProps; frame: number }> = ({
-  props,
-  frame,
-}) => renderCandlestickChart(props, frame);
+export const CandlestickChart: React.FC<{
+  props: CandlestickChartProps;
+  frame: number;
+  evaluated?: unknown;
+}> = ({ props, frame, evaluated }) => renderCandlestickChart(props, frame, evaluated);

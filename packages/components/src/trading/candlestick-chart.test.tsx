@@ -483,3 +483,148 @@ describe('candlestick chart — inspector', () => {
     expect(patch.dataSource).toBe('synthetic');
   });
 });
+
+describe('the chart driven by the project registry', () => {
+  const SERIES_BARS: OhlcBar[] = [
+    { id: 'series-a:0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+    { id: 'series-a:1', t: 10_000, o: 105, h: 115, l: 101, c: 112 },
+    { id: 'series-a:2', t: 20_000, o: 112, h: 120, l: 108, c: 118 },
+    { id: 'series-a:3', t: 30_000, o: 118, h: 125, l: 114, c: 123 },
+  ];
+
+  const project = (): Project => ({
+    name: 'Project',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    durationInFrames: 300,
+    backgroundColor: '#000000',
+    schemaVersion: 2,
+    series: [
+      {
+        id: 'series-a',
+        origin: 'manual',
+        label: 'Series A',
+        timeBasis: 'logical',
+        bars: SERIES_BARS,
+      },
+    ],
+    tracks: [],
+  });
+
+  const chartProps = (): CandlestickChartProps =>
+    ({
+      ...BASE_PROPS,
+      bars: SERIES_BARS,
+      dataSource: 'manual',
+      revealMode: 'discrete',
+      framesPerBar: 10,
+      seriesId: 'series-a',
+      panes: [
+        {
+          id: 'pane-0',
+          seriesId: 'series-a',
+          aggregation: { factor: 1 },
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+          in: 0,
+          out: 300,
+          opacity: 1,
+          clock: { kind: 'reference' },
+          priceRange: { mode: 'auto' },
+        },
+      ],
+      clock: {
+        id: 'clock-0',
+        unit: 'logical',
+        referenceSeriesId: 'series-a',
+        stepBars: 1,
+        framesPerStep: 10,
+      },
+    }) as unknown as CandlestickChartProps;
+
+  const evaluate = (props: CandlestickChartProps, sceneFrame: number) =>
+    candlestickChartDefinition.evaluate?.({
+      clip: { from: 0, durationInFrames: 300 } as Clip,
+      props: props as unknown as Record<string, unknown>,
+      sceneFrame,
+      project: project(),
+    });
+
+  it('renders the same candles from the evaluated pane state as from the inline bars', () => {
+    const props = chartProps();
+    const evaluated = evaluate(props, 25);
+
+    const fromInline = render(
+      <CandlestickChart props={{ ...props, bars: SERIES_BARS }} frame={25} />,
+    ).container;
+    const fromEvaluated = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluated} />,
+    ).container;
+
+    expect(candles(fromEvaluated).length).toBe(candles(fromInline).length);
+    expect(
+      Array.from(candles(fromEvaluated)).map((n) => n.getAttribute('data-index')),
+    ).toEqual(Array.from(candles(fromInline)).map((n) => n.getAttribute('data-index')));
+  });
+
+  it('renders no future candle from the evaluated pane state', () => {
+    const props = chartProps();
+    const evaluated = evaluate(props, 12);
+
+    const container = render(
+      <CandlestickChart props={props} frame={12} evaluated={evaluated} />,
+    ).container;
+
+    // Twelve frames at ten frames per bar is the second bar.
+    expect(candles(container).length).toBe(2);
+  });
+
+  it('labels the series origin from the evaluated provenance', () => {
+    const props = chartProps();
+    const evaluated = evaluate(props, 25);
+
+    const container = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluated} />,
+    ).container;
+
+    // A manual series is not labelled as synthetic.
+    expect(container.querySelector('[data-testid="provenance"]')).toBeNull();
+  });
+
+  it('labels an authored path as an authored path', () => {
+    const authoredProject: Project = {
+      ...project(),
+      series: [
+        {
+          id: 'series-a',
+          origin: 'authored-path',
+          label: 'Authored',
+          timeBasis: 'logical',
+          seed: 'seed',
+          algorithmVersion: 1,
+          path: {
+            anchors: [
+              { id: 'a0', barIndex: 0, price: 100 },
+              { id: 'a1', barIndex: 3, price: 120 },
+            ],
+          },
+        },
+      ],
+    };
+    const props = chartProps();
+    const evaluated = candlestickChartDefinition.evaluate?.({
+      clip: { from: 0, durationInFrames: 300 } as Clip,
+      props: props as unknown as Record<string, unknown>,
+      sceneFrame: 25,
+      project: authoredProject,
+    });
+
+    const container = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluated} />,
+    ).container;
+
+    expect(container.querySelector('[data-testid="provenance"]')?.textContent).toContain(
+      'AUTHORED PATH',
+    );
+  });
+});
