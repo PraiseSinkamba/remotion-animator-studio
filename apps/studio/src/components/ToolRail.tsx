@@ -1,6 +1,6 @@
 import React from 'react';
 import { MousePointer2, PenTool, Spline, TrendingUp } from 'lucide-react';
-import { findClip, useStore } from '@chart-studio/editor';
+import { DRAWING_TOOLS, findClip, useStore } from '@chart-studio/editor';
 import { Button } from '@chart-studio/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@chart-studio/ui';
 
@@ -14,6 +14,7 @@ export const ToolRail: React.FC = () => {
   const selectedClipIds = useStore((s) => s.selectedClipIds);
   const drawingPath = useStore((s) => s.drawingPath);
   const swingPath = useStore((s) => s.swingPath);
+  const drawingTool = useStore((s) => s.drawingTool);
 
   const clip = findClip(project, selectedClipIds[0]);
   const motionPath = clip?.effects.find((fx) => fx.type === 'motionPath');
@@ -86,6 +87,27 @@ export const ToolRail: React.FC = () => {
           <TooltipContent side="right">Path</TooltipContent>
         </Tooltip>
       ) : null}
+
+      {isChart
+        ? DRAWING_TOOLS.map((tool) => (
+            <Tooltip key={tool.kind}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={tool.label}
+                  className={drawingTool === tool.kind ? 'bg-secondary text-secondary-foreground' : undefined}
+                  onClick={() => {
+                    useStore.getState().setDrawingTool(drawingTool === tool.kind ? null : tool.kind);
+                  }}
+                >
+                  <span className="text-sm leading-none">{tool.icon}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">{tool.label}</TooltipContent>
+            </Tooltip>
+          ))
+        : null}
     </div>
   );
 };

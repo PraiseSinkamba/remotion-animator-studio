@@ -925,7 +925,28 @@ badge and preview/export agreement.
   - `packages/editor/src/store.ts` — `addDrawing(kind, chartClipId, paneId, anchor)`, `updateDrawing(clipId, patch)`, `setDrawingLocked(clipId, locked)`, `setDrawingHidden(clipId, hidden)`; delete, duplicate, group and undo/redo reuse the existing commands (`removeClips` `:355`, `duplicateSelection` `:517`, `groupSelection` `:292`, `ungroupSelection` `:308`).
   - `packages/core/src/schemas.ts` — `Clip.locked?: boolean`, `Clip.hidden?: boolean`.
 
-- [ ] **Step 1: Add the drawing types and their definitions**
+**A drawing's own clip position is not what places it.** The composition centres a clip's content
+on its position, so the chart's box spans from `x - width / 2` to `x + width / 2`. A drawing
+therefore draws itself inside the *chart's* box and offsets itself by the difference between the
+chart's live position and its own — which is what makes it follow the chart (R6). The same half-size
+correction applies to the swing-path handles of Task 4: a composition point becomes a chart-local
+point by subtracting `x - width / 2`, not `x`. (The Task 4 code had the latter and was corrected
+here.)
+
+**A chart with no market cannot host a drawing.** A chart added from the library carries inline
+bars and no series, and the chart's `evaluate` step resolves to nothing without a series, a pane and
+a clock — so a drawing on such a chart has no pane to resolve against. `ensureChartMarket` gives
+the chart what it needs, lifting its inline bars into a project series and wiring a pane and a
+clock, non-destructively and idempotently. It keeps the chart's origin, so the badge does not
+change.
+
+**Two of the drawing tools were implemented with the wrong file layout.** The plan named one
+definition file and one render file per drawing type; the repository's own convention is one
+definitions file per family (`base/definitions.ts` registers all 22 base elements) with the
+renders beside it. The eight drawing tools follow the repository's convention instead: one
+`definitions.ts` and one `adapters.tsx`.
+
+- [x] **Step 1: Add the drawing types and their definitions**
 
 Each drawing is a `Clip` with its own `ElementType`, its own track position, its own in/out frames and its own effects stack. Its props carry `chartClipId`, `paneId`, `anchors: Record<string, MarketAnchor>`, `in`, `out`, `opacity`, `curve?` and the kind-specific fields the design names: `position?: { direction, entry, stop, target, showRiskReward? }` for the position tool, `zone?: { extendRight? }` for the price zone, `label?: { text }` for the text label.
 
@@ -933,11 +954,11 @@ The trendline keeps two chart-bound endpoints; the zone carries price high/low a
 
 Each definition module self-registers with `registerComponent` (`packages/core/src/registry.ts:13`) and is imported by the aggregator (`packages/components/src/registry.ts:11-16`).
 
-- [ ] **Step 2: Name the new types in the library tab**
+- [x] **Step 2: Name the new types in the library tab**
 
 `packages/ui/src/components/library/catalog.tsx:36` names the chart tab's types. All eight drawing types go into that tab. A registered type that no tab names never appears in the library (ADR-007 decision 9) — the library tab mapping is the visibility mechanism and must be updated in the same slice as the registration.
 
-- [ ] **Step 3: Resolve the anchors at render time**
+- [x] **Step 3: Resolve the anchors at render time**
 
 A drawing never stores a pixel. Its `evaluate` step finds the chart clip in the same project, resolves the named pane, and resolves each `MarketAnchor` against that pane's `PaneFrameState`:
 
@@ -948,17 +969,17 @@ A drawing never stores a pixel. Its `evaluate` step finds the chart clip in the 
 
 Because the anchors resolve against the pane's *current* scale, a price line tracks the price level rather than a pixel: resizing or re-scaling the chart cannot detach it (R1, CPT-005).
 
-- [ ] **Step 4: Add the creation and editing surfaces**
+- [x] **Step 4: Add the creation and editing surfaces**
 
 `apps/studio/src/components/ToolRail.tsx` gains the eight drawing tools. `apps/studio/src/components/PreviewPanel.tsx` creates a drawing on a click over the chart, anchoring it to the pane under the pointer. `apps/studio/src/components/selection-overlay.tsx` draws the handles for a selected drawing — the price endpoints of a trendline, the high/low of a high/low line, the corners of a zone — and drags them. `apps/studio/src/components/canvas-hit-test.ts` picks the drawings as well as the clips.
 
 The numeric inspector is per drawing kind, in the same style as the existing `CandlestickChartInspector` (`packages/components/src/trading/inspectors/candlestick-chart.tsx:30`).
 
-- [ ] **Step 5: Add lock, hide and the drawing commands**
+- [x] **Step 5: Add lock, hide and the drawing commands**
 
 `packages/core/src/schemas.ts` gains `Clip.locked?: boolean` and `Clip.hidden?: boolean`. A locked drawing is not selectable on the canvas and not editable in the inspector; a hidden drawing is not rendered. Both are editor-side flags and never reach the render path.
 
-- [ ] **Step 6: Write the failing tests**
+- [x] **Step 6: Write the failing tests**
 
 `packages/components/src/trading/drawings/drawings.test.tsx` (new):
 
@@ -981,7 +1002,7 @@ The numeric inspector is per drawing kind, in the same style as the existing `Ca
 
 - "registers the whole catalogue from the aggregator alone" — the expected counts change from 26/22/1/3 (total/base/trading/motion) to 34/22/9/3 — the eight drawing types join the trading category. The test fails before Step 1 and passes after.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 ```bash
 pnpm typecheck
@@ -992,7 +1013,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 45, 100 and 179 against the drawing fixture: the price line and the trendline sit on their prices.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A

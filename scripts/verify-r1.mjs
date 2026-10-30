@@ -20,7 +20,7 @@ import { authoredPathProject } from '../packages/video/remotion/authored-path-fi
 const OUT_DIR = path.resolve('out', 'verify');
 const AUTHORED_OUT_DIR = path.resolve('out', 'verify', 'authored');
 const STILL_FRAMES = [0, 20, 45, 100, 140, 179];
-const AUTHORED_STILL_FRAMES = [45, 100];
+const AUTHORED_STILL_FRAMES = [45, 100, 179];
 const FPS = 30;
 
 const bars = generateSyntheticBars({

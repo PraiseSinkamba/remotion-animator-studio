@@ -97,6 +97,10 @@ export interface Clip {
   groupId?: string;
   /** Props schema version of the component this clip was authored against. */
   propsVersion?: number;
+  /** Editor flag: a locked clip is not selectable on the canvas and not editable. */
+  locked?: boolean;
+  /** Editor flag: a hidden clip is not rendered. */
+  hidden?: boolean;
 }
 
 export interface Track {

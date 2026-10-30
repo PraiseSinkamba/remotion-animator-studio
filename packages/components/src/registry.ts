@@ -11,6 +11,7 @@
 import './base/definitions';
 // Trading components (Chart Studio first-party) register here:
 import './trading/definitions/candlestick-chart';
+import './trading/drawings/definitions';
 import './motion/definitions/marker-highlight';
 import './motion/definitions/soft-blur-in';
 import './motion/definitions/typewriter';

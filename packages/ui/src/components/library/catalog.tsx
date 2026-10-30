@@ -33,7 +33,21 @@ export const TABS: TabDef[] = [
       'nodeTrail',
     ],
   },
-  { id: 'chart', label: 'Chart', types: ['candlestickChart'] },
+  {
+    id: 'chart',
+    label: 'Chart',
+    types: [
+      'candlestickChart',
+      'priceLine',
+      'highLowLine',
+      'verticalLine',
+      'trendline',
+      'priceZone',
+      'textLabel',
+      'arrow',
+      'position',
+    ],
+  },
   {
     id: 'motion',
     label: 'Motion',

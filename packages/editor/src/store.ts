@@ -8,9 +8,19 @@ import {
   moveSwingAnchor,
   removeSwingAnchor,
   type AnchorRegime,
+  type DrawingKind,
+  type MarketAnchor,
   type SwingPath,
 } from '@chart-studio/core';
-import type { Clip, EffectType, ElementType, Project, SeriesSpec, Track } from '@chart-studio/core';
+import type {
+  Clip,
+  EffectType,
+  ElementType,
+  OhlcBar,
+  Project,
+  SeriesSpec,
+  Track,
+} from '@chart-studio/core';
 
 let idCounter = 0;
 export const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idCounter++}`;
@@ -113,6 +123,27 @@ interface EditorState {
   /** Closes the path session. */
   finishSwingPath: () => void;
 
+  /** The drawing tool the creator has armed, or null. */
+  drawingTool: DrawingKind | null;
+  setDrawingTool: (kind: DrawingKind | null) => void;
+  /**
+   * Gives a chart the market it needs to host drawings: a series, a pane and a
+   * clock. A chart added from the library carries inline bars and no series,
+   * and a drawing cannot resolve against a chart that has no evaluated pane.
+   */
+  ensureChartMarket: (clipId: string) => void;
+  /** Creates a drawing on a chart, anchored to one of its panes. */
+  addDrawing: (
+    kind: DrawingKind,
+    chartClipId: string,
+    paneId: string,
+    anchors: Record<string, MarketAnchor>,
+  ) => string;
+  /** Changes a drawing's props. The caller commits at the start of a gesture. */
+  updateDrawing: (clipId: string, patch: Record<string, any>) => void;
+  setDrawingLocked: (clipId: string, locked: boolean) => void;
+  setDrawingHidden: (clipId: string, hidden: boolean) => void;
+
   copySelection: () => void;
   /** Paste clipboard clips, re-timed so the earliest starts at `atFrame`. */
   paste: (atFrame: number) => void;
@@ -141,10 +172,25 @@ export const findClip = (project: Project, clipId: string | null | undefined): C
 const findTrackOf = (project: Project, clipId: string): Track | null =>
   project.tracks.find((t) => t.clips.some((c) => c.id === clipId)) ?? null;
 
+/**
+ * Copies a clip's props, deep enough that a drawing's anchors do not stay
+ * shared with the original. Two drawings that share an anchors object would
+ * edit each other.
+ */
+const copyClipProps = (props: Record<string, any>): Record<string, any> => {
+  const anchors = props.anchors;
+  if (!anchors || typeof anchors !== 'object') return { ...props };
+  const copiedAnchors: Record<string, any> = {};
+  for (const [key, anchor] of Object.entries(anchors as Record<string, any>)) {
+    copiedAnchors[key] = anchor && typeof anchor === 'object' ? { ...anchor } : anchor;
+  }
+  return { ...props, anchors: copiedAnchors };
+};
+
 const cloneClip = (clip: Clip): Clip => ({
   ...clip,
   id: uid('c'),
-  props: { ...clip.props },
+  props: copyClipProps(clip.props),
   effects: clip.effects.map((e) => ({ ...e, id: uid('e'), params: { ...e.params } })),
 });
 
@@ -179,6 +225,7 @@ export const useStore = create<EditorState>((set, get) => ({
   muted: false,
   drawingPath: null,
   swingPath: null,
+  drawingTool: null,
   pixelsPerFrame: 4,
   history: [],
   future: [],
@@ -677,13 +724,182 @@ export const useStore = create<EditorState>((set, get) => ({
 
   finishSwingPath: () => set({ swingPath: null }),
 
+  /* ---------------------------------------------------------------- */
+  /* the drawing tools                                                 */
+  /* ---------------------------------------------------------------- */
+
+  setDrawingTool: (kind) => set({ drawingTool: kind }),
+
+  ensureChartMarket: (clipId) => {
+    const s = get();
+    const clip = findClip(s.project, clipId);
+    if (!clip || clip.element !== 'candlestickChart') return;
+    // A chart that already resolves its panes needs nothing.
+    if (
+      typeof clip.props.seriesId === 'string' &&
+      Array.isArray(clip.props.panes) &&
+      clip.props.clock
+    ) {
+      return;
+    }
+
+    get().commit();
+    set((state) => {
+      const seriesId = `series-${clip.id}`;
+      const bars = Array.isArray(clip.props.bars) ? (clip.props.bars as OhlcBar[]) : [];
+      const stamped = bars.map((bar, index) => ({ ...bar, id: `${seriesId}:${index}` }));
+      const framesPerBar =
+        typeof clip.props.framesPerBar === 'number' ? clip.props.framesPerBar : 15;
+      const isSynthetic = clip.props.dataSource === 'synthetic';
+
+      const series: SeriesSpec = isSynthetic
+        ? {
+            id: seriesId,
+            origin: 'synthetic',
+            label: typeof clip.props.symbol === 'string' ? clip.props.symbol : 'Series',
+            symbol: typeof clip.props.symbol === 'string' ? clip.props.symbol : undefined,
+            timeBasis: 'logical',
+            seed: `${seriesId}-seed`,
+            algorithmVersion: 1,
+            generator: {
+              count: stamped.length,
+              startPrice: stamped[0]?.o ?? 1,
+              timeframeMs: 60_000,
+            },
+            // The bars are the record: the chart's own bars are what it was
+            // showing, and the recipe cannot make them again.
+            bars: stamped,
+          }
+        : {
+            id: seriesId,
+            origin: 'manual',
+            label: typeof clip.props.symbol === 'string' ? clip.props.symbol : 'Series',
+            symbol: typeof clip.props.symbol === 'string' ? clip.props.symbol : undefined,
+            timeBasis: 'logical',
+            bars: stamped,
+          };
+
+      return {
+        project: {
+          ...state.project,
+          series: [...(state.project.series ?? []), series],
+          tracks: state.project.tracks.map((t) => ({
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === clipId
+                ? {
+                    ...c,
+                    props: {
+                      ...c.props,
+                      seriesId,
+                      panes: [
+                        {
+                          id: `${c.id}-pane-0`,
+                          seriesId,
+                          aggregation: { factor: 1 },
+                          rect: { x: 0, y: 0, width: 1, height: 1 },
+                          in: 0,
+                          out: c.durationInFrames,
+                          opacity: 1,
+                          clock: { kind: 'reference' },
+                          priceRange: { mode: 'auto' },
+                        },
+                      ],
+                      clock: {
+                        id: `${c.id}-clock`,
+                        unit: 'logical',
+                        referenceSeriesId: seriesId,
+                        stepBars: 1,
+                        framesPerStep: framesPerBar,
+                      },
+                    },
+                  }
+                : c,
+            ),
+          })),
+        },
+      };
+    });
+  },
+
+  addDrawing: (kind, chartClipId, paneId, anchors) => {
+    const s = get();
+    const chart = findClip(s.project, chartClipId);
+    if (!chart) return '';
+    const track = findTrackOf(s.project, chartClipId);
+    if (!track) return '';
+
+    const definition = getComponent(kind as ElementType);
+    const defaults = definition?.defaults ?? {};
+    const id = uid('c');
+    const clip: Clip = {
+      id,
+      name: definition?.label ?? kind,
+      element: kind as ElementType,
+      from: chart.from,
+      durationInFrames: chart.durationInFrames,
+      props: {
+        ...defaults,
+        chartClipId,
+        paneId,
+        anchors,
+        in: 0,
+        out: chart.durationInFrames,
+        // The drawing draws inside the chart's box; these are only the
+        // fallback for the timeline and the selection box.
+        x: chart.props.x,
+        y: chart.props.y,
+        width: chart.props.width,
+        height: chart.props.height,
+      },
+      effects: [],
+      propsVersion: definition?.propsVersion ?? 1,
+    };
+
+    get().commit();
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((t) =>
+          t.id === track.id ? { ...t, clips: [...t.clips, clip] } : t,
+        ),
+      },
+      selectedClipIds: [id],
+    }));
+    return id;
+  },
+
+  updateDrawing: (clipId, patch) =>
+    set((s) => ({
+      project: mapClips(s.project, clipId, (c) => ({
+        ...c,
+        props: { ...c.props, ...patch },
+      })),
+    })),
+
+  setDrawingLocked: (clipId, locked) => {
+    get().commit();
+    set((s) => ({
+      project: mapClips(s.project, clipId, (c) => ({ ...c, locked })),
+    }));
+  },
+
+  setDrawingHidden: (clipId, hidden) => {
+    get().commit();
+    set((s) => ({
+      project: mapClips(s.project, clipId, (c) => ({ ...c, hidden })),
+    }));
+  },
+
   copySelection: () => {
     const s = get();
     const entries: ClipboardEntry[] = [];
     for (const id of s.selectedClipIds) {
       const clip = findClip(s.project, id);
       const track = findTrackOf(s.project, id);
-      if (clip && track) entries.push({ trackId: track.id, clip: { ...clip, props: { ...clip.props } } });
+      if (clip && track) {
+        entries.push({ trackId: track.id, clip: { ...clip, props: copyClipProps(clip.props) } });
+      }
     }
     if (entries.length > 0) set({ clipboard: entries });
   },

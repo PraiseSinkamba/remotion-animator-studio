@@ -1,7 +1,13 @@
 import { Player } from '@remotion/player';
 import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
-import { playerRef, seekTo, togglePlay } from '@chart-studio/editor';
+import {
+  buildDrawingAnchors,
+  DRAWING_TOOLS,
+  playerRef,
+  seekTo,
+  togglePlay,
+} from '@chart-studio/editor';
 import { MainComposition } from '@chart-studio/video';
 import { findClip, useStore } from '@chart-studio/editor';
 import {
@@ -13,7 +19,7 @@ import {
   type ChartEvaluation,
 } from '@chart-studio/components';
 import { strokeToAnchorPoints } from '@chart-studio/core';
-import type { ElementType, Project } from '@chart-studio/core';
+import type { ElementType, PaneSpec, Project } from '@chart-studio/core';
 import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit-test';
 import type { PickableClip } from './canvas-hit-test';
 import { SelectionOverlay } from './selection-overlay';
@@ -21,6 +27,30 @@ import { Button, ELEMENT_MIME, PRESET_MIME } from '@chart-studio/ui';
 
 /** How close the pointer must be to an anchor to pick it up, in chart pixels. */
 const ANCHOR_GRAB_RADIUS = 10;
+
+/**
+ * A composition point in the chart's own box coordinates.
+ *
+ * The composition centres a clip's content on its position — the chart's box
+ * spans from `x - width / 2` to `x + width / 2`. The chart's geometry works
+ * in its own 0..width coordinates, so the half-size has to come off.
+ */
+const chartLocalPoint = (
+  props: CandlestickChartProps,
+  point: { x: number; y: number },
+): { x: number; y: number } => ({
+  x: point.x - (Number(props.x ?? 0) - Number(props.width ?? 0) / 2),
+  y: point.y - (Number(props.y ?? 0) - Number(props.height ?? 0) / 2),
+});
+
+/** The composition position of a point in the chart's own box. */
+const chartCompositionPoint = (
+  props: CandlestickChartProps,
+  point: { x: number; y: number },
+): { x: number; y: number } => ({
+  x: Number(props.x ?? 0) - Number(props.width ?? 0) / 2 + point.x,
+  y: Number(props.y ?? 0) - Number(props.height ?? 0) / 2 + point.y,
+});
 
 /** Seconds label for the transport readout, e.g. "1.5s". */
 const secondsLabel = (frames: number, fps: number) => {
@@ -43,6 +73,8 @@ export const PreviewPanel: React.FC = () => {
   const drawingPath = useStore((s) => s.drawingPath);
   const swingPath = useStore((s) => s.swingPath);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  /** The clicks that place a drawing, until the tool has all it needs. */
+  const drawingPicks = useRef<Array<{ barIndex: number; price: number }>>([]);
   /** The gesture in progress while a swing path is being authored. */
   const swingDrag = useRef<
     | { mode: 'anchor'; anchorId: string }
@@ -161,10 +193,7 @@ export const PreviewPanel: React.FC = () => {
     if (!context) return null;
     const project = projectPoint(clientX, clientY);
     if (!project) return null;
-    const local = {
-      x: project.x - Number(context.props.x ?? 0),
-      y: project.y - Number(context.props.y ?? 0),
-    };
+    const local = chartLocalPoint(context.props, project);
     const anchor = chartPointToAnchor(context.props, context.pane, local);
     if (!anchor) return null;
     return { context, local, anchor };
@@ -190,6 +219,80 @@ export const PreviewPanel: React.FC = () => {
   };
 
   /**
+   * The chart a drawing would land on, and the pane it would use.
+   *
+   * The chart under the pointer is the one the drawing belongs to; its first
+   * pane is the one the anchors resolve against.
+   */
+  const drawingTarget = () => {
+    const state = useStore.getState();
+    const selected = findClip(state.project, state.selectedClipIds[0]);
+    if (selected && selected.element === 'candlestickChart') {
+      const definition = getComponent(selected.element);
+      const evaluated = definition?.evaluate?.({
+        clip: selected,
+        props: selected.props,
+        sceneFrame: state.currentFrame,
+        project: state.project,
+      }) as ChartEvaluation | undefined;
+      const pane = evaluated?.panes?.[0];
+      if (pane) {
+        return {
+          chart: selected,
+          paneId: String(selected.props.panes?.[0]?.id ?? `${selected.id}-pane-0`),
+          pane,
+          props: selected.props as unknown as CandlestickChartProps,
+        };
+      }
+    }
+    return null;
+  };
+
+  /**
+   * Places a drawing from a click.
+   *
+   * The click becomes a market anchor — a price and a bar — and the anchors
+   * accumulate until the tool has all the clicks it needs. A one-click tool
+   * creates its drawing at once.
+   */
+  const placeDrawing = (clientX: number, clientY: number) => {
+    const state = useStore.getState();
+    const tool = state.drawingTool;
+    if (!tool) return null;
+    const target = drawingTarget();
+    if (!target) return null;
+    const project = projectPoint(clientX, clientY);
+    if (!project) return null;
+
+    const local = chartLocalPoint(target.props, project);
+    const anchor = chartPointToAnchor(target.props, target.pane, local);
+    if (!anchor) return null;
+
+    const paneSpec = (target.chart.props.panes as PaneSpec[] | undefined)?.[0];
+    const picks = [...drawingPicks.current, { barIndex: anchor.barIndex, price: anchor.price }];
+    const toolSpec = DRAWING_TOOLS.find((entry) => entry.kind === tool);
+
+    if (picks.length < (toolSpec?.clicks ?? 1)) {
+      drawingPicks.current = picks;
+      return null;
+    }
+
+    const anchors = paneSpec
+      ? buildDrawingAnchors(tool, picks, paneSpec)
+      : buildDrawingAnchors(tool, picks, {
+          id: target.paneId,
+          seriesId: String(target.chart.props.seriesId ?? ''),
+          aggregation: { factor: 1 },
+        } as PaneSpec);
+
+    state.ensureChartMarket(target.chart.id);
+    const created = useStore.getState().addDrawing(tool, target.chart.id, target.paneId, anchors);
+    drawingPicks.current = [];
+    useStore.getState().setDrawingTool(null);
+    return created;
+  };
+
+  /**
    * Press an element on the canvas: it becomes the selection and the drag
    * handle. Pressing the background clears the selection and starts no drag,
    * so the canvas can never drag an element it was not pointed at.
@@ -198,6 +301,13 @@ export const PreviewPanel: React.FC = () => {
     if (e.button !== 0) return;
     const s = useStore.getState();
     if (s.drawingPath) return; // clicks belong to the path tool
+    if (s.drawingTool) {
+      // A drawing tool owns the canvas: a click places a market anchor.
+      const placement = placeDrawing(e.clientX, e.clientY);
+      if (!placement) return;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
     if (s.swingPath) {
       // The path session owns the canvas: a press on an anchor drags it, and
       // a press anywhere else starts a freehand stroke.
@@ -429,11 +539,8 @@ export const PreviewPanel: React.FC = () => {
     const props = clip.props as unknown as CandlestickChartProps;
     return series.path.anchors.map((anchor) => {
       const point = chartAnchorToPoint(props, pane, anchor);
-      return {
-        id: anchor.id,
-        x: Number(props.x ?? 0) + point.x,
-        y: Number(props.y ?? 0) + point.y,
-      };
+      const composed = chartCompositionPoint(props, point);
+      return { id: anchor.id, x: composed.x, y: composed.y };
     });
   };
 
