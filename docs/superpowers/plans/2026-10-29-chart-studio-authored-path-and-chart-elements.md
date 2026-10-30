@@ -37,14 +37,16 @@
 
 ## Open questions this plan proceeds on
 
-| # | Default implemented | If overridden |
-|---|---|---|
-| Q1 | The chart's single pane uses the full chart rect (0,0,1,1) and keeps today's inner geometry (`CHART_PADDING`, `CHART_TOP`, `CHART_BOTTOM`, `PRICE_AXIS_WIDTH` — `packages/components/src/trading/chart.tsx:37-47`) inside the pane. A v1 document therefore renders identically after migration. | If panes own their own padding model, Task 1 grows a geometry migration and the render-gate still comparison moves to Task 2. |
-| Q2 | Schema v2 keeps the legacy `bars` array on a migrated chart clip as an inert compatibility key; the renderer ignores it from Task 2 onward. | If v2 must be free of `bars`, Task 1 must introduce the render-to-project seam before the chart can render at all — that pulls Task 2's contract work forward and blocks the pilot. |
-| Q3 | `generateSeriesFromPath` lands with the data model in Task 1 (the seam needs it to materialise an `authored-path` series) and is pinned by the normative test suite in Task 3. | If the generator must arrive only with its test suite, `materialiseSeries` cannot accept an `authored-path` spec in Task 1 — the seam ships with one origin short. |
-| Q4 | The seeded PRNG and hash are **exported** from `packages/core/src/market.ts` (currently module-private at `:44-63`) and reused by `path.ts` and `series.ts`. No second implementation. | If they stay private, `path.ts` and the revision hash need their own copies — two sources of truth for determinism. |
-| Q5 | Duration is not engine-capped. 240 frames / 8 s is the seeded sample project's value (`packages/core/src/sample-project.ts:8`, `project.json:6`, `scripts/verify-r1.mjs:35`); the seconds field allows 1–3600 (`apps/studio/src/components/TopBar.tsx:404-414`); the migration accepts any positive `durationInFrames` (`packages/components/src/project-migrate.ts:100-101`). | Nothing to override. Stated because the brief asked; Task 10 changes the *mode*, not the ceiling. |
-| Q6 | The three owner decisions in ADR-007 stand as recorded: drawings are clips, the legacy effect easing vocabulary stays on Remotion's `Easing`, and the relation between panes is declared in one of two kinds — a rollup (one asset at two timeframes, exact by construction) or a lockstep (two assets on one timeframe moving together with the same number of candles). A cross-asset lockstep link is **authored** until an importer provides a real market clock, and is labelled as such (spec §10, decision 2). | Each is an owner decision with a recorded alternative in `docs/decisions/ADR-007-CHART-ELEMENT-MODEL.md` §"Owner decisions". |
+
+| #   | Default implemented                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | If overridden                                                                                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Q1  | The chart's single pane uses the full chart rect (0,0,1,1) and keeps today's inner geometry (`CHART_PADDING`, `CHART_TOP`, `CHART_BOTTOM`, `PRICE_AXIS_WIDTH` — `packages/components/src/trading/chart.tsx:37-47`) inside the pane. A v1 document therefore renders identically after migration.                                                                                                                                                                                                                      | If panes own their own padding model, Task 1 grows a geometry migration and the render-gate still comparison moves to Task 2.                                                       |
+| Q2  | Schema v2 keeps the legacy `bars` array on a migrated chart clip as an inert compatibility key; the renderer ignores it from Task 2 onward.                                                                                                                                                                                                                                                                                                                                                                           | If v2 must be free of `bars`, Task 1 must introduce the render-to-project seam before the chart can render at all — that pulls Task 2's contract work forward and blocks the pilot. |
+| Q3  | `generateSeriesFromPath` lands with the data model in Task 1 (the seam needs it to materialise an `authored-path` series) and is pinned by the normative test suite in Task 3.                                                                                                                                                                                                                                                                                                                                        | If the generator must arrive only with its test suite, `materialiseSeries` cannot accept an `authored-path` spec in Task 1 — the seam ships with one origin short.                  |
+| Q4  | The seeded PRNG and hash are **exported** from `packages/core/src/market.ts` (currently module-private at `:44-63`) and reused by `path.ts` and `series.ts`. No second implementation.                                                                                                                                                                                                                                                                                                                                | If they stay private, `path.ts` and the revision hash need their own copies — two sources of truth for determinism.                                                                 |
+| Q5  | Duration is not engine-capped. 240 frames / 8 s is the seeded sample project's value (`packages/core/src/sample-project.ts:8`, `project.json:6`, `scripts/verify-r1.mjs:35`); the seconds field allows 1–3600 (`apps/studio/src/components/TopBar.tsx:404-414`); the migration accepts any positive `durationInFrames` (`packages/components/src/project-migrate.ts:100-101`).                                                                                                                                        | Nothing to override. Stated because the brief asked; Task 10 changes the *mode*, not the ceiling.                                                                                   |
+| Q6  | The three owner decisions in ADR-007 stand as recorded: drawings are clips, the legacy effect easing vocabulary stays on Remotion's `Easing`, and the relation between panes is declared in one of two kinds — a rollup (one asset at two timeframes, exact by construction) or a lockstep (two assets on one timeframe moving together with the same number of candles). A cross-asset lockstep link is **authored** until an importer provides a real market clock, and is labelled as such (spec §10, decision 2). | Each is an owner decision with a recorded alternative in `docs/decisions/ADR-007-CHART-ELEMENT-MODEL.md` §"Owner decisions".                                                        |
+
 
 ---
 
@@ -104,19 +106,21 @@ S0 foundation ──► S1 evaluate contract ──► S2 path authoring ──�
 
 Precise unblocking rules:
 
-| Slice | Unblocks | Because |
-|---|---|---|
-| S0 | S1, S2, S5, S7, S9, S10 | The `series` registry, `Project.series`, `Project.durationMode`, `Curve`, `PaneSpec` and the v2 document are the substrate everything else reads. |
-| S1 | S3, S4, S5, S8, S9 | `evaluate` is how a drawing or a pane reaches the project snapshot at a frame; without it a market-anchored element cannot resolve. |
-| S2 | S3 | The pilot needs a deterministic generator to regenerate on anchor drag. |
-| S3 | S4 | The pilot proves the series registry, the revision hash and the provenance badge work under live editing; the drawing tools build on the same seam. |
-| S4 | S5, S8 | Drawings are clips anchored to a chart's pane; the pane model must exist before drawings can be resolved against more than one pane. |
-| S5 | S6, S7 | Holds and the camera zoom track are per-pane; per-candle curves are per-pane too. |
-| S6 | S7 | A held pane changes what "the frame state" means for a curve. |
-| S7 | S8, S10 | Transitions and the final inspector consume the curve vocabulary and its widget. |
-| S8 | S9 | The transport bar and the duration slider are chrome changes on top of a composition that already renders transitions. |
-| S9 | S10 | The final inspector and the export provenance report the duration mode and the transport actions. |
-| S10 | — | Final sweep. |
+
+| Slice | Unblocks                | Because                                                                                                                                             |
+| ----- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | S1, S2, S5, S7, S9, S10 | The `series` registry, `Project.series`, `Project.durationMode`, `Curve`, `PaneSpec` and the v2 document are the substrate everything else reads.   |
+| S1    | S3, S4, S5, S8, S9      | `evaluate` is how a drawing or a pane reaches the project snapshot at a frame; without it a market-anchored element cannot resolve.                 |
+| S2    | S3                      | The pilot needs a deterministic generator to regenerate on anchor drag.                                                                             |
+| S3    | S4                      | The pilot proves the series registry, the revision hash and the provenance badge work under live editing; the drawing tools build on the same seam. |
+| S4    | S5, S8                  | Drawings are clips anchored to a chart's pane; the pane model must exist before drawings can be resolved against more than one pane.                |
+| S5    | S6, S7                  | Holds and the camera zoom track are per-pane; per-candle curves are per-pane too.                                                                   |
+| S6    | S7                      | A held pane changes what "the frame state" means for a curve.                                                                                       |
+| S7    | S8, S10                 | Transitions and the final inspector consume the curve vocabulary and its widget.                                                                    |
+| S8    | S9                      | The transport bar and the duration slider are chrome changes on top of a composition that already renders transitions.                              |
+| S9    | S10                     | The final inspector and the export provenance report the duration mode and the transport actions.                                                   |
+| S10   | —                       | Final sweep.                                                                                                                                        |
+
 
 Slices that do not strictly depend on the previous one, and may run in parallel once their own precondition is met: S2 with S1 (both only need S0); S5's clock semantics with S4's drawing resolution (both need S1+S3). S7's per-candle curve work may start once S6 lands.
 
@@ -124,54 +128,58 @@ Slices that do not strictly depend on the previous one, and may run in parallel 
 
 ## File Structure
 
-| Path | Responsibility |
-|---|---|
-| `packages/core/src/series.ts` | `SeriesOrigin`, `SeriesSpec`, `Datasource`, `materialiseSeries`, `seriesRevision`, and the canonical `OhlcBar` (moved from `market.ts`, now carrying `id`). |
-| `packages/core/src/path.ts` | `SwingAnchor`, `SwingPath`, `generateSeriesFromPath` (the normative algorithm), and the pure authoring operations on a path. |
-| `packages/core/src/elements.ts` | `PaneSpec`, `PaneHold`, `ZoomTrack`, `MarketAnchor`, `DrawingKind`, `DrawingSpec`, `MarketClock`, `ClockBinding`, `ChartStyle`. |
-| `packages/core/src/curve.ts` | `CurvePreset`, `Curve`, `evaluateCurve` — one pure evaluator, no Remotion import. |
-| `packages/core/src/time.ts` | `PaneFrameState`, `evaluatePaneAt`, `evaluateClockAt` — the one function that produces a pane's frame state. |
-| `packages/core/src/validation.ts` | Zod-backed validators for the new shapes, exported as plain `{ok,value}` / `{ok,issues}` results. The only module in the workspace that names a Zod symbol. |
-| `packages/core/src/duration.ts` | `derivedDuration(project)` — the derived-duration calculation (Task 10). |
-| `packages/core/src/transition.ts` | `clampTransitionDuration` — the boundary clamp (Task 9). |
-| `packages/core/src/provenance.ts` | `buildProvenance(project)` — the export provenance record (Task 11). |
-| `packages/core/src/market.ts` | Unchanged maths, plus the exported `hashString` / `createRng` reused by the path generator and the revision hash. |
-| `packages/core/src/schemas.ts` | The document types: `Project.series`, `Project.durationMode`, the extended `ElementType` union, `Track.transitions`, `Clip.locked` / `Clip.hidden`. |
-| `packages/core/src/contract.ts` | The component contract: `evaluate`, `transportActions`, `TransportAction`, `ComponentRenderContext.evaluated`. |
-| `packages/components/src/trading/chart.tsx` | The chart renderer: panes, price range policy, provenance badges, per-candle growth curve. |
-| `packages/components/src/trading/drawings/` | The eight market-linked drawing adapters (Task 5). |
-| `packages/components/src/trading/definitions/` | One definition module per registered trading component; each self-registers. |
-| `packages/components/src/project-migrate.ts` | The v1 → v2 migration and `CURRENT_PROJECT_SCHEMA_VERSION`. |
-| `packages/components/src/base/effects.ts` | The effect catalogue and the extended easing vocabulary (Task 8). |
-| `packages/editor/src/store.ts` | The commands: series edits, swing-path authoring, drawing creation, holds, transitions, duration mode. |
-| `packages/ui/src/components/inspector/curve-editor.tsx` | The one curve widget, used by every surface that exposes a curve (Task 8). |
-| `apps/studio/src/components/ToolRail.tsx` | The tool rail: Select, Path, and the eight drawing tools. |
-| `apps/studio/src/components/PreviewPanel.tsx` | The canvas: pointer handling for tools, and the generic transport action bar. |
-| `apps/studio/src/components/TopBar.tsx` | The duration mode toggle and the draggable duration slider. |
-| `packages/video/src/evaluate.ts` | `evaluateClip` — the pure per-clip evaluation the composition calls. |
-| `packages/video/src/composition.tsx` | The composition: evaluation wiring, transitions, pane-aware rendering. |
-| `scripts/verify-r1.mjs` | The render gate. Its fixture grows a pane chart, a drawing, a curve and an authored-path series as the slices land. |
+
+| Path                                                    | Responsibility                                                                                                                                              |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/series.ts`                           | `SeriesOrigin`, `SeriesSpec`, `Datasource`, `materialiseSeries`, `seriesRevision`, and the canonical `OhlcBar` (moved from `market.ts`, now carrying `id`). |
+| `packages/core/src/path.ts`                             | `SwingAnchor`, `SwingPath`, `generateSeriesFromPath` (the normative algorithm), and the pure authoring operations on a path.                                |
+| `packages/core/src/elements.ts`                         | `PaneSpec`, `PaneHold`, `ZoomTrack`, `MarketAnchor`, `DrawingKind`, `DrawingSpec`, `MarketClock`, `ClockBinding`, `ChartStyle`.                             |
+| `packages/core/src/curve.ts`                            | `CurvePreset`, `Curve`, `evaluateCurve` — one pure evaluator, no Remotion import.                                                                           |
+| `packages/core/src/time.ts`                             | `PaneFrameState`, `evaluatePaneAt`, `evaluateClockAt` — the one function that produces a pane's frame state.                                                |
+| `packages/core/src/validation.ts`                       | Zod-backed validators for the new shapes, exported as plain `{ok,value}` / `{ok,issues}` results. The only module in the workspace that names a Zod symbol. |
+| `packages/core/src/duration.ts`                         | `derivedDuration(project)` — the derived-duration calculation (Task 10).                                                                                    |
+| `packages/core/src/transition.ts`                       | `clampTransitionDuration` — the boundary clamp (Task 9).                                                                                                    |
+| `packages/core/src/provenance.ts`                       | `buildProvenance(project)` — the export provenance record (Task 11).                                                                                        |
+| `packages/core/src/market.ts`                           | Unchanged maths, plus the exported `hashString` / `createRng` reused by the path generator and the revision hash.                                           |
+| `packages/core/src/schemas.ts`                          | The document types: `Project.series`, `Project.durationMode`, the extended `ElementType` union, `Track.transitions`, `Clip.locked` / `Clip.hidden`.         |
+| `packages/core/src/contract.ts`                         | The component contract: `evaluate`, `transportActions`, `TransportAction`, `ComponentRenderContext.evaluated`.                                              |
+| `packages/components/src/trading/chart.tsx`             | The chart renderer: panes, price range policy, provenance badges, per-candle growth curve.                                                                  |
+| `packages/components/src/trading/drawings/`             | The eight market-linked drawing adapters (Task 5).                                                                                                          |
+| `packages/components/src/trading/definitions/`          | One definition module per registered trading component; each self-registers.                                                                                |
+| `packages/components/src/project-migrate.ts`            | The v1 → v2 migration and `CURRENT_PROJECT_SCHEMA_VERSION`.                                                                                                 |
+| `packages/components/src/base/effects.ts`               | The effect catalogue and the extended easing vocabulary (Task 8).                                                                                           |
+| `packages/editor/src/store.ts`                          | The commands: series edits, swing-path authoring, drawing creation, holds, transitions, duration mode.                                                      |
+| `packages/ui/src/components/inspector/curve-editor.tsx` | The one curve widget, used by every surface that exposes a curve (Task 8).                                                                                  |
+| `apps/studio/src/components/ToolRail.tsx`               | The tool rail: Select, Path, and the eight drawing tools.                                                                                                   |
+| `apps/studio/src/components/PreviewPanel.tsx`           | The canvas: pointer handling for tools, and the generic transport action bar.                                                                               |
+| `apps/studio/src/components/TopBar.tsx`                 | The duration mode toggle and the draggable duration slider.                                                                                                 |
+| `packages/video/src/evaluate.ts`                        | `evaluateClip` — the pure per-clip evaluation the composition calls.                                                                                        |
+| `packages/video/src/composition.tsx`                    | The composition: evaluation wiring, transitions, pane-aware rendering.                                                                                      |
+| `scripts/verify-r1.mjs`                                 | The render gate. Its fixture grows a pane chart, a drawing, a curve and an authored-path series as the slices land.                                         |
+
 
 ---
 
 ## Risk table
 
-| # | Risk | Mitigating slice | Proving test |
-|---|---|---|---|
-| R1 | Anchor drift on resize — a price-anchored drawing detaches when the chart is resized or scaled. | S4 | `packages/components/src/trading/drawings/drawings.test.tsx` — "keeps a price line on its price when the chart rect changes". |
-| R2 | Price-scale behaviour while the visible range changes — an anchored line slides if resolved against a stale scale. | S0, S5 | `packages/core/src/time.test.ts` — "does not let a future bar move the price range"; the existing `packages/components/src/trading/candlestick-chart.test.tsx` — "never lets a future bar move the price scale" must keep its name and assertion. |
-| R3 | Curve edits changing rendered frames — a loose curve parameter can make preview and export diverge. | S8 | `packages/core/src/curve.test.ts` — "evaluates the same curve to the same value at the same t"; `packages/components/src/trading/candlestick-chart.test.tsx` — "renders a curve-driven frame the same way on a fresh render and on a seek". |
-| R4 | Cross-timeframe alignment without lookahead — a coarser pane leaking a future constituent into a partial bucket. | S6 | `packages/core/src/time.test.ts` — "aggregates only the constituents at or before the as-of index". |
-| R5 | Regenerated candles not deterministic — dragging an anchor reshuffling the series, or the same drag giving different bars. | S3 | `packages/core/src/path.test.ts` — "is deterministic for the same path, seed and algorithm version"; `packages/editor/src/store.test.ts` — "regenerates identical bars after the same anchor move". |
-| R6 | Drawing lifecycle versus chart lifecycle — a drawing's `[in,out)` is chart-relative and must move with its chart. | S5 | `packages/components/src/trading/drawings/drawings.test.tsx` — "moves a drawing with the chart clip it is anchored to". |
-| R7 | Migration changing saved projects — lifting inline bars into a series changing the rendered frame. | S1 | `packages/components/src/project-migrate.test.ts` — "lifts a v1 chart bar array into a project series"; `packages/components/src/trading/candlestick-chart.test.tsx` — "renders the migrated chart identically to the v1 chart". |
-| R8 | Bundling a second easing vocabulary — two meanings of "easeOut". | S8 | `packages/components/src/base/effects.test.ts` — "keeps the legacy easing names meaning what they meant". |
-| R9 | Scope creep into the importer — the datasource seam inviting "just add CSV". | S0, and every task | `packages/core/src/series.test.ts` — "materialises an imported series as stored" and no file-reading module exists in the workspace; the deferred list in this plan names the importer as a later slice. |
-| R10 | A degenerate anchor bar — pinning the placed price to the bar's extreme instead of its close collapses it to zero range. | S2 | `packages/core/src/path.test.ts` — "gives every bar a non-zero range, including at an anchor" and "closes every anchor bar at the placed price exactly". |
-| R11 | The path wandering off the drawing — the Brownian bridge is not clamped to the drawn band, so closes can overshoot their anchors. | S2 | `packages/core/src/path.test.ts` — "keeps the excursion beyond the drawn band bounded relative to the configured volatility". The bound is relative, not zero; the drawn path is the skeleton, not a corridor. |
-| R12 | A tick grid collapsing a bar to zero range — the rounded high and low can land on the same tick. | S2 | `packages/core/src/path.test.ts` — the tick-quantised parity case, plus "gives every bar a non-zero range" relaxed to `l <= h` when a tick size is configured. The tick grid is off by default. |
-| R13 | A cross-asset link that reads as market time — an authored link and a UTC link look identical in the picture. | S5 | `packages/components/src/trading/candlestick-chart.test.tsx` — "labels a cross-asset link as authored rather than market time". The claim lives in the label and the export metadata, never in the image. |
-| R14 | A rollup whose ratio does not divide — the two factors are authored independently, so the ratio can be fractional. | S5 | `packages/core/src/validation.test.ts` — "rejects a rollup whose factors do not divide", naming the pane that has to change. |
+
+| #   | Risk                                                                                                                              | Mitigating slice   | Proving test                                                                                                                                                                                                                                      |
+| --- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Anchor drift on resize — a price-anchored drawing detaches when the chart is resized or scaled.                                   | S4                 | `packages/components/src/trading/drawings/drawings.test.tsx` — "keeps a price line on its price when the chart rect changes".                                                                                                                     |
+| R2  | Price-scale behaviour while the visible range changes — an anchored line slides if resolved against a stale scale.                | S0, S5             | `packages/core/src/time.test.ts` — "does not let a future bar move the price range"; the existing `packages/components/src/trading/candlestick-chart.test.tsx` — "never lets a future bar move the price scale" must keep its name and assertion. |
+| R3  | Curve edits changing rendered frames — a loose curve parameter can make preview and export diverge.                               | S8                 | `packages/core/src/curve.test.ts` — "evaluates the same curve to the same value at the same t"; `packages/components/src/trading/candlestick-chart.test.tsx` — "renders a curve-driven frame the same way on a fresh render and on a seek".       |
+| R4  | Cross-timeframe alignment without lookahead — a coarser pane leaking a future constituent into a partial bucket.                  | S6                 | `packages/core/src/time.test.ts` — "aggregates only the constituents at or before the as-of index".                                                                                                                                               |
+| R5  | Regenerated candles not deterministic — dragging an anchor reshuffling the series, or the same drag giving different bars.        | S3                 | `packages/core/src/path.test.ts` — "is deterministic for the same path, seed and algorithm version"; `packages/editor/src/store.test.ts` — "regenerates identical bars after the same anchor move".                                               |
+| R6  | Drawing lifecycle versus chart lifecycle — a drawing's `[in,out)` is chart-relative and must move with its chart.                 | S5                 | `packages/components/src/trading/drawings/drawings.test.tsx` — "moves a drawing with the chart clip it is anchored to".                                                                                                                           |
+| R7  | Migration changing saved projects — lifting inline bars into a series changing the rendered frame.                                | S1                 | `packages/components/src/project-migrate.test.ts` — "lifts a v1 chart bar array into a project series"; `packages/components/src/trading/candlestick-chart.test.tsx` — "renders the migrated chart identically to the v1 chart".                  |
+| R8  | Bundling a second easing vocabulary — two meanings of "easeOut".                                                                  | S8                 | `packages/components/src/base/effects.test.ts` — "keeps the legacy easing names meaning what they meant".                                                                                                                                         |
+| R9  | Scope creep into the importer — the datasource seam inviting "just add CSV".                                                      | S0, and every task | `packages/core/src/series.test.ts` — "materialises an imported series as stored" and no file-reading module exists in the workspace; the deferred list in this plan names the importer as a later slice.                                          |
+| R10 | A degenerate anchor bar — pinning the placed price to the bar's extreme instead of its close collapses it to zero range.          | S2                 | `packages/core/src/path.test.ts` — "gives every bar a non-zero range, including at an anchor" and "closes every anchor bar at the placed price exactly".                                                                                          |
+| R11 | The path wandering off the drawing — the Brownian bridge is not clamped to the drawn band, so closes can overshoot their anchors. | S2                 | `packages/core/src/path.test.ts` — "keeps the excursion beyond the drawn band bounded relative to the configured volatility". The bound is relative, not zero; the drawn path is the skeleton, not a corridor.                                    |
+| R12 | A tick grid collapsing a bar to zero range — the rounded high and low can land on the same tick.                                  | S2                 | `packages/core/src/path.test.ts` — the tick-quantised parity case, plus "gives every bar a non-zero range" relaxed to `l <= h` when a tick size is configured. The tick grid is off by default.                                                   |
+| R13 | A cross-asset link that reads as market time — an authored link and a UTC link look identical in the picture.                     | S5                 | `packages/components/src/trading/candlestick-chart.test.tsx` — "labels a cross-asset link as authored rather than market time". The claim lives in the label and the export metadata, never in the image.                                         |
+| R14 | A rollup whose ratio does not divide — the two factors are authored independently, so the ratio can be fractional.                | S5                 | `packages/core/src/validation.test.ts` — "rejects a rollup whose factors do not divide", naming the pane that has to change.                                                                                                                      |
+
 
 ---
 
@@ -207,19 +215,21 @@ node scripts/verify-r1.mjs   # real Remotion render: PNG stills AND an MP4
 
 Per-slice render-gate fixture growth (each slice names the frames it asserts in its own steps):
 
-| Slice | Fixture addition | Frames asserted |
-|---|---|---|
-| S0 | Migrated v1 chart document (inline bars lifted into a series). | 0, 45, 179 — the same candles in the same place as the pre-migration render. |
-| S1 | Same chart, now driven by the evaluated pane state. | 0, 45, 179 — identical stills to S0. |
-| S2 | An `authored-path` series with three anchors. | 45, 100 — each anchor bar closes at the placed price. |
-| S3 | The pilot chart: authored path, `AUTHORED PATH` badge. | 0, 45, 140, 179 — badge present, candles follow the path. |
-| S4 | A price line and a trendline anchored to the chart. | 45, 100, 179 — the line stays on its price. |
-| S5 | A rollup pair on one series (fine and coarse) plus a lockstep pair across two series. | 45, 140 — the rollup's coarse pane aggregates the same source as-of; the lockstep pair shows the same number of candles at the same instant, and the "authored link" label is in the metadata, not the picture. |
-| S6 | A pane with a hold and a camera zoom segment. | 45, 100, 140 — the held candle does not advance. |
-| S7 | A curve-driven pane growth. | 45, 100 — the same curve shape as S6's uncurved baseline. |
-| S8 | A crossfade between two clips. | 45, 100 — the transition boundary renders. |
-| S9 | A duration-mode project and a declared transport action. | 0, 179 — the derived length matches the fixture. |
-| S10 | The final fixture: panes, drawing, curve, authored path, transition. | 0, 20, 45, 100, 140, 179 — all six stills plus the MP4. |
+
+| Slice | Fixture addition                                                                      | Frames asserted                                                                                                                                                                                                 |
+| ----- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S0    | Migrated v1 chart document (inline bars lifted into a series).                        | 0, 45, 179 — the same candles in the same place as the pre-migration render.                                                                                                                                    |
+| S1    | Same chart, now driven by the evaluated pane state.                                   | 0, 45, 179 — identical stills to S0.                                                                                                                                                                            |
+| S2    | An `authored-path` series with three anchors.                                         | 45, 100 — each anchor bar closes at the placed price.                                                                                                                                                           |
+| S3    | The pilot chart: authored path, `AUTHORED PATH` badge.                                | 0, 45, 140, 179 — badge present, candles follow the path.                                                                                                                                                       |
+| S4    | A price line and a trendline anchored to the chart.                                   | 45, 100, 179 — the line stays on its price.                                                                                                                                                                     |
+| S5    | A rollup pair on one series (fine and coarse) plus a lockstep pair across two series. | 45, 140 — the rollup's coarse pane aggregates the same source as-of; the lockstep pair shows the same number of candles at the same instant, and the "authored link" label is in the metadata, not the picture. |
+| S6    | A pane with a hold and a camera zoom segment.                                         | 45, 100, 140 — the held candle does not advance.                                                                                                                                                                |
+| S7    | A curve-driven pane growth.                                                           | 45, 100 — the same curve shape as S6's uncurved baseline.                                                                                                                                                       |
+| S8    | A crossfade between two clips.                                                        | 45, 100 — the transition boundary renders.                                                                                                                                                                      |
+| S9    | A duration-mode project and a declared transport action.                              | 0, 179 — the derived length matches the fixture.                                                                                                                                                                |
+| S10   | The final fixture: panes, drawing, curve, authored path, transition.                  | 0, 20, 45, 100, 140, 179 — all six stills plus the MP4.                                                                                                                                                         |
+
 
 For every user-interface change the executor exercises the actual surface in a browser and reports what was observed. Anything not exercised is reported as unverified. There is no substitute for the render gate.
 
@@ -230,6 +240,7 @@ For every user-interface change the executor exercises the actual surface in a b
 **Requirements:** MD-009, MD-010, CH-009, OB-010, CV-001, CV-003, AP-002, CPT-006
 
 **Files:**
+
 - Create: `packages/core/src/series.ts`, `packages/core/src/path.ts`, `packages/core/src/elements.ts`, `packages/core/src/curve.ts`, `packages/core/src/time.ts`, `packages/core/src/validation.ts`
 - Create: `packages/core/src/series.test.ts`, `packages/core/src/path.test.ts`, `packages/core/src/curve.test.ts`, `packages/core/src/time.test.ts`, `packages/core/src/validation.test.ts`
 - Modify: `packages/core/src/schemas.ts` (add `Project.series`, `Project.durationMode`; extend the `ElementType` union with the eight drawing types), `packages/core/src/market.ts` (move `OhlcBar` out, export `hashString` and `createRng`), `packages/core/src/index.ts` (export the new modules), `packages/core/package.json` (add `zod@4.5.4` exactly)
@@ -237,6 +248,7 @@ For every user-interface change the executor exercises the actual surface in a b
 - Modify: `pnpm-lock.yaml` (the `packages/core` importer entry for `zod`)
 
 **Interfaces:**
+
 - Consumes: the existing `Project`, `Clip`, `Track` and `ElementType` unions (`packages/core/src/schemas.ts:1-118`); `generateSyntheticBars` (`packages/core/src/market.ts:72-101`).
 - Produces:
   - `packages/core/src/series.ts` — `SeriesOrigin = 'authored-path' | 'manual' | 'synthetic' | 'imported'`; `SeriesSpec` (discriminated by `origin`); `Datasource` (`id`, `origin`, `revision`, `label`, `symbol?`, `timeframeId?`, `timeBasis: 'logical' | 'utc'`, `bars: readonly OhlcBar[]`); `materialiseSeries(spec): Datasource` (pure); `seriesRevision(spec): string` (pure content hash); and the canonical `OhlcBar` with a required `id`.
@@ -278,7 +290,7 @@ export const generateSyntheticBars = (options: {
 }): OhlcBar[]
 ```
 
-`id` becomes `` `${idPrefix ?? 'bar'}:${i}` ``. Existing callers (`packages/components/src/trading/definitions/candlestick-chart.ts:30`, `packages/components/src/trading/inspectors/candlestick-chart.tsx:76`, `scripts/verify-r1.mjs:23`, `packages/core/src/market.test.ts`) keep working — they gain an `id` field they did not have to supply.
+`id` becomes ``${idPrefix ?? 'bar'}:${i}``. Existing callers (`packages/components/src/trading/definitions/candlestick-chart.ts:30`, `packages/components/src/trading/inspectors/candlestick-chart.tsx:76`, `scripts/verify-r1.mjs:23`, `packages/core/src/market.test.ts`) keep working — they gain an `id` field they did not have to supply.
 
 Also change `hashString` (`:44-51`) and `createRng` (`:54-63`) from module-private `const` to `export const`. **Decision, per Q4: export and reuse, do not duplicate.** One FNV-1a hash and one mulberry32 in the package means one definition of "deterministic" and one place to change it; a copy in `path.ts` would be a second source of truth for a correctness-critical helper. Exit strategy: removing the export is a deletion.
 
@@ -324,7 +336,7 @@ export const seriesRevision = (spec: SeriesSpec): string;
 - `synthetic` → `generateSyntheticBars` with the stored seed and generator options.
 - `imported` → the stored bars, untouched.
 
-`materialiseSeries` re-stamps every bar's id to `` `${spec.id}:${index}` `` (spec §3.3 step 7) and sorts by `t` ascending. `seriesRevision` hashes the materialised content with `hashString` and returns the hex digest — an edited anchor, an edited bar or a changed seed all produce a different revision.
+`materialiseSeries` re-stamps every bar's id to ``${spec.id}:${index}`` (spec §3.3 step 7) and sorts by `t` ascending. `seriesRevision` hashes the materialised content with `hashString` and returns the hex digest — an edited anchor, an edited bar or a changed seed all produce a different revision.
 
 - [x] **Step 4: Write `packages/core/src/path.ts` with the normative generator**
 
@@ -469,12 +481,14 @@ Extend the `ElementType` union at the end with the eight drawing types — `pric
 
 In `packages/components/src/project-migrate.ts`: `CURRENT_PROJECT_SCHEMA_VERSION` moves from `1` to `2` (`:21`). The v1 → v2 conversion, per spec §3.10:
 
-| v1 | v2 |
-|---|---|
+
+| v1                                 | v2                                                                                                                                           |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | chart clip `props.bars: OhlcBar[]` | a project-level `series` entry of origin `manual` (or `synthetic` when `props.dataSource === 'synthetic'`), plus the clip's `props.seriesId` |
-| chart clip flat props | chart props v2: `seriesId`, `panes: [one pane]`, `clock`, `style` |
-| `OhlcBar` without `id` | every bar carries a deterministic id, `` `${seriesId}:${index}` `` |
-| `Project.durationInFrames` | joined by `durationMode: 'fixed'` with the same value, so no saved project changes length |
+| chart clip flat props              | chart props v2: `seriesId`, `panes: [one pane]`, `clock`, `style`                                                                            |
+| `OhlcBar` without `id`             | every bar carries a deterministic id, ``${seriesId}:${index}``                                                                               |
+| `Project.durationInFrames`         | joined by `durationMode: 'fixed'` with the same value, so no saved project changes length                                                    |
+
 
 The single migrated pane gets `rect: { x: 0, y: 0, width: 1, height: 1 }` (per Q1), `aggregation: { factor: 1 }`, `priceRange: { mode: 'auto' }`, `clock: { kind: 'reference' }` and `in: 0`, `out` = the clip's duration. The legacy `bars` array stays on the migrated clip as an inert compatibility key (per Q2) and the chart renderer keeps reading it until Task 2.
 
@@ -483,6 +497,7 @@ The migration keeps its rejections unchanged: a higher `schemaVersion` (`:92-93`
 - [x] **Step 10: Write the failing tests, then the implementation**
 
 `packages/core/src/series.test.ts` (new):
+
 - "materialises a manual series into a datasource with stable bar ids" — fails before Step 3 (no `series.ts`); passes after.
 - "gives the same revision for the same spec" — fails before Step 3; passes after.
 - "changes the revision when a bar changes" — fails before Step 3; passes after.
@@ -491,6 +506,7 @@ The migration keeps its rejections unchanged: a higher `schemaVersion` (`:92-93`
 - "keeps the materialised bars ascending by time".
 
 `packages/core/src/path.test.ts` (new):
+
 - "places the exact anchor price on the anchor bar" — fails before Step 4; passes after.
 - "traces the drawn path between the anchors" — fails before Step 4; passes after.
 - "rejects a duplicate anchor index" and "rejects a non-finite anchor price" — fail before Step 4; pass after.
@@ -498,22 +514,26 @@ The migration keeps its rejections unchanged: a higher `schemaVersion` (`:92-93`
 - "is deterministic for the same path, seed and algorithm version" (AP-002) — fails before Step 4; passes after.
 
 `packages/core/src/curve.test.ts` (new):
+
 - "maps 0 to 0 and 1 to 1 for every preset" — fails before Step 5; passes after.
 - "solves a cubic bezier at its endpoints" — fails before Step 5; passes after.
 - "is monotonic for a linear bezier" — fails before Step 5; passes after.
 
 `packages/core/src/time.test.ts` (new):
+
 - "returns no bars before the first frame" — fails before Step 6; passes after.
 - "never returns a bar beyond the as-of index" — fails before Step 6; passes after.
 - "does not let a future bar move the price range" (R2) — fails before Step 6; passes after.
 - "aggregates only the constituents at or before the as-of index" (R4) — fails before Step 6; passes after.
 
 `packages/core/src/validation.test.ts` (new):
+
 - "accepts a valid v2 project document" — fails before Step 7; passes after.
 - "rejects a document with a non-positive fps" and "reports the path of the offending field" — fail before Step 7; pass after.
 - "keeps unknown keys on the project document" — fails before Step 7; passes after.
 
 `packages/components/src/project-migrate.test.ts` (modify — keep the existing eight test names and assertions):
+
 - "lifts a v1 chart bar array into a project series" — fails before Step 9; passes after.
 - "gives every migrated bar a deterministic id" — fails before Step 9; passes after.
 - "keeps the duration of a migrated document" — fails before Step 9; passes after.
@@ -521,6 +541,7 @@ The migration keeps its rejections unchanged: a higher `schemaVersion` (`:92-93`
 - "migrates a v1 chart document to a single pane covering the whole chart" — fails before Step 9; passes after.
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
+
 - "renders the migrated chart identically to the v1 chart" (R7) — fails before Step 9; passes after: render the v1 clip's props and the migrated clip's props at the same frame and compare the serialised SVG.
 
 - [x] **Step 11: Verify**
@@ -551,7 +572,7 @@ The migration is non-destructive and idempotent, lifts a v1 chart's inline
 bars into a series and keeps the document's length. The chart renders
 identically before and after the migration.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -561,6 +582,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** CPT-003, TL-010
 
 **Files:**
+
 - Create: `packages/video/src/evaluate.ts`, `packages/video/src/evaluate.test.ts`
 - Modify: `packages/core/src/contract.ts` (`evaluate`, `transportActions`, `TransportAction`, `ComponentRenderContext.evaluated`), `packages/core/src/index.ts`, `packages/video/src/composition.tsx`, `packages/video/src/index.ts`
 - Modify: `packages/components/src/trading/definitions/candlestick-chart.ts`, `packages/components/src/trading/chart.tsx`
@@ -568,6 +590,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `docs/spec/COMPONENT_CONTRACT.md` (§2, §3, §6)
 
 **Interfaces:**
+
 - Consumes: `Project`, `Clip` (`packages/core/src/schemas.ts`); `materialiseSeries` and `evaluatePaneAt` (`packages/core/src/series.ts`, `packages/core/src/time.ts`); `PaneSpec`, `MarketClock` (`packages/core/src/elements.ts`).
 - Produces:
   - `packages/core/src/contract.ts` — `VideoComponentDefinition.evaluate?: (input: { clip: Clip; props: ComponentProps; sceneFrame: number; project: Project }) => unknown`; `VideoComponentDefinition.transportActions?: TransportAction[]`; `TransportAction { id, label, icon, kind: 'seek' | 'toggle', seekTo?, toggle? }`; `ComponentRenderContext.evaluated?: unknown`.
@@ -619,12 +642,14 @@ The `evaluate` step is the first use of the contract extension, so it also prove
 - [ ] **Step 5: Write the failing tests**
 
 `packages/video/src/evaluate.test.ts` (new):
+
 - "runs the definition evaluate step once per clip" — fails before Step 2 (no module); passes after.
 - "returns undefined when the definition has no evaluate step" — fails before Step 2; passes after.
 - "passes the scene frame and the project snapshot to evaluate" — fails before Step 2; passes after.
 - "gives the same evaluated value for the same frame regardless of seek order" (QA-002) — fails before Step 2; passes after.
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify — keep every existing test name):
+
 - "renders the same candles from the evaluated pane state as from the inline bars" (R7) — fails before Step 4 (the renderer reads `props.bars` only); passes after.
 - "renders no future candle from the evaluated pane state" — fails before Step 4; passes after.
 - "labels the series origin from the evaluated provenance" — fails before Step 4; passes after.
@@ -656,7 +681,7 @@ The chart uses the step to resolve its series from the project registry and
 to render from the evaluated pane state, so the preview and the export run
 the same evaluation.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -666,11 +691,13 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** AP-001, AP-002, AP-004, MD-001, MD-002, AN-003
 
 **Files:**
+
 - Modify: `packages/core/src/path.ts` (the authoring operations), `packages/core/src/series.ts` (the `authored-path` origin's revision inputs)
 - Modify: `packages/core/src/path.test.ts`, `packages/core/src/series.test.ts`
 - Modify: `docs/spec/FUNCTIONAL_SPEC.md` (§2, `AP` block — the new IDs are already recorded; confirm the wording matches the implementation)
 
 **Interfaces:**
+
 - Consumes: `SwingPath`, `SwingAnchor` (`packages/core/src/path.ts`); `hashString`, `createRng` (`packages/core/src/market.ts`).
 - Produces:
   - `packages/core/src/path.ts` — `addSwingAnchor(path, anchor): SwingPath`, `moveSwingAnchor(path, anchorId, { barIndex?, price? }): SwingPath`, `removeSwingAnchor(path, anchorId): SwingPath`, `normalizeSwingPath(path): SwingPath` — pure, immutable, anchors ascending by `barIndex`, duplicate indices rejected.
@@ -685,6 +712,7 @@ All four operations are pure and return a new `SwingPath`. `addSwingAnchor` reje
 The generator landed in Task 1 (per Q3); this task is where the spec's normative algorithm is *proved*, test by test, and where the authoring model above is pinned.
 
 `packages/core/src/path.test.ts` (extend):
+
 - "reproduces the reference implementation bit for bit" — the parity test from Task 1's Step 4; keep it and add the flat-to-range, tick-quantised and retracement configurations. (This is the strongest guarantee in the file: any drift between the port and the reference fails here.)
 - "is deterministic for the same path, seed, algorithm version and generator settings" — exists from Task 1; keep.
 - "gives a different body for the same path under a different seed" — fails before Step 1 (no second seed comparison); passes after.
@@ -703,6 +731,7 @@ The generator landed in Task 1 (per Q3); this task is where the spec's normative
 - "maps a stroke's vertical extent onto the price range" — fails before Step 1; passes after.
 
 `packages/core/src/series.test.ts` (extend):
+
 - "changes the revision when an anchor moves" (R5) — fails before Step 2; passes after.
 - "keeps the revision when the same path is materialised twice" — fails before Step 2; passes after.
 
@@ -738,7 +767,7 @@ version and settings always produce the same bars.
 The seeded PRNG and the hash are exported from market.ts and reused here,
 so there is one definition of determinism in the package.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -748,6 +777,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** AP-001, AP-003, AP-004, EX-003, CPT-005, QA-002
 
 **Files:**
+
 - Modify: `packages/editor/src/store.ts` (the swing-path commands and the series commands), `packages/editor/src/store.test.ts`
 - Modify: `apps/studio/src/components/ToolRail.tsx` (the Path tool), `apps/studio/src/components/PreviewPanel.tsx` (anchor placement and drag on the canvas)
 - Modify: `packages/components/src/trading/chart.tsx` (the provenance badge), `packages/components/src/trading/definitions/candlestick-chart.ts` (the authored-path defaults)
@@ -755,6 +785,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `scripts/verify-r1.mjs` (the pilot fixture)
 
 **Interfaces:**
+
 - Consumes: `addSwingAnchor`, `moveSwingAnchor`, `removeSwingAnchor` (`packages/core/src/path.ts`); `materialiseSeries`, `seriesRevision` (`packages/core/src/series.ts`); the chart's `evaluate` step (`packages/components/src/trading/definitions/candlestick-chart.ts`).
 - Produces:
   - `packages/editor/src/store.ts` — `startSwingPath(clipId)`, `addSwingAnchor(clipId, { barIndex, price, regime? })`, `moveSwingAnchor(clipId, anchorId, patch)`, `removeSwingAnchor(clipId, anchorId)`, `finishSwingPath(clipId)`, `updateSeries(seriesId, patch)`; the store keeps `project.series` in the project snapshot, so every command participates in the existing whole-`Project` undo history (`commit` at `packages/editor/src/store.ts:228-232`, `undo` `:233-243`, `redo` `:244-255`).
@@ -793,6 +824,7 @@ The live regeneration works because the chart's `evaluate` materialises the seri
 - [ ] **Step 5: Write the failing tests**
 
 `packages/editor/src/store.test.ts` (modify — keep the two existing test names):
+
 - "adds a swing anchor to the chart's authored series" — fails before Step 1; passes after.
 - "regenerates the series when an anchor moves" — fails before Step 1; passes after.
 - "regenerates identical bars after the same anchor move" (R5) — fails before Step 1; passes after.
@@ -800,6 +832,7 @@ The live regeneration works because the chart's `evaluate` materialises the seri
 - "keeps the series seed across an anchor move" — fails before Step 1; passes after.
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
+
 - "labels an authored path series AUTHORED PATH" (AP-004) — fails before Step 4; passes after.
 - "keeps the badge when the reveal is simulated" — fails before Step 4; passes after.
 
@@ -833,7 +866,7 @@ This is the slice that exercises the whole chain end to end: the series
 registry, the revision hash, the evaluated pane state, the provenance
 badge and preview/export agreement.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -843,6 +876,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** OB-001, OB-003, OB-004, OB-005, OB-006, CH-007, CPT-005
 
 **Files:**
+
 - Create: `packages/components/src/trading/drawings/price-line.tsx`, `high-low-line.tsx`, `vertical-line.tsx`, `trendline.tsx`, `price-zone.tsx`, `text-label.tsx`, `arrow.tsx`, `position.tsx`
 - Create: `packages/components/src/trading/drawings/drawings.test.tsx`
 - Create: `packages/components/src/trading/definitions/price-line.ts`, `high-low-line.ts`, `vertical-line.ts`, `trendline.ts`, `price-zone.ts`, `text-label.ts`, `arrow.ts`, `position.ts`
@@ -853,6 +887,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `apps/studio/src/components/ToolRail.tsx` (the drawing tools), `apps/studio/src/components/PreviewPanel.tsx` (creation and selection), `apps/studio/src/components/selection-overlay.tsx` (the drawing handles), `apps/studio/src/components/canvas-hit-test.ts` (pick the drawings)
 
 **Interfaces:**
+
 - Consumes: `MarketAnchor`, `DrawingSpec`, `DrawingKind` (`packages/core/src/elements.ts`); `PaneFrameState` (`packages/core/src/time.ts`); the chart's `evaluate` step.
 - Produces:
   - Eight new `ElementType` members, each registered by its own definition module and each appearing in the chart library tab.
@@ -863,7 +898,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 Each drawing is a `Clip` with its own `ElementType`, its own track position, its own in/out frames and its own effects stack. Its props carry `chartClipId`, `paneId`, `anchors: Record<string, MarketAnchor>`, `in`, `out`, `opacity`, `curve?` and the kind-specific fields the design names: `position?: { direction, entry, stop, target, showRiskReward? }` for the position tool, `zone?: { extendRight? }` for the price zone, `label?: { text }` for the text label.
 
-The trendline keeps two chart-bound endpoints; the zone carries price high/low and a horizontal interval with extend-right; the position tool carries entry, stop, target, direction and an optional R:R label and asserts no broker fill and no P&L (OB-006).
+The trendline keeps two chart-bound endpoints; the zone carries price high/low and a horizontal interval with extend-right; the position tool carries entry, stop, target, direction and an optional R:R label and asserts no broker fill and no P&amp;L (OB-006).
 
 Each definition module self-registers with `registerComponent` (`packages/core/src/registry.ts:13`) and is imported by the aggregator (`packages/components/src/registry.ts:11-16`).
 
@@ -895,21 +930,24 @@ The numeric inspector is per drawing kind, in the same style as the existing `Ca
 - [ ] **Step 6: Write the failing tests**
 
 `packages/components/src/trading/drawings/drawings.test.tsx` (new):
+
 - "keeps a price line on its price when the chart rect changes" (R1) — fails before Step 3; passes after.
 - "moves a drawing with the chart clip it is anchored to" (R6) — fails before Step 3; passes after.
 - "hides a drawing anchored to a bar that has not been revealed" — fails before Step 3; passes after.
 - "keeps a zone's high and low on their prices" — fails before Step 3; passes after.
 - "draws a trendline between its two endpoints" — fails before Step 3; passes after.
-- "shows the position entry, stop and target and no P&L" (OB-006) — fails before Step 3; passes after.
+- "shows the position entry, stop and target and no P&amp;L" (OB-006) — fails before Step 3; passes after.
 - "renders a hidden drawing as nothing" — fails before Step 3; passes after.
 
 `packages/editor/src/store.test.ts` (modify):
+
 - "creates a price line as a clip anchored to a chart and a pane" — fails before Step 5; passes after.
 - "duplicates a drawing without sharing its anchors" — fails before Step 5; passes after.
 - "locks and hides a drawing" — fails before Step 5; passes after.
 - "undoes a drawing deletion" — fails before Step 5; passes after.
 
 `packages/components/src/registry.test.ts` (modify):
+
 - "registers the whole catalogue from the aggregator alone" — the expected counts change from 26/22/1/3 (total/base/trading/motion) to 34/22/9/3 — the eight drawing types join the trading category. The test fails before Step 1 and passes after.
 
 - [ ] **Step 7: Verify**
@@ -940,7 +978,7 @@ Each tool is created on the canvas, edited by handles and by a numeric
 inspector, and supports delete, duplicate, lock, group, hide and
 undo/redo.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -950,6 +988,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** CH-002, CH-003, CH-005, AN-007, TF-003, TF-005, CH-009, CH-010, CH-011, TF-008, TF-009
 
 **Files:**
+
 - Modify: `packages/core/src/time.ts` (the aggregation, the binding and the relation evaluation), `packages/core/src/time.test.ts`
 - Modify: `packages/core/src/elements.ts` (`TimeframeId`, `TIMEFRAME_BASE_UNITS`, `PaneRelation`, `ChartGroupSpec` and the clock fields)
 - Modify: `packages/core/src/validation.ts` (the ladder and relation rules), `packages/core/src/validation.test.ts`
@@ -959,6 +998,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/editor/src/presets.ts` (the grouped-chart layout presets)
 
 **Interfaces:**
+
 - Consumes: `PaneSpec`, `PaneRelation`, `TimeframeId`, `ChartGroupSpec`, `MarketClock`, `ClockBinding` (`packages/core/src/elements.ts`); `evaluatePaneAt` (`packages/core/src/time.ts`).
 - Produces:
   - `packages/core/src/elements.ts` — `TimeframeId` (the twelve ladder rungs), `TIMEFRAME_BASE_UNITS` (each rung's size in one-minute base units), `PaneRelation` (`{ kind: 'rollup'; finePaneId; coarsePaneId }` | `{ kind: 'lockstep'; paneIds; timeframeId }`), `ChartGroupSpec` (one to three chart clips, a layout, the shared clock and the relations), and `CandlestickChartProps.relations?: PaneRelation[]`.
@@ -1013,13 +1053,11 @@ does **not** claim a session count it cannot know.
 The chart props carry `relations?: PaneRelation[]`. A relation is **declared**, never inferred from two panes sharing a chart, because only a declared relation can be checked, labelled and exported (CH-010). There are exactly two kinds:
 
 - **`rollup`** — one asset at two timeframes. Both panes read the *same* base series; the fine pane shows the base rung's bars and the coarse pane buckets the same base into its rung, aggregated as-of. The relation between the two timeframes is **derived** from the ladder, never authored twice:
-
   ```text
   barsPerCoarse = coarse.baseUnits / fine.baseUnits
   ```
 
   Both panes' bucket boundaries are aligned to the base — the `6H` pane's fall on base units 360, 720, 1080… and the `4H` pane's on 240, 480, 720… — so the two timeframes share every boundary that is a multiple of both, which is what makes them comparable at all.
-
 - **`lockstep`** — two assets on one timeframe. The two panes read *different* series and advance together on the shared clock, so a candle forming in one forms at the same moment in the other. The relation states the shared rung, and the validator requires that both panes carry the same rung and the same effective `viewport.barCount` — the same number of candles, moving together. The second pane's binding is `offset` with `offsetBars: 0`.
 
   Because the two series share no market truth yet, this link is **authored**: the inspector labels it "authored link — not market time" and the export metadata records it as authored (R13). The visual result of an authored link and a UTC link is identical, so the claim has to live in the label and the metadata, never in the picture.
@@ -1056,6 +1094,7 @@ The chart inspector gains a pane panel: add, remove, reorder a pane; set its ser
 - [ ] **Step 8: Write the failing tests**
 
 `packages/core/src/time.test.ts` (modify):
+
 - "aggregates only the constituents at or before the as-of index" (R4, TF-003) — exists from Task 1; keep, and extend with the multi-pane case.
 - "offsets a pane by the authored number of bars" — fails before Step 1; passes after.
 - "never aligns two series by row index" — fails before Step 1; passes after.
@@ -1067,6 +1106,7 @@ The chart inspector gains a pane panel: add, remove, reorder a pane; set its ser
 - "advances a lockstep pair together on the shared clock" — fails before Step 3; passes after. Both panes consume the same number of bars at every frame.
 
 `packages/core/src/validation.test.ts` (modify):
+
 - "rejects a timeframe that is not a ladder rung" — fails before Step 2; passes after.
 - "derives a pane's factor from its rung and the base" — fails before Step 2; passes after.
 - "rejects a rollup whose panes do not share a base" — fails before Step 3; passes after.
@@ -1075,6 +1115,7 @@ The chart inspector gains a pane panel: add, remove, reorder a pane; set its ser
 - "rejects a group holding more than three charts" — fails before Step 4; passes after (CH-011).
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
+
 - "draws two panes side by side with independent price scales" — fails before Step 6; passes after.
 - "draws one instrument at two timeframes from the same source" — fails before Step 6; passes after.
 - "draws two instruments on one timeframe moving together with the same candle count" — fails before Step 6; passes after.
@@ -1111,7 +1152,7 @@ authored, so the inspector and the export metadata say so in words.
 
 Presets cover HTF alone, LTF alone, the splits and PIP.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -1121,6 +1162,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** AN-006, AN-008, CH-004
 
 **Files:**
+
 - Modify: `packages/core/src/time.ts` (the hold evaluation), `packages/core/src/time.test.ts`
 - Modify: `packages/components/src/trading/chart.tsx` (the hold rendering, the camera zoom track)
 - Modify: `packages/components/src/trading/definitions/candlestick-chart.ts` (the hold and zoom parameters)
@@ -1129,6 +1171,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/components/src/trading/candlestick-chart.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `PaneHold`, `ZoomTrack` (`packages/core/src/elements.ts`); `PaneFrameState` (`packages/core/src/time.ts`).
 - Produces:
   - `packages/core/src/time.ts` — a hold freezes a pane on one bar for an in/out frame range; the pane shows its last-known values and **no bar is fabricated to fill a gap** (AN-008).
@@ -1150,14 +1193,17 @@ The chart inspector gains a hold panel: pick a bar, set the in/out frames, add, 
 - [ ] **Step 4: Write the failing tests**
 
 `packages/core/src/time.test.ts` (modify):
+
 - "holds the last known values inside a hold" — fails before Step 1; passes after.
 - "fabricates no bar to fill a gap" (AN-008) — fails before Step 1; passes after.
 - "resumes the reveal after the hold" — fails before Step 1; passes after.
 
 `packages/editor/src/store.test.ts` (modify):
+
 - "adds a hold to a pane and undoes it" — fails before Step 3; passes after.
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
+
 - "freezes the held candle and shows the hold marker" — fails before Step 1; passes after.
 - "zooms the viewport without changing a price" — fails before Step 2; passes after.
 
@@ -1183,7 +1229,7 @@ shows its last-known values and no bar is fabricated to fill the gap. A
 zoom track moves a pane between aggregations and bar ranges across the
 clip, changing the viewport only and never a price.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -1193,6 +1239,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** CV-001, CV-002, CV-003, CV-004, AN-002, TL-002
 
 **Files:**
+
 - Create: `packages/ui/src/components/inspector/curve-editor.tsx`, `packages/ui/src/components/inspector/curve-editor.test.tsx`
 - Create: `packages/components/src/base/effects.test.ts`
 - Modify: `packages/ui/src/index.ts` (export the curve editor), `packages/ui/package.json` (dev dependencies for the new test: `@testing-library/react` and `@testing-library/dom`, the versions `packages/components` and `packages/editor` already use; `jsdom` is already present in the workspace through `apps/studio` and resolves for the root Vitest run — add it here as well if the environment fails to resolve)
@@ -1202,6 +1249,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/core/src/curve.ts` (the presets the widget offers), `packages/core/src/curve.test.ts`
 
 **Interfaces:**
+
 - Consumes: `Curve`, `evaluateCurve` (`packages/core/src/curve.ts`); `ParamControl` (`packages/ui/src/components/inspector/param-control.tsx:90-206`); the Radix `Slider` (`packages/ui/src/components/ui/slider.tsx`).
 - Produces:
   - `packages/ui/src/components/inspector/curve-editor.tsx` — `CurveEditor: React.FC<{ value: Curve; onChange: (curve: Curve) => void }>` — the one widget, used by every surface that exposes a curve (CV-004). A preset list plus a draggable cubic-bezier control; it writes `Curve` values for elements and panes and the legacy `easing`/`bez` strings for effects.
@@ -1229,6 +1277,7 @@ Every default reproduces today's behaviour exactly, so an existing project rende
 - [ ] **Step 4: Write the failing tests**
 
 `packages/components/src/base/effects.test.ts` (new):
+
 - "keeps the legacy easing names meaning what they meant" (R8) — fails before Step 1; passes after: `bounceOut` is still `Easing.bounce`, not `Easing.out(Easing.bounce)`, and `elastic` is still `Easing.out(Easing.elastic(1.4))`.
 - "renders a fadeIn with the default easing as it did before" — fails before Step 1; passes after.
 - "applies a custom easing to fadeIn" — fails before Step 1; passes after.
@@ -1236,15 +1285,18 @@ Every default reproduces today's behaviour exactly, so an existing project rende
 - "applies an easing to bounceDrop in place of the hardcoded curve" — fails before Step 1; passes after.
 
 `packages/core/src/curve.test.ts` (modify):
+
 - "evaluates the same curve to the same value at the same t" (R3) — exists from Task 1; keep.
 - "maps every preset onto the same endpoints" — exists from Task 1; keep.
 
 `packages/ui/src/components/inspector/curve-editor.test.tsx` (new):
+
 - "writes a preset curve as a Curve value" — fails before Step 2; passes after.
 - "writes a dragged bezier as four control points" — fails before Step 2; passes after.
 - "writes the legacy easing and bez strings for an effect" — fails before Step 2; passes after.
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
+
 - "renders a curve-driven frame the same way on a fresh render and on a seek" (R3) — fails before Step 3; passes after.
 
 - [ ] **Step 5: Verify**
@@ -1274,7 +1326,7 @@ in place of it.
 The legacy Remotion easing vocabulary keeps its meaning, so no existing
 rendered frame changes. One widget edits every curve.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -1284,6 +1336,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** TL-001, TL-006, EX-003
 
 **Files:**
+
 - Create: `packages/core/src/transition.ts`, `packages/core/src/transition.test.ts`
 - Modify: `packages/core/src/schemas.ts` (`Track.transitions?: TrackTransition[]`)
 - Modify: `packages/core/src/index.ts`
@@ -1294,6 +1347,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `apps/studio/src/components/Inspector.tsx` (the transition slot and the clamp report)
 
 **Interfaces:**
+
 - Consumes: `Clip`, `Track` (`packages/core/src/schemas.ts`); `registerComponent` (`packages/core/src/registry.ts:13`).
 - Produces:
   - `packages/core/src/schemas.ts` — `TrackTransition { id, fromClipId, toClipId, element: ElementType, durationInFrames, props? }`, and `Track.transitions?: TrackTransition[]`.
@@ -1321,14 +1375,17 @@ The transition renders **only** in the composition. Editor affordances — the s
 - [ ] **Step 5: Write the failing tests**
 
 `packages/core/src/transition.test.ts` (new):
+
 - "clamps a transition to the shorter adjacent clip" — fails before Step 2; passes after.
 - "never lets a transition overlap the outgoing clip" — fails before Step 2; passes after.
 - "keeps the clips' own in and out frames" — fails before Step 1; passes after.
 
 `packages/components/src/registry.test.ts` (modify):
+
 - "registers the whole catalogue from the aggregator alone" — the expected counts change from 34/22/9/3 to 36/24/9/3 — the two transition components join the base category. Fails before Step 3; passes after.
 
 `packages/editor/src/store.test.ts` (modify):
+
 - "adds a transition between two adjacent clips" — fails before Step 4; passes after.
 
 - [ ] **Step 6: Verify**
@@ -1355,7 +1412,7 @@ the inspector reports the clamp rather than overlapping a clip silently.
 The clips keep their own in and out frames: a transition never retimes
 market history.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -1365,6 +1422,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** TL-009, TL-010, TL-001, TL-005
 
 **Files:**
+
 - Create: `packages/core/src/duration.ts`, `packages/core/src/duration.test.ts`
 - Modify: `packages/core/src/schemas.ts` (`Project.durationMode` becomes required after the migration), `packages/core/src/index.ts`
 - Modify: `apps/studio/src/components/PreviewPanel.tsx` (the generic transport action bar)
@@ -1373,6 +1431,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `packages/video/remotion/Root.tsx` (the composition's length from the mode), `packages/video/src/composition.tsx`
 
 **Interfaces:**
+
 - Consumes: `TransportAction` (`packages/core/src/contract.ts`); `playerRef.seekTo`, `togglePlay` (`packages/editor/src/playerRef.ts`); the `Slider` (`packages/ui/src/components/ui/slider.tsx`); `Project.durationInFrames`, `Project.durationMode`.
 - Produces:
   - `packages/core/src/duration.ts` — `derivedDuration(project): number` — the maximum of every clip's `from + durationInFrames` and every chart element's `out`, clamped to at least one frame.
@@ -1405,12 +1464,14 @@ The mode is `derived` or `fixed` (TL-009). There is **no engine ceiling**: 240 f
 - [ ] **Step 5: Write the failing tests**
 
 `packages/core/src/duration.test.ts` (new):
+
 - "derives the duration from the longest clip" — fails before Step 1; passes after.
 - "includes the chart elements' out frames" — fails before Step 1; passes after.
 - "clamps a derived duration to at least one frame" — fails before Step 1; passes after.
 - "leaves a fixed duration alone" — fails before Step 2; passes after.
 
 `packages/editor/src/store.test.ts` (modify):
+
 - "switches the duration mode and keeps the fixed length" — fails before Step 1; passes after.
 
 - [ ] **Step 6: Verify**
@@ -1439,7 +1500,7 @@ A component may declare transport actions and the shell renders and
 executes them generically in the transport bar. No component name is
 hardcoded in the studio.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---
@@ -1449,6 +1510,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Requirements:** OB-004, CV-004, EX-003, QA-002, QA-005, MD-001, AN-005
 
 **Files:**
+
 - Create: `packages/core/src/provenance.ts`, `packages/core/src/provenance.test.ts`
 - Modify: `packages/core/src/index.ts`, `packages/core/src/validation.ts` (the project document validator now backs the migration's scalar checks)
 - Create: `packages/components/src/trading/inspectors/drawing-panels.tsx` (the per-drawing-kind numeric panels)
@@ -1460,6 +1522,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Modify: `docs/spec/FUNCTIONAL_SPEC.md`, `docs/spec/COMPONENT_CONTRACT.md`, `docs/roadmap/ROADMAP.md`, `docs/quality/TEST_STRATEGY.md`
 
 **Interfaces:**
+
 - Consumes: `SeriesSpec`, `Datasource`, `seriesRevision` (`packages/core/src/series.ts`); `PaneSpec`, `DrawingSpec` (`packages/core/src/elements.ts`); `Curve` (`packages/core/src/curve.ts`); `CurveEditor` (`packages/ui/src/components/inspector/curve-editor.tsx`).
 - Produces:
   - `packages/core/src/provenance.ts` — `buildProvenance(project): ProvenanceRecord` — per series: `origin`, `algorithmVersion`, `seed`, `revision`, bar count, anchor count; plus the simulation flags.
@@ -1469,12 +1532,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 `buildProvenance(project)` returns the record the design's §5 table defines:
 
-| Origin | Export metadata |
-|---|---|
+
+| Origin          | Export metadata                                    |
+| --------------- | -------------------------------------------------- |
 | `authored-path` | `origin`, `algorithmVersion`, `seed`, anchor count |
-| `manual` | `origin`, bar count |
-| `synthetic` | `origin`, `algorithmVersion`, `seed` |
-| `imported` | `origin`, source revision, timestamp convention |
+| `manual`        | `origin`, bar count                                |
+| `synthetic`     | `origin`, `algorithmVersion`, `seed`               |
+| `imported`      | `origin`, source revision, timestamp convention    |
+
 
 Independently of the origin, the record carries the simulation flags: a chart that reveals bars dynamically is a simulated intrabar path (AN-005, MD-001, QA-005).
 
@@ -1496,11 +1561,11 @@ showing the controls that apply to *what is selected*, with the values that matt
 and nothing else. The panel is chosen by the selected object's type:
 
 - selecting a **grouped chart** shows the group's panel: the member charts, the layout, the shared
-  clock, and the relations — each relation showing the **derived** timeframe ratio, not an editable
-  number, so the displayed ratio can never disagree with the data (spec §3.4.1). The relation panel
-  also carries the "authored link — not market time" label on a cross-asset lockstep;
+clock, and the relations — each relation showing the **derived** timeframe ratio, not an editable
+number, so the displayed ratio can never disagree with the data (spec §3.4.1). The relation panel
+also carries the "authored link — not market time" label on a cross-asset lockstep;
 - selecting a **chart** shows the chart panel: the series and its origin, the panes and their
-  rungs, the clock binding, the holds, the price-range policy, the curve and the provenance;
+rungs, the clock binding, the holds, the price-range policy, the curve and the provenance;
 - selecting a **drawing** shows that drawing kind's numeric panel;
 - selecting a **text or image** shows its own placement and timing controls.
 
@@ -1516,14 +1581,17 @@ ADR-008 splits the migration: the shape checks live in Zod, the history-dependen
 - [ ] **Step 5: Write the failing tests**
 
 `packages/core/src/provenance.test.ts` (new):
+
 - "records the origin, seed and algorithm version of an authored path" — fails before Step 1; passes after.
 - "records the simulation flags independently of the origin" — fails before Step 1; passes after.
 - "records nothing for a project with no chart" — fails before Step 1; passes after.
 
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
+
 - "keeps the provenance labels of every origin distinct" — fails before Step 5; passes after.
 
 `packages/components/src/project-migrate.test.ts` (modify — keep every existing name):
+
 - "reports the path of the offending field for a malformed document" — fails before Step 4; passes after.
 
 - [ ] **Step 6: Extend the render gate to the final fixture**
@@ -1564,7 +1632,7 @@ The migration's scalar checks move behind the Zod validator and report the
 path of the offending field, while the version gate, the unknown-component
 rejection and the props version comparison stay hand-written.
 
-Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+"
 ```
 
 ---

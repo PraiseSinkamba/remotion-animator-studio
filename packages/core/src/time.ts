@@ -21,20 +21,22 @@ import { computePriceRange } from './market';
 /* ------------------------------------------------------------------ */
 
 /**
- * Frames one clock step lasts.
+ * The pace used when a clock does not state one.
  *
- * A clock step advances `clock.stepBars` bars of the reference series, so the
- * clock spends `FRAMES_PER_CLOCK_STEP / stepBars` frames on one bar. The
- * constant is the chart component's default frames-per-bar; neither
- * `MarketClock` nor the clock evaluation carries a frames-per-step value, so
- * this is the one place the clock's pace is fixed.
+ * A clock carries its own pace (`framesPerStep`); this is only the fallback
+ * for a clock built by hand that omits it. It matches the chart component's
+ * default frames-per-bar, so an unstated pace renders as it always did.
  */
-export const FRAMES_PER_CLOCK_STEP = 15;
+export const DEFAULT_FRAMES_PER_STEP = 15;
 
 /** Frames the clock spends on one bar of the reference series. */
 export const framesPerBar = (clock: MarketClock): number => {
   const stepBars = Number.isFinite(clock.stepBars) && clock.stepBars > 0 ? clock.stepBars : 1;
-  return FRAMES_PER_CLOCK_STEP / stepBars;
+  const framesPerStep =
+    Number.isFinite(clock.framesPerStep) && clock.framesPerStep > 0
+      ? clock.framesPerStep
+      : DEFAULT_FRAMES_PER_STEP;
+  return framesPerStep / stepBars;
 };
 
 /** The clock's position at a chart-local frame. */

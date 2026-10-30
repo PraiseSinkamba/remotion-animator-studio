@@ -80,6 +80,7 @@ describe('validateChartProps', () => {
       unit: 'logical',
       referenceSeriesId: 'series-a',
       stepBars: 1,
+      framesPerStep: 15,
     },
   });
 

@@ -60,6 +60,15 @@ export interface MarketClock {
   referenceSeriesId: string;
   /** Bars per clock step. */
   stepBars: number;
+  /**
+   * Video frames one clock step lasts.
+   *
+   * The clock's pace, and therefore how long a candle takes to form. It is
+   * data rather than a constant so a creator can slow the market down or
+   * hurry it along — a chart showing one daily candle per second is a
+   * different animation from one showing twenty.
+   */
+  framesPerStep: number;
   /** Author-supplied offsets, keyed by series id, for panes on other series. */
   offsets?: Record<string, number>;
 }

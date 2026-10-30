@@ -215,6 +215,7 @@ const marketClockSchema = z.object({
   unit: z.enum(['logical', 'utc']),
   referenceSeriesId: z.string().min(1),
   stepBars: z.number().int().positive(),
+  framesPerStep: z.number().int().positive(),
   offsets: z.record(z.string(), z.number().int()).optional(),
 });
 

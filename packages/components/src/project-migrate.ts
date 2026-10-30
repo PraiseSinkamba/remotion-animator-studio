@@ -136,6 +136,18 @@ const migrateV1ToV2 = (
           ...props,
           bars: stamped,
           seriesId,
+          clock: {
+            id: `${clip.id}-clock`,
+            unit: 'logical',
+            referenceSeriesId: seriesId,
+            stepBars: 1,
+            // The version 1 chart's own frames-per-bar is the clock's pace, so
+            // the migrated chart forms its candles at the same rate.
+            framesPerStep:
+              typeof props?.framesPerBar === 'number' && props.framesPerBar > 0
+                ? props.framesPerBar
+                : 15,
+          },
           panes: [
             {
               id: `${clip.id}-pane-0`,

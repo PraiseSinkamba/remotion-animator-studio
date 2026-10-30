@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import type { Datasource, OhlcBar } from './series';
 import type { MarketClock, PaneSpec } from './elements';
-import { evaluateClockAt, evaluatePaneAt, framesPerBar } from './time';
+import { DEFAULT_FRAMES_PER_STEP, evaluateClockAt, evaluatePaneAt, framesPerBar } from './time';
 
 const CLOCK: MarketClock = {
   id: 'clock-1',
   unit: 'logical',
   referenceSeriesId: 'series-1',
   stepBars: 1,
+  framesPerStep: 15,
 };
 
 const makeBar = (index: number, o: number, h: number, l: number, c: number): OhlcBar => ({
@@ -69,6 +70,24 @@ describe('evaluateClockAt', () => {
     const next = evaluateClockAt(CLOCK, step);
     expect(next.referenceIndex).toBe(1);
     expect(next.progress).toBeCloseTo(0, 10);
+  });
+
+  it('takes its pace from the clock, so a creator can change how fast the market moves', () => {
+    const slow: MarketClock = { ...CLOCK, framesPerStep: 60 };
+    const fast: MarketClock = { ...CLOCK, framesPerStep: 5 };
+
+    expect(framesPerBar(slow)).toBe(60);
+    expect(framesPerBar(fast)).toBe(5);
+
+    // One second of video at 30fps: the slow clock has only just started its
+    // first candle, the fast clock has finished six.
+    expect(evaluateClockAt(slow, 30).referenceIndex).toBe(0);
+    expect(evaluateClockAt(fast, 30).referenceIndex).toBe(6);
+  });
+
+  it('falls back to the default pace for a clock that states none', () => {
+    const unstated = { ...CLOCK, framesPerStep: 0 };
+    expect(framesPerBar(unstated)).toBe(DEFAULT_FRAMES_PER_STEP);
   });
 });
 
