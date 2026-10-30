@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { validateChartProps, validateProjectDocument, validateSeriesSpec } from './validation';
+import {
+  validateChartGroup,
+  validateChartProps,
+  validateChartRelations,
+  validateProjectDocument,
+  validateSeriesSpec,
+} from './validation';
 
 const validSeries = () => ({
   id: 'series-a',
@@ -125,5 +131,243 @@ describe('validateProjectDocument', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected the document to be accepted');
     expect((result.value as unknown as Record<string, unknown>).somethingNew).toBe('kept');
+  });
+});
+
+describe('validateChartRelations', () => {
+  const pane = (overrides: Record<string, unknown> = {}) => ({
+    id: 'pane-0',
+    name: 'Pane 0',
+    seriesId: 'series-a',
+    aggregation: { factor: 1 },
+    rect: { x: 0, y: 0, width: 1, height: 1 },
+    in: 0,
+    out: 300,
+    opacity: 1,
+    clock: { kind: 'reference' },
+    priceRange: { mode: 'auto' },
+    ...overrides,
+  });
+
+  const props = (overrides: Record<string, unknown> = {}) => ({
+    seriesId: 'series-a',
+    panes: [pane()],
+    clock: {
+      id: 'clock-0',
+      unit: 'logical',
+      referenceSeriesId: 'series-a',
+      stepBars: 1,
+      framesPerStep: 15,
+    },
+    ...overrides,
+  });
+
+  it('accepts a chart whose panes sit on the ladder', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({ id: 'pane-fine', timeframeId: '1m', aggregation: { factor: 1 } }),
+          pane({ id: 'pane-coarse', timeframeId: '4H', aggregation: { factor: 240 } }),
+        ],
+        relations: [{ kind: 'rollup', finePaneId: 'pane-fine', coarsePaneId: 'pane-coarse' }],
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects a pane whose timeframe is not a rung of the ladder', () => {
+    const result = validateChartRelations(
+      props({ panes: [pane({ timeframeId: '2h', aggregation: { factor: 120 } })] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    expect(result.issues[0].path).toBe('panes.0.timeframeId');
+    expect(result.issues[0].message).toContain('2h');
+  });
+
+  it('rejects a pane whose factor does not match the rung it names', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({ id: 'pane-fine', timeframeId: '1m', aggregation: { factor: 1 } }),
+          pane({ id: 'pane-coarse', timeframeId: '4H', aggregation: { factor: 120 } }),
+        ],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    expect(result.issues[0].path).toBe('panes.1.aggregation.factor');
+    // The fine pane fixes the base at one minute, so 4H is 240 bars of it.
+    expect(result.issues[0].message).toContain('240');
+  });
+
+  it('rejects a rollup whose panes read different series', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({ id: 'pane-fine', seriesId: 'series-a', timeframeId: '1m', aggregation: { factor: 1 } }),
+          pane({ id: 'pane-coarse', seriesId: 'series-b', timeframeId: '4H', aggregation: { factor: 240 } }),
+        ],
+        relations: [{ kind: 'rollup', finePaneId: 'pane-fine', coarsePaneId: 'pane-coarse' }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    expect(result.issues.some((issue) => issue.message.includes('pane-coarse'))).toBe(true);
+  });
+
+  it('rejects a rollup whose coarse factor is not a whole multiple of the fine one', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({ id: 'pane-fine', timeframeId: '4H', aggregation: { factor: 240 } }),
+          pane({ id: 'pane-coarse', timeframeId: '6H', aggregation: { factor: 360 } }),
+        ],
+        relations: [{ kind: 'rollup', finePaneId: 'pane-fine', coarsePaneId: 'pane-coarse' }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    // 360 / 240 is 1.5, so the two cannot be rolled up against each other.
+    expect(result.issues.some((issue) => issue.message.includes('whole multiple'))).toBe(true);
+    expect(result.issues.some((issue) => issue.message.includes('pane-coarse'))).toBe(true);
+  });
+
+  it('rejects a relation that names a pane the chart does not hold', () => {
+    const result = validateChartRelations(
+      props({
+        relations: [{ kind: 'rollup', finePaneId: 'pane-0', coarsePaneId: 'pane-missing' }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    expect(result.issues[0].path).toBe('relations.0.coarsePaneId');
+  });
+
+  it('accepts a lockstep whose panes carry the same rung and the same candle count', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({
+            id: 'pane-a',
+            seriesId: 'series-a',
+            timeframeId: '1H',
+            aggregation: { factor: 60 },
+            viewport: { fromBar: 0, barCount: 90 },
+          }),
+          pane({
+            id: 'pane-b',
+            seriesId: 'series-b',
+            timeframeId: '1H',
+            aggregation: { factor: 60 },
+            viewport: { fromBar: 0, barCount: 90 },
+          }),
+        ],
+        relations: [{ kind: 'lockstep', paneIds: ['pane-a', 'pane-b'], timeframeId: '1H' }],
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects a lockstep whose panes disagree on the rung', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({
+            id: 'pane-a',
+            seriesId: 'series-a',
+            timeframeId: '1H',
+            aggregation: { factor: 60 },
+            viewport: { fromBar: 0, barCount: 90 },
+          }),
+          pane({
+            id: 'pane-b',
+            seriesId: 'series-b',
+            timeframeId: '4H',
+            aggregation: { factor: 240 },
+            viewport: { fromBar: 0, barCount: 90 },
+          }),
+        ],
+        relations: [{ kind: 'lockstep', paneIds: ['pane-a', 'pane-b'], timeframeId: '1H' }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    expect(result.issues.some((issue) => issue.message.includes('same rung'))).toBe(true);
+  });
+
+  it('rejects a lockstep whose panes disagree on the candle count', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({
+            id: 'pane-a',
+            seriesId: 'series-a',
+            timeframeId: '1H',
+            aggregation: { factor: 60 },
+            viewport: { fromBar: 0, barCount: 90 },
+          }),
+          pane({
+            id: 'pane-b',
+            seriesId: 'series-b',
+            timeframeId: '1H',
+            aggregation: { factor: 60 },
+            viewport: { fromBar: 0, barCount: 60 },
+          }),
+        ],
+        relations: [{ kind: 'lockstep', paneIds: ['pane-a', 'pane-b'], timeframeId: '1H' }],
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the chart to be rejected');
+    expect(result.issues.some((issue) => issue.message.includes('same number of candles'))).toBe(true);
+  });
+
+  it('accepts a lockstep whose panes state no candle count at all', () => {
+    const result = validateChartRelations(
+      props({
+        panes: [
+          pane({ id: 'pane-a', seriesId: 'series-a', timeframeId: '1H', aggregation: { factor: 60 } }),
+          pane({ id: 'pane-b', seriesId: 'series-b', timeframeId: '1H', aggregation: { factor: 60 } }),
+        ],
+        relations: [{ kind: 'lockstep', paneIds: ['pane-a', 'pane-b'], timeframeId: '1H' }],
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('validateChartGroup', () => {
+  const group = (overrides: Record<string, unknown> = {}) => ({
+    id: 'group-0',
+    name: 'Group 0',
+    chartClipIds: ['clip-a', 'clip-b'],
+    layout: 'split-horizontal',
+    clock: {
+      id: 'clock-0',
+      unit: 'logical',
+      referenceSeriesId: 'series-a',
+      stepBars: 1,
+      framesPerStep: 15,
+    },
+    relations: [],
+    ...overrides,
+  });
+
+  it('accepts a group of two charts', () => {
+    expect(validateChartGroup(group()).ok).toBe(true);
+  });
+
+  it('rejects a group holding more than three charts', () => {
+    const result = validateChartGroup(
+      group({ chartClipIds: ['clip-a', 'clip-b', 'clip-c', 'clip-d'] }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the group to be rejected');
+    expect(result.issues[0].path).toBe('chartClipIds');
+  });
+
+  it('rejects a group holding no chart at all', () => {
+    expect(validateChartGroup(group({ chartClipIds: [] })).ok).toBe(false);
   });
 });

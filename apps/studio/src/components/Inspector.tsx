@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
 import { getComponent } from '@chart-studio/components';
-import { findClip, useStore } from '@chart-studio/editor';
+import { CHART_GROUP_LAYOUTS, CHART_GROUP_LAYOUT_LABELS, findClip, useStore } from '@chart-studio/editor';
 import type { Clip } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
 import {
@@ -180,6 +180,10 @@ export const Inspector: React.FC = () => {
   }
 
   const { updateClipProps, updateClip, commit } = useStore.getState();
+  // A chart in a group: the group lays its charts out and gives them one clock.
+  const chartGroup = clip.groupId
+    ? project.chartGroups?.find((group) => group.id === clip.groupId)
+    : undefined;
   const positionParams = definition.params.filter((p) => p.key === 'x' || p.key === 'y');
   const ownParams = definition.params.filter((p) => p.key !== 'x' && p.key !== 'y');
 
@@ -310,6 +314,37 @@ export const Inspector: React.FC = () => {
                 })
               : null}
           </Section>
+
+          {chartGroup ? (
+            <Section title="GROUP">
+              <Row label="Name">
+                <span className="text-xs text-foreground">{chartGroup.name}</span>
+              </Row>
+              <Row label="Charts">
+                <span className="text-xs text-foreground">
+                  {chartGroup.chartClipIds.length} of up to 3
+                </span>
+              </Row>
+              <Row label="Layout">
+                <div className="flex flex-wrap gap-1">
+                  {CHART_GROUP_LAYOUTS.map((layout) => (
+                    <Button
+                      key={layout}
+                      variant={chartGroup.layout === layout ? 'secondary' : 'outline'}
+                      size="sm"
+                      onClick={() => useStore.getState().setChartGroupLayout(chartGroup.id, layout)}
+                    >
+                      {CHART_GROUP_LAYOUT_LABELS[layout]}
+                    </Button>
+                  ))}
+                </div>
+              </Row>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                The group lays its charts out and gives them one clock. Each chart keeps its own series,
+                scale and lifecycle.
+              </p>
+            </Section>
+          ) : null}
 
           <Section title="ACTIONS">
             <Button variant="outline" size="sm" className="w-full" onClick={() => useStore.getState().duplicateSelection()}>

@@ -4,6 +4,7 @@ export * from './base/definitions';
 export * from './base/effects';
 export * from './trading/definitions/candlestick-chart';
 export * from './trading/inspectors/candlestick-chart';
+export * from './trading/inspectors/pane-relations';
 export * from './trading/drawings/anchors';
 export * from './trading/drawings/adapters';
 export * from './trading/drawings/definitions';

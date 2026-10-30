@@ -751,3 +751,252 @@ describe('the geometry the path tool points with', () => {
     expect(above!.price).toBeGreaterThan(below!.price);
   });
 });
+
+describe('the shared cursor', () => {
+  const SERIES_BARS: OhlcBar[] = [
+    { id: 'series-a:0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+    { id: 'series-a:1', t: 10_000, o: 105, h: 115, l: 101, c: 112 },
+    { id: 'series-a:2', t: 20_000, o: 112, h: 120, l: 108, c: 118 },
+    { id: 'series-a:3', t: 30_000, o: 118, h: 125, l: 114, c: 123 },
+  ];
+
+  const project = (): Project => ({
+    name: 'Project',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    durationInFrames: 300,
+    backgroundColor: '#000000',
+    schemaVersion: 2,
+    series: [
+      {
+        id: 'series-a',
+        origin: 'manual',
+        label: 'Series A',
+        timeBasis: 'logical',
+        bars: SERIES_BARS,
+      },
+    ],
+    tracks: [],
+  });
+
+  const pane = (id: string, rect: { x: number; y: number; width: number; height: number }) => ({
+    id,
+    name: id,
+    seriesId: 'series-a',
+    aggregation: { factor: 1 },
+    rect,
+    in: 0,
+    out: 300,
+    opacity: 1,
+    clock: { kind: 'reference' as const },
+    priceRange: { mode: 'auto' as const },
+  });
+
+  const chartProps = (): CandlestickChartProps =>
+    ({
+      ...BASE_PROPS,
+      bars: SERIES_BARS,
+      dataSource: 'manual',
+      revealMode: 'discrete',
+      framesPerBar: 10,
+      seriesId: 'series-a',
+      panes: [
+        pane('pane-0', { x: 0, y: 0, width: 1, height: 0.5 }),
+        pane('pane-1', { x: 0, y: 0.5, width: 1, height: 0.5 }),
+      ],
+      clock: {
+        id: 'clock-0',
+        unit: 'logical',
+        referenceSeriesId: 'series-a',
+        stepBars: 1,
+        framesPerStep: 10,
+      },
+    }) as unknown as CandlestickChartProps;
+
+  const evaluate = (props: CandlestickChartProps, sceneFrame: number) =>
+    candlestickChartDefinition.evaluate?.({
+      clip: { from: 0, durationInFrames: 300 } as Clip,
+      props: props as unknown as Record<string, unknown>,
+      sceneFrame,
+      project: project(),
+    });
+
+  const cursors = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('[data-testid="clock-cursor"]'));
+
+  it('draws one cursor per pane', () => {
+    const props = chartProps();
+    const container = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluate(props, 25)} />,
+    ).container;
+
+    expect(cursors(container)).toHaveLength(2);
+  });
+
+  it('moves the cursor with the clock', () => {
+    const props = chartProps();
+    const early = render(
+      <CandlestickChart props={props} frame={5} evaluated={evaluate(props, 5)} />,
+    ).container;
+    const late = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluate(props, 25)} />,
+    ).container;
+
+    const earlyX = Number(cursors(early)[0].getAttribute('x1'));
+    const lateX = Number(cursors(late)[0].getAttribute('x1'));
+    expect(lateX).toBeGreaterThan(earlyX);
+  });
+
+  it('draws no cursor on a chart without a clock', () => {
+    const props = { ...BASE_PROPS, bars: SERIES_BARS } as CandlestickChartProps;
+    const container = render(<CandlestickChart props={props} frame={25} />).container;
+
+    expect(cursors(container)).toHaveLength(0);
+  });
+
+  it('draws no cursor on a chart with a single pane', () => {
+    // The cursor is a *shared* one: with one pane there is nothing to relate
+    // it to, and the playhead already says where the composition is.
+    const props = chartProps();
+    const single = { ...props, panes: [props.panes![0]] } as CandlestickChartProps;
+    const container = render(
+      <CandlestickChart props={single} frame={25} evaluated={evaluate(single, 25)} />,
+    ).container;
+
+    expect(cursors(container)).toHaveLength(0);
+  });
+
+  it('draws the cursor in the chart own box', () => {
+    const props = chartProps();
+    const container = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluate(props, 25)} />,
+    ).container;
+
+    const cursor = cursors(container)[0];
+    const x = Number(cursor.getAttribute('x1'));
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(props.width);
+  });
+});
+
+describe('the pane and relation panel', () => {
+  const pane = (
+    id: string,
+    seriesId: string,
+    rung: string,
+    factor: number,
+  ) => ({
+    id,
+    name: id,
+    seriesId,
+    timeframeId: rung,
+    aggregation: { factor },
+    rect: { x: 0, y: 0, width: 1, height: 1 },
+    in: 0,
+    out: 300,
+    opacity: 1,
+    clock: { kind: 'reference' as const },
+    priceRange: { mode: 'auto' as const },
+  });
+
+  const setup = (panes: unknown[], relations: unknown[] = []) => {
+    const props = {
+      ...candlestickChartDefinition.defaults,
+      panes,
+      relations,
+    } as unknown as Record<string, unknown>;
+    const clip: Clip = {
+      id: 'c1',
+      name: 'Candlestick Chart',
+      element: 'candlestickChart',
+      from: 0,
+      durationInFrames: 90,
+      props: props as unknown as Clip['props'],
+      effects: [],
+      propsVersion: 1,
+    };
+    const onChange = vi.fn();
+    const commit = vi.fn();
+    const updateClip = vi.fn();
+    render(
+      <CandlestickChartInspector
+        clip={clip}
+        props={props}
+        onChange={onChange}
+        updateClip={updateClip}
+        commit={commit}
+      />,
+    );
+    return { onChange, commit };
+  };
+
+  it('shows the derived factor of a pane against its base', () => {
+    setup([pane('fine', 'series-a', '1m', 1), pane('coarse', 'series-a', '1H', 60)]);
+
+    const factors = Array.from(screen.getAllByTestId('pane-derived-factor')).map(
+      (n) => n.textContent ?? '',
+    );
+    // The coarse pane counts sixty source bars against the 1m base.
+    expect(factors[1]).toBe('60 × 1m');
+  });
+
+  it('shows the ratio a rollup resolves to', () => {
+    setup(
+      [pane('fine', 'series-a', '1m', 1), pane('coarse', 'series-a', '1H', 60)],
+      [{ kind: 'rollup', finePaneId: 'fine', coarsePaneId: 'coarse' }],
+    );
+
+    expect(screen.getByTestId('relation-derived').textContent).toContain('60 × 1m');
+  });
+
+  it('shows the shared rung and candle count of a lockstep', () => {
+    setup(
+      [pane('a', 'series-a', '1m', 1), pane('b', 'series-b', '1m', 1)],
+      [{ kind: 'lockstep', paneIds: ['a', 'b'], timeframeId: '1m' }],
+    );
+
+    expect(screen.getByTestId('relation-derived').textContent).toContain('1m');
+    expect(screen.getByTestId('relation-derived').textContent).toContain('120 candles');
+  });
+
+  it('labels a cross-asset link as authored rather than market time', () => {
+    setup(
+      [pane('a', 'series-a', '1m', 1), pane('b', 'series-b', '1m', 1)],
+      [{ kind: 'lockstep', paneIds: ['a', 'b'], timeframeId: '1m' }],
+    );
+
+    expect(screen.getByTestId('authored-link-label').textContent).toBe(
+      'authored link — not market time',
+    );
+  });
+
+  it('labels no authored link when both panes read the same series', () => {
+    setup(
+      [pane('a', 'series-a', '1m', 1), pane('b', 'series-a', '1m', 1)],
+      [{ kind: 'lockstep', paneIds: ['a', 'b'], timeframeId: '1m' }],
+    );
+
+    expect(screen.queryByTestId('authored-link-label')).toBeNull();
+  });
+
+  it('offers the ladder as a rung picker', () => {
+    setup([pane('fine', 'series-a', '1m', 1)]);
+
+    const picker = screen.getByLabelText('Pane 1 timeframe') as HTMLSelectElement;
+    const rungs = Array.from(picker.options).map((option) => option.value);
+    expect(rungs).toContain('1m');
+    expect(rungs).toContain('1H');
+    expect(rungs).toContain('2D');
+  });
+
+  it('derives the factor when a rung is chosen', () => {
+    const { onChange, commit } = setup([pane('fine', 'series-a', '1m', 1)]);
+    fireEvent.change(screen.getByLabelText('Pane 1 timeframe'), { target: { value: '5m' } });
+
+    const patch = onChange.mock.calls[0][0] as { panes: Array<{ timeframeId: string; aggregation: { factor: number } }> };
+    expect(patch.panes[0].timeframeId).toBe('5m');
+    expect(patch.panes[0].aggregation.factor).toBe(5);
+    expect(commit).toHaveBeenCalled();
+  });
+});

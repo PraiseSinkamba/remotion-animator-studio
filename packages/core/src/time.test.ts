@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Datasource, OhlcBar } from './series';
-import type { MarketClock, PaneSpec } from './elements';
-import { DEFAULT_FRAMES_PER_STEP, evaluateClockAt, evaluatePaneAt, framesPerBar } from './time';
+import type { MarketClock, PaneRelation, PaneSpec } from './elements';
+import {
+  DEFAULT_FRAMES_PER_STEP,
+  evaluateClockAt,
+  evaluatePaneAt,
+  evaluateRelation,
+  framesPerBar,
+  paneBarCount,
+} from './time';
 
 const CLOCK: MarketClock = {
   id: 'clock-1',
@@ -157,5 +164,142 @@ describe('evaluatePaneAt', () => {
   it('refuses a utc binding on a series that has no utc basis', () => {
     const pane = makePane({ clock: { kind: 'utc' } });
     expect(() => evaluatePaneAt(pane, datasource, CLOCK, 0)).toThrow(/utc/);
+  });
+
+  it('buckets a pane\'s bars by the ladder rung\'s base units', () => {
+    // The source is a 1m base, so the 6H rung is 360 base units wide.
+    const base = Array.from({ length: 1000 }, (_, index) => makeBar(index, index, index + 1, index - 1, index));
+    const ladderSource: Datasource = { ...datasource, bars: base };
+    const pane = makePane({ timeframeId: '6H', aggregation: { factor: 360 } });
+
+    const state = evaluatePaneAt(pane, ladderSource, CLOCK, frameOfBar(720));
+    expect(state.bars.map((bar) => bar.id)).toEqual(['pane-1:0', 'pane-1:1', 'pane-1:2']);
+    // The second bucket opens on base unit 360, the third on 720.
+    expect(state.bars[1].t).toBe(base[360].t);
+    expect(state.bars[2].t).toBe(base[720].t);
+  });
+
+  it('never aligns two series by row index', () => {
+    const other: Datasource = {
+      ...datasource,
+      id: 'series-2',
+      label: 'Series 2',
+      bars: BARS.map((bar) => ({ ...bar, id: `other-${bar.id}`, o: bar.o + 1000 })),
+    };
+    // The pane reads series 2 from its own first bar; it is not lined up with
+    // series 1's rows.
+    const pane = makePane({ id: 'pane-other', seriesId: 'series-2' });
+    const state = evaluatePaneAt(pane, other, CLOCK, frameOfBar(2));
+    expect(state.bars.map((bar) => bar.id)).toEqual(['other-bar-0', 'other-bar-1', 'other-bar-2']);
+    expect(state.bars[0].o).toBe(BARS[0].o + 1000);
+  });
+
+  it('advances a lockstep pair together on the shared clock', () => {
+    const other: Datasource = {
+      ...datasource,
+      id: 'series-2',
+      label: 'Series 2',
+      bars: BARS.map((bar) => ({ ...bar, id: `other-${bar.id}` })),
+    };
+    const first = makePane({ id: 'pane-a', seriesId: 'series-1', timeframeId: '1m' });
+    const second = makePane({
+      id: 'pane-b',
+      seriesId: 'series-2',
+      timeframeId: '1m',
+      clock: { kind: 'offset', offsetBars: 0 },
+    });
+
+    for (const index of [0, 1, 4]) {
+      const frame = frameOfBar(index);
+      const left = evaluatePaneAt(first, datasource, CLOCK, frame);
+      const right = evaluatePaneAt(second, other, CLOCK, frame);
+      expect(right.bars).toHaveLength(left.bars.length);
+      expect(right.activeIndex).toBe(left.activeIndex);
+    }
+  });
+});
+
+describe('evaluateRelation', () => {
+  const fine = makePane({ id: 'pane-fine', timeframeId: '1m', aggregation: { factor: 1 } });
+  const coarse = makePane({ id: 'pane-coarse', timeframeId: '4H', aggregation: { factor: 240 } });
+
+  it('derives the rollup ratio from the two panes, never from the relation', () => {
+    const relation: PaneRelation = {
+      kind: 'rollup',
+      finePaneId: 'pane-fine',
+      coarsePaneId: 'pane-coarse',
+    };
+    const state = evaluateRelation(relation, [fine, coarse]);
+    expect(state).toEqual({
+      kind: 'rollup',
+      barsPerCoarse: 240,
+      fineTimeframeId: '1m',
+      coarseTimeframeId: '4H',
+      baseTimeframeId: '1m',
+    });
+  });
+
+  it('returns null when a relation names a pane the chart does not hold', () => {
+    const relation: PaneRelation = {
+      kind: 'rollup',
+      finePaneId: 'pane-fine',
+      coarsePaneId: 'pane-missing',
+    };
+    expect(evaluateRelation(relation, [fine])).toBeNull();
+  });
+
+  it('carries the shared rung and the candle count of a lockstep', () => {
+    const first = makePane({
+      id: 'pane-a',
+      seriesId: 'series-a',
+      timeframeId: '1H',
+      aggregation: { factor: 60 },
+      viewport: { fromBar: 0, barCount: 90 },
+    });
+    const second = makePane({
+      id: 'pane-b',
+      seriesId: 'series-b',
+      timeframeId: '1H',
+      aggregation: { factor: 60 },
+      viewport: { fromBar: 0, barCount: 90 },
+    });
+    const relation: PaneRelation = {
+      kind: 'lockstep',
+      paneIds: ['pane-a', 'pane-b'],
+      timeframeId: '1H',
+    };
+    expect(evaluateRelation(relation, [first, second])).toEqual({
+      kind: 'lockstep',
+      timeframeId: '1H',
+      barCount: 90,
+    });
+  });
+
+  it('returns null when a lockstep names a pane the chart does not hold', () => {
+    const relation: PaneRelation = {
+      kind: 'lockstep',
+      paneIds: ['pane-a', 'pane-missing'],
+      timeframeId: '1H',
+    };
+    expect(evaluateRelation(relation, [fine])).toBeNull();
+  });
+
+  it('states a fractional ratio truthfully rather than rounding it', () => {
+    // 6H over 4H is 1.5 candles: the panel has to say so.
+    const fourHour = makePane({ id: 'pane-4h', timeframeId: '4H', aggregation: { factor: 240 } });
+    const sixHour = makePane({ id: 'pane-6h', timeframeId: '6H', aggregation: { factor: 360 } });
+    const relation: PaneRelation = {
+      kind: 'rollup',
+      finePaneId: 'pane-4h',
+      coarsePaneId: 'pane-6h',
+    };
+    const state = evaluateRelation(relation, [fourHour, sixHour]);
+    expect(state).toEqual({
+      kind: 'rollup',
+      barsPerCoarse: 1.5,
+      fineTimeframeId: '4H',
+      coarseTimeframeId: '6H',
+      baseTimeframeId: '1m',
+    });
   });
 });

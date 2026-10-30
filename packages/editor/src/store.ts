@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
 import { buildPresetClips, PRESETS } from './presets';
+import { buildChartGroup, relayoutChartGroup, withChartMarket } from './chartGroup';
 import { sampleProject } from '@chart-studio/core';
 import {
   addSwingAnchor,
@@ -13,6 +14,7 @@ import {
   type SwingPath,
 } from '@chart-studio/core';
 import type {
+  ChartGroupSpec,
   Clip,
   EffectType,
   ElementType,
@@ -132,6 +134,13 @@ interface EditorState {
    * and a drawing cannot resolve against a chart that has no evaluated pane.
    */
   ensureChartMarket: (clipId: string) => void;
+  /**
+   * Groups chart clips: they share one clock and take the places the layout
+   * gives them. The group positions its charts; it does not own them.
+   */
+  addChartGroup: (chartClipIds: string[], layout: ChartGroupSpec['layout']) => string;
+  /** Moves a group's charts into another layout. */
+  setChartGroupLayout: (groupId: string, layout: ChartGroupSpec['layout']) => void;
   /** Creates a drawing on a chart, anchored to one of its panes. */
   addDrawing: (
     kind: DrawingKind,
@@ -300,7 +309,16 @@ export const useStore = create<EditorState>((set, get) => ({
       const newTracks: Track[] = [...clips]
         .reverse()
         .map((clip) => ({ id: uid('t'), name: clip.name, clips: [clip] }));
-      return { project: { ...s.project, tracks: [...newTracks, ...s.project.tracks] } };
+      const project = { ...s.project, tracks: [...newTracks, ...s.project.tracks] };
+      if (!preset.chartGroup) return { project };
+      // A grouped preset drops as one group: the charts share a clock and
+      // take the places the layout gives them.
+      const chartIds = clips.filter((clip) => clip.element === 'candlestickChart').map((clip) => clip.id);
+      const withMarkets = chartIds.reduce(
+        (acc, id) => withChartMarket(acc, id),
+        project,
+      );
+      return { project: buildChartGroup(withMarkets, uid('g'), chartIds, preset.chartGroup) };
     });
   },
   selectClip: (id, additive = false) =>
@@ -744,82 +762,35 @@ export const useStore = create<EditorState>((set, get) => ({
     }
 
     get().commit();
+    set((state) => ({ project: withChartMarket(state.project, clipId) }));
+  },
+
+  addChartGroup: (chartClipIds, layout) => {
+    const s = get();
+    const charts = chartClipIds
+      .map((id) => findClip(s.project, id))
+      .filter((clip): clip is Clip => clip !== null && clip.element === 'candlestickChart');
+    if (charts.length === 0) return '';
+
+    const groupId = uid('g');
+    get().commit();
     set((state) => {
-      const seriesId = `series-${clip.id}`;
-      const bars = Array.isArray(clip.props.bars) ? (clip.props.bars as OhlcBar[]) : [];
-      const stamped = bars.map((bar, index) => ({ ...bar, id: `${seriesId}:${index}` }));
-      const framesPerBar =
-        typeof clip.props.framesPerBar === 'number' ? clip.props.framesPerBar : 15;
-      const isSynthetic = clip.props.dataSource === 'synthetic';
-
-      const series: SeriesSpec = isSynthetic
-        ? {
-            id: seriesId,
-            origin: 'synthetic',
-            label: typeof clip.props.symbol === 'string' ? clip.props.symbol : 'Series',
-            symbol: typeof clip.props.symbol === 'string' ? clip.props.symbol : undefined,
-            timeBasis: 'logical',
-            seed: `${seriesId}-seed`,
-            algorithmVersion: 1,
-            generator: {
-              count: stamped.length,
-              startPrice: stamped[0]?.o ?? 1,
-              timeframeMs: 60_000,
-            },
-            // The bars are the record: the chart's own bars are what it was
-            // showing, and the recipe cannot make them again.
-            bars: stamped,
-          }
-        : {
-            id: seriesId,
-            origin: 'manual',
-            label: typeof clip.props.symbol === 'string' ? clip.props.symbol : 'Series',
-            symbol: typeof clip.props.symbol === 'string' ? clip.props.symbol : undefined,
-            timeBasis: 'logical',
-            bars: stamped,
-          };
-
-      return {
-        project: {
-          ...state.project,
-          series: [...(state.project.series ?? []), series],
-          tracks: state.project.tracks.map((t) => ({
-            ...t,
-            clips: t.clips.map((c) =>
-              c.id === clipId
-                ? {
-                    ...c,
-                    props: {
-                      ...c.props,
-                      seriesId,
-                      panes: [
-                        {
-                          id: `${c.id}-pane-0`,
-                          seriesId,
-                          aggregation: { factor: 1 },
-                          rect: { x: 0, y: 0, width: 1, height: 1 },
-                          in: 0,
-                          out: c.durationInFrames,
-                          opacity: 1,
-                          clock: { kind: 'reference' },
-                          priceRange: { mode: 'auto' },
-                        },
-                      ],
-                      clock: {
-                        id: `${c.id}-clock`,
-                        unit: 'logical',
-                        referenceSeriesId: seriesId,
-                        stepBars: 1,
-                        framesPerStep: framesPerBar,
-                      },
-                    },
-                  }
-                : c,
-            ),
-          })),
-        },
-      };
+      // A chart with no market cannot host a pane, so the group gives each
+      // of its charts one before they share a clock.
+      const withMarkets = charts.reduce(
+        (project, clip) => withChartMarket(project, clip.id),
+        state.project,
+      );
+      return { project: buildChartGroup(withMarkets, groupId, charts.map((clip) => clip.id), layout) };
     });
+    return groupId;
+  },
+
+  setChartGroupLayout: (groupId, layout) => {
+    const s = get();
+    if (!s.project.chartGroups?.some((group) => group.id === groupId)) return;
+    get().commit();
+    set((state) => ({ project: relayoutChartGroup(state.project, groupId, layout) }));
   },
 
   addDrawing: (kind, chartClipId, paneId, anchors) => {

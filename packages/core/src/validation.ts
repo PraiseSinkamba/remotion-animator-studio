@@ -10,8 +10,16 @@
 import * as z from 'zod/v4';
 
 import type { Project } from './schemas';
-import type { ChartProps } from './elements';
+import type { ChartGroupSpec, ChartProps } from './elements';
+import { TIMEFRAME_BASE_UNITS } from './elements';
 import type { SeriesSpec } from './series';
+import {
+  isTimeframeId,
+  paneBarCount,
+  paneRung,
+  rungForBaseUnits,
+  seriesBaseUnits,
+} from './time';
 
 /**
  * The result of a validation.
@@ -226,6 +234,22 @@ const chartPropsSchema = z.object({
   relations: z.array(paneRelationSchema).optional(),
 });
 
+/**
+ * The scene-level container for the split layouts.
+ *
+ * A group holds one to three charts: SMT compares two or three assets, never
+ * one and never more (CH-011). The group owns the arrangement, not the charts'
+ * data, so it keeps only the ids of the charts it arranges.
+ */
+const chartGroupSpecSchema = z.looseObject({
+  id: z.string().min(1),
+  name: z.string(),
+  chartClipIds: z.array(z.string().min(1)).min(1).max(3),
+  layout: z.enum(['single', 'split-horizontal', 'split-vertical', 'pip']),
+  clock: marketClockSchema,
+  relations: z.array(paneRelationSchema).default([]),
+});
+
 /* ------------------------------------------------------------------ */
 /* project document                                                   */
 /* ------------------------------------------------------------------ */
@@ -272,8 +296,185 @@ const projectSchema = z.looseObject({
   tracks: z.array(trackSchema),
   schemaVersion: z.number().int().optional(),
   series: z.array(seriesSpecSchema).optional(),
+  chartGroups: z.array(chartGroupSpecSchema).optional(),
   durationMode: z.enum(['derived', 'fixed']).optional(),
 });
+
+/* ------------------------------------------------------------------ */
+/* the ladder and the relation rules                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Validates a chart's panes and its declared relations.
+ *
+ * Four rules, each about a fact the document claims:
+ *
+ * - a pane's rung is a rung of the ladder, and its factor is the ratio that
+ *   rung carries against the base its series is built from;
+ * - a rollup's two panes read the same series, and the coarse pane's factor
+ *   is a whole multiple of the fine pane's;
+ * - a lockstep's two panes carry the same rung and show the same number of
+ *   candles;
+ * - a relation names panes the chart holds.
+ *
+ * The issues carry a path and a message, so a caller can point at the pane
+ * that has to change.
+ */
+export const validateChartRelations = (raw: unknown): ValidationResult<ChartProps> => {
+  const shape = chartPropsSchema.safeParse(raw);
+  if (!shape.success) {
+    return {
+      ok: false,
+      issues: shape.error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message,
+      })),
+    };
+  }
+
+  // The rules read the props as they were written: the schema strips the
+  // fields it does not declare, and a pane keeps them.
+  const props = raw as ChartProps;
+  const issues: { path: string; message: string }[] = [];
+  const panes = props.panes ?? [];
+  const byId = new Map(panes.map((pane) => [pane.id, pane]));
+
+  // The ladder: a rung is a rung, and a factor is the ratio it carries.
+  panes.forEach((pane, index) => {
+    const path = `panes.${index}`;
+    if (pane.timeframeId !== undefined && !isTimeframeId(pane.timeframeId)) {
+      issues.push({
+        path: `${path}.timeframeId`,
+        message: `"${pane.timeframeId}" is not a rung of the timeframe ladder.`,
+      });
+      return;
+    }
+    if (pane.timeframeId === undefined) {
+      if (pane.aggregation.factor !== 1) {
+        issues.push({
+          path: `${path}.aggregation.factor`,
+          message: `Pane "${pane.id}" names no timeframe, so it reads the source directly and must aggregate 1 bar, not ${pane.aggregation.factor}.`,
+        });
+      }
+      return;
+    }
+    const baseUnits = seriesBaseUnits(panes, pane.seriesId);
+    const baseRung = rungForBaseUnits(baseUnits);
+    if (!baseRung) {
+      issues.push({
+        path: `${path}.aggregation.factor`,
+        message: `Pane "${pane.id}" at ${pane.timeframeId} aggregates ${pane.aggregation.factor} bars, which makes a base of ${baseUnits} minutes — not a rung of the timeframe ladder.`,
+      });
+      return;
+    }
+    const expected = TIMEFRAME_BASE_UNITS[pane.timeframeId] / baseUnits;
+    if (!Number.isInteger(expected)) {
+      issues.push({
+        path: `${path}.aggregation.factor`,
+        message: `Pane "${pane.id}" at ${pane.timeframeId} is not a whole multiple of the ${baseRung} base.`,
+      });
+      return;
+    }
+    if (pane.aggregation.factor !== expected) {
+      issues.push({
+        path: `${path}.aggregation.factor`,
+        message: `Pane "${pane.id}" at ${pane.timeframeId} must aggregate ${expected} bars of the ${baseRung} base, not ${pane.aggregation.factor}.`,
+      });
+    }
+  });
+
+  // The relations: what the creator declared must hold.
+  (props.relations ?? []).forEach((relation, index) => {
+    const path = `relations.${index}`;
+    if (relation.kind === 'rollup') {
+      const fine = byId.get(relation.finePaneId);
+      const coarse = byId.get(relation.coarsePaneId);
+      if (!fine) {
+        issues.push({
+          path: `${path}.finePaneId`,
+          message: `Rollup names pane "${relation.finePaneId}", which this chart does not hold.`,
+        });
+      }
+      if (!coarse) {
+        issues.push({
+          path: `${path}.coarsePaneId`,
+          message: `Rollup names pane "${relation.coarsePaneId}", which this chart does not hold.`,
+        });
+      }
+      if (!fine || !coarse) return;
+      if (fine.seriesId !== coarse.seriesId) {
+        issues.push({
+          path: `${path}.coarsePaneId`,
+          message: `Coarse pane "${coarse.id}" must read the same series ("${fine.seriesId}") as fine pane "${fine.id}", so the two can be rolled up against each other.`,
+        });
+      }
+      const ratio = coarse.aggregation.factor / fine.aggregation.factor;
+      if (!Number.isInteger(ratio)) {
+        issues.push({
+          path: `${path}.coarsePaneId`,
+          message: `Coarse pane "${coarse.id}" aggregates ${coarse.aggregation.factor} bars, which is not a whole multiple of the ${fine.aggregation.factor} bars of fine pane "${fine.id}".`,
+        });
+      } else if (ratio <= 1) {
+        issues.push({
+          path: `${path}.coarsePaneId`,
+          message: `Coarse pane "${coarse.id}" must aggregate more bars than fine pane "${fine.id}" to be a coarser rung.`,
+        });
+      }
+      return;
+    }
+
+    // Lockstep: two assets on one rung, showing the same number of candles.
+    if (!isTimeframeId(relation.timeframeId)) {
+      issues.push({
+        path: `${path}.timeframeId`,
+        message: `"${relation.timeframeId}" is not a rung of the timeframe ladder.`,
+      });
+    }
+    const [firstId, secondId] = relation.paneIds;
+    const first = byId.get(firstId);
+    const second = byId.get(secondId);
+    if (!first) {
+      issues.push({
+        path: `${path}.paneIds.0`,
+        message: `Lockstep names pane "${firstId}", which this chart does not hold.`,
+      });
+    }
+    if (!second) {
+      issues.push({
+        path: `${path}.paneIds.1`,
+        message: `Lockstep names pane "${secondId}", which this chart does not hold.`,
+      });
+    }
+    if (!first || !second) return;
+    const firstRung = paneRung(first, panes);
+    const secondRung = paneRung(second, panes);
+    if (firstRung !== secondRung) {
+      issues.push({
+        path: `${path}.paneIds`,
+        message: `Lockstep panes "${first.id}" (${firstRung ?? 'no rung'}) and "${second.id}" (${secondRung ?? 'no rung'}) must carry the same rung.`,
+      });
+    }
+    for (const pane of [first, second]) {
+      if (pane.timeframeId !== undefined && pane.timeframeId !== relation.timeframeId) {
+        issues.push({
+          path: `${path}.paneIds`,
+          message: `Pane "${pane.id}" must read ${relation.timeframeId} to stay in lockstep, not ${pane.timeframeId}.`,
+        });
+      }
+    }
+    const firstCount = paneBarCount(first);
+    const secondCount = paneBarCount(second);
+    if (firstCount !== secondCount) {
+      issues.push({
+        path: `${path}.paneIds`,
+        message: `Lockstep panes "${first.id}" (${firstCount} candles) and "${second.id}" (${secondCount} candles) must show the same number of candles.`,
+      });
+    }
+  });
+
+  if (issues.length > 0) return { ok: false, issues };
+  return { ok: true, value: props };
+};
 
 /* ------------------------------------------------------------------ */
 /* the exported validators                                            */
@@ -286,6 +487,15 @@ export const validateSeriesSpec = (raw: unknown): ValidationResult<SeriesSpec> =
 /** Validates a chart clip's props. */
 export const validateChartProps = (raw: unknown): ValidationResult<ChartProps> =>
   toResult(chartPropsSchema.safeParse(raw) as z.ZodSafeParseResult<ChartProps>);
+
+/**
+ * Validates a grouped chart.
+ *
+ * A group holds one to three chart clips: SMT compares two or three assets,
+ * never one and never more (CH-011).
+ */
+export const validateChartGroup = (raw: unknown): ValidationResult<ChartGroupSpec> =>
+  toResult(chartGroupSpecSchema.safeParse(raw) as z.ZodSafeParseResult<ChartGroupSpec>);
 
 /** Validates a whole project document. */
 export const validateProjectDocument = (raw: unknown): ValidationResult<Project> =>

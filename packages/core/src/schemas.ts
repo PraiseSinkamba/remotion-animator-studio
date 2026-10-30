@@ -1,3 +1,4 @@
+import type { ChartGroupSpec } from './elements';
 import type { SeriesSpec } from './series';
 
 export type ElementType =
@@ -125,6 +126,11 @@ export interface Project {
    * chart never holds the bars itself.
    */
   series?: SeriesSpec[];
+  /**
+   * Scene-level chart groups. A group arranges one to three chart clips, gives
+   * them a shared clock and declares the relations between their panes.
+   */
+  chartGroups?: ChartGroupSpec[];
   /**
    * 'derived' computes the length from the elements; 'fixed' uses
    * durationInFrames. Absent means legacy (version 1).

@@ -1,4 +1,4 @@
-import type { Clip, EffectInstance, ElementType } from '@chart-studio/core';
+import type { ChartGroupSpec, Clip, EffectInstance, ElementType } from '@chart-studio/core';
 import { getComponent } from '@chart-studio/components';
 
 let n = 0;
@@ -23,6 +23,11 @@ export interface PresetDef {
   description: string;
   /** cx/cy are canvas center; w/h the canvas size — so presets adapt to any aspect ratio */
   build: (w: number, h: number) => PresetClipSpec[];
+  /**
+   * When set, the preset's charts are dropped as one group: they share a
+   * clock and take the places this layout gives them.
+   */
+  chartGroup?: ChartGroupSpec['layout'];
 }
 
 export const buildPresetClips = (preset: PresetDef, w: number, h: number, atFrame: number): Clip[] =>
@@ -43,6 +48,40 @@ export const buildPresetClips = (preset: PresetDef, w: number, h: number, atFram
       ) as Record<string, number | string>,
     })),
   }));
+
+/**
+ * A chart clip for a grouped-chart preset.
+ *
+ * The group places the charts; the preset only says which charts there are
+ * and where the group's box sits.
+ */
+const chartSpec = (
+  w: number,
+  h: number,
+  layout: ChartGroupSpec['layout'],
+  index: number,
+): PresetClipSpec => {
+  const wide = layout === 'split-horizontal';
+  const box = {
+    width: Math.round(w * (wide ? 0.82 : 0.6)),
+    height: Math.round(h * (layout === 'split-vertical' ? 0.66 : 0.5)),
+  };
+  return {
+    element: 'candlestickChart',
+    name: index === 0 ? 'Chart' : 'Chart 2',
+    offset: 0,
+    duration: 150,
+    props: {
+      x: w / 2,
+      y: h / 2,
+      width: box.width,
+      height: box.height,
+      symbol: index === 0 ? 'SYNTH' : 'SYNTH-B',
+      simulationSeed: index === 0 ? 'chart-1' : 'chart-2',
+    },
+    effects: [],
+  };
+};
 
 export const PRESETS: Record<string, PresetDef> = {
   titleIntro: {
@@ -686,6 +725,34 @@ export const PRESETS: Record<string, PresetDef> = {
         effects: [],
       },
     ],
+  },
+  chartSingle: {
+    label: 'Chart',
+    icon: '🕯',
+    description: 'One candlestick chart on the shared clock',
+    chartGroup: 'single',
+    build: (w, h) => [chartSpec(w, h, 'single', 0)],
+  },
+  chartSplitHorizontal: {
+    label: 'Chart Split',
+    icon: '🕯',
+    description: 'Two charts side by side on one shared clock',
+    chartGroup: 'split-horizontal',
+    build: (w, h) => [chartSpec(w, h, 'split-horizontal', 0), chartSpec(w, h, 'split-horizontal', 1)],
+  },
+  chartSplitVertical: {
+    label: 'Chart Stack',
+    icon: '🕯',
+    description: 'Two charts stacked on one shared clock',
+    chartGroup: 'split-vertical',
+    build: (w, h) => [chartSpec(w, h, 'split-vertical', 0), chartSpec(w, h, 'split-vertical', 1)],
+  },
+  chartPip: {
+    label: 'Chart PIP',
+    icon: '🕯',
+    description: 'One large chart with a small one in the corner',
+    chartGroup: 'pip',
+    build: (w, h) => [chartSpec(w, h, 'pip', 0), chartSpec(w, h, 'pip', 1)],
   },
   endCard: {
     label: 'End Card',

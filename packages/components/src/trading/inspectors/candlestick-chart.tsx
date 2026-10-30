@@ -9,7 +9,14 @@
  */
 import React from 'react';
 import type { ComponentInspectorContext } from '@chart-studio/core';
-import { barsToFrames, generateSyntheticBars, type OhlcBar } from '@chart-studio/core';
+import {
+  barsToFrames,
+  generateSyntheticBars,
+  type OhlcBar,
+  type PaneRelation,
+  type PaneSpec,
+} from '@chart-studio/core';
+import { PaneRelationPanel } from './pane-relations';
 
 /** `'5m'` -> 300000. Unknown timeframes fall back to one minute. */
 const timeframeToMs = (timeframe: string): number => {
@@ -37,6 +44,8 @@ export const CandlestickChartInspector: React.FC<ComponentInspectorContext> = ({
   const bars: OhlcBar[] = Array.isArray(props.bars) ? props.bars : [];
   const framesPerBar = Number(props.framesPerBar) || 1;
   const needed = barsToFrames(bars, framesPerBar);
+  const panes: PaneSpec[] = Array.isArray(props.panes) ? props.panes : [];
+  const relations: PaneRelation[] = Array.isArray(props.relations) ? props.relations : [];
 
   const [seed, setSeed] = React.useState(String(props.simulationSeed ?? 'chart-1'));
   const [count, setCount] = React.useState(String(bars.length || 12));
@@ -190,6 +199,15 @@ export const CandlestickChartInspector: React.FC<ComponentInspectorContext> = ({
       >
         Fit clip length to bars
       </button>
+
+      {panes.length > 0 ? (
+        <PaneRelationPanel
+          panes={panes}
+          relations={relations}
+          onChange={onChange}
+          commit={commit}
+        />
+      ) : null}
     </div>
   );
 };

@@ -1,4 +1,5 @@
 export * from './store';
+export * from './chartGroup';
 export * from './playerRef';
 export * from './presets';
 export * from './drawings';

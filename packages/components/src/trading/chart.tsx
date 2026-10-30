@@ -16,6 +16,7 @@ import {
   type ElementRect,
   type MarketClock,
   type OhlcBar,
+  type PaneRelation,
   type PaneSpec,
   type PartialBar,
   type SeriesOrigin,
@@ -73,6 +74,8 @@ export interface CandlestickChartProps {
   panes?: PaneSpec[];
   /** The chart's clock. Absent on a chart that predates the clock. */
   clock?: MarketClock;
+  /** The declared relations between this chart's panes. */
+  relations?: PaneRelation[];
 }
 
 /** Padding around the plot area. */
@@ -288,6 +291,14 @@ export const renderCandlestickChart = (
 ): React.ReactElement => {
   const { panes, origin } = panesToDraw(props, frame, evaluated);
   const drawn = panes.filter((pane) => pane.bars.length > 0);
+  // The shared cursor marks the market instant the clock is at, so that panes
+  // can be read against each other. It is a *shared* cursor: with one pane
+  // there is nothing to relate it to, and the playhead already says where the
+  // composition is.
+  const clockDriven =
+    Boolean(props.clock) &&
+    panes.length > 1 &&
+    Boolean((evaluated as ChartEvaluation | undefined)?.panes.length);
 
   if (drawn.length === 0) {
     return (
@@ -310,6 +321,13 @@ export const renderCandlestickChart = (
     for (let i = 0; i < GRID_LINES; i++) {
       gridPrices.push(range.max - ((range.max - range.min) * i) / (GRID_LINES - 1));
     }
+
+    // The shared cursor: the pane's last revealed bar is the market instant
+    // the clock's reference index falls in, so every pane marks the same
+    // moment in its own scale.
+    const cursorX = clockDriven
+      ? geometry.plotLeft + (pane.bars.length - 0.5) * geometry.slotWidth
+      : null;
 
     const candles = pane.bars.map((bar, index) => {
       const centre = geometry.plotLeft + (index + 0.5) * geometry.slotWidth;
@@ -381,6 +399,20 @@ export const renderCandlestickChart = (
           : null}
 
         {candles}
+
+        {cursorX !== null ? (
+          <line
+            data-testid="clock-cursor"
+            data-pane={paneIndex}
+            x1={cursorX}
+            x2={cursorX}
+            y1={geometry.plotTop}
+            y2={geometry.plotBottom}
+            stroke={props.wickColor}
+            strokeWidth={1}
+            strokeDasharray="3 3"
+          />
+        ) : null}
       </g>
     );
   });

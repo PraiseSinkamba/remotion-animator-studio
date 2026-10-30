@@ -1059,13 +1059,25 @@ undo/redo.
   - `packages/components/src/trading/chart.tsx` — a chart renders `props.panes` — each pane with its own rect, its own price scale, its own lifecycle and its own aggregation — plus a shared cursor at the clock's reference index.
   - `packages/editor/src/presets.ts` — grouped-chart layout presets: single, horizontal split, vertical split, PIP.
 
-- [ ] **Step 1: Resolve the clock bindings**
+**The shared cursor is a *shared* cursor.** It marks the market instant the clock is at so that
+panes can be read against each other, and it is drawn only when a chart has **more than one
+pane**. With one pane there is nothing to relate it to, and the playhead already says where the
+composition is — so a single-pane chart is unchanged, and the migrated document still renders
+byte for byte as it did before. (Drawing it on every clocked chart changed the migration fixture's
+stills; the rule was narrowed and the stills are byte-identical again.)
+
+**The group positions its charts; it does not own them.** A grouped chart lays its members out in
+the four layouts, gives them one clock, and records the relations between their panes. Each chart
+keeps its own series, price scale, viewport and lifecycle, so the group is an arrangement rather
+than an ownership.
+
+- [x] **Step 1: Resolve the clock bindings**
 
 `ClockBinding` is `reference` (the pane follows the reference series' own bars), `offset` (an explicit authored offset in bars, logical time only) or `utc` (real market time; requires a `timeBasis: 'utc'` series and is unavailable while import is deferred). The `utc` binding must fail loudly — not silently fall back — when the series has no UTC basis.
 
 Two different series are aligned by an author-supplied offset and never by row index (CH-005).
 
-- [ ] **Step 2: Add the timeframe ladder**
+- [x] **Step 2: Add the timeframe ladder**
 
 `packages/core/src/elements.ts` gains the ladder as a fixed catalogue, and `timeframeId` becomes a
 rung of it rather than a free multiplier:
@@ -1100,7 +1112,7 @@ regular cash hours), and across a daylight-saving boundary the answer changes ag
 delivered now; the calendar is not (TF-001, TF-007). The inspector shows the clock-time ratio and
 does **not** claim a session count it cannot know.
 
-- [ ] **Step 3: Declare the relation between panes**
+- [x] **Step 3: Declare the relation between panes**
 
 The chart props carry `relations?: PaneRelation[]`. A relation is **declared**, never inferred from two panes sharing a chart, because only a declared relation can be checked, labelled and exported (CH-010). There are exactly two kinds:
 
@@ -1116,7 +1128,7 @@ The chart props carry `relations?: PaneRelation[]`. A relation is **declared**, 
 
 `evaluateRelation(relation, panes)` returns the derived state: for a rollup, `{ kind: 'rollup'; barsPerCoarse; fineTimeframeId; coarseTimeframeId; baseTimeframeId }`; for a lockstep, `{ kind: 'lockstep'; timeframeId; barCount }`. The validator rejects a rollup whose panes do not share a base, and rejects a lockstep whose two panes disagree on the rung or the candle count.
 
-- [ ] **Step 4: Add the grouped chart**
+- [x] **Step 4: Add the grouped chart**
 
 `ChartGroupSpec` is the scene-level container for the split layouts: one to three chart clips, a
 layout (`single`, `split-horizontal`, `split-vertical`, `pip`), the shared clock and the declared
@@ -1129,21 +1141,21 @@ charts' data, lifecycles or prices: each chart keeps its own series, price scale
 in/out frames (CH-003, CH-004), and the group's convenience is that the charts move together by
 default, never that they are forced to (SC-002).
 
-- [ ] **Step 5: Aggregate as-of**
+- [x] **Step 5: Aggregate as-of**
 
 With `aggregation.factor = n`, the bucket index is `floor(sourceIndex / n)` and the bucket's state aggregates only the constituents with index `<= sourceIndex`. A partially formed bucket is marked `developing: true` and is labelled `DEVELOPING` in the editor (TF-004). The `auto` price range of a pane is computed from the revealed bars only, so a future bar never moves that pane's axis.
 
-- [ ] **Step 6: Render multiple panes**
+- [x] **Step 6: Render multiple panes**
 
 `packages/components/src/trading/chart.tsx` draws each pane inside its own rect with its own price scale and viewport. The pane rect is in 0..1 of the chart's box, so a pane scales with the chart and its anchors resolve against the same rect (R1).
 
 The shared cursor is the chart clock: one reference index across the panes, each with its own scale (CH-003, AN-007). A lockstep pair therefore shows both assets at the same instant, with the same number of candles.
 
-- [ ] **Step 7: Add the pane inspector and the presets**
+- [x] **Step 7: Add the pane inspector and the presets**
 
 The chart inspector gains a pane panel: add, remove, reorder a pane; set its series, timeframe, aggregation factor, rect, lifecycle and opacity; set its clock binding. It gains a relation panel: declare a rollup or a lockstep, see the derived ratio, and see the "authored link — not market time" label on a cross-asset link. The presets in `packages/editor/src/presets.ts` (`:47`, 14 entries today) gain the pane arrangements, including the two split kinds.
 
-- [ ] **Step 8: Write the failing tests**
+- [x] **Step 8: Write the failing tests**
 
 `packages/core/src/time.test.ts` (modify):
 
@@ -1174,7 +1186,7 @@ The chart inspector gains a pane panel: add, remove, reorder a pane; set its ser
 - "moves the shared cursor with the clock" — fails before Step 6; passes after.
 - "labels a cross-asset link as authored rather than market time" — fails before Step 7; passes after (R13).
 
-- [ ] **Step 9: Verify**
+- [x] **Step 9: Verify**
 
 ```bash
 pnpm typecheck
@@ -1185,7 +1197,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 45 and 140 against the pane fixture: one rollup pair on a single series and one lockstep pair across two series, the lockstep pair showing the same number of candles at the same instant.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add -A
