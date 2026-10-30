@@ -247,7 +247,7 @@ For every user-interface change the executor exercises the actual surface in a b
   - `packages/core/src/validation.ts` — `validateProjectDocument(raw)`, `validateSeriesSpec(raw)`, `validateChartProps(raw)`, each returning `{ ok: true, value }` or `{ ok: false, issues: { path, message }[] }`.
   - `packages/core/src/schemas.ts` — `Project.series: SeriesSpec[]`, `Project.durationMode: 'derived' | 'fixed'`.
 
-- [ ] **Step 1: Add the pinned Zod dependency to `packages/core`**
+- [x] **Step 1: Add the pinned Zod dependency to `packages/core`**
 
 Add to `packages/core/package.json`:
 
@@ -259,7 +259,7 @@ Add to `packages/core/package.json`:
 
 Run `pnpm install`. The lockfile gains a `packages/core` importer entry pointing at the store entry the Remotion family already resolves (`pnpm-lock.yaml:3329`) — no second download, no version skew. Expected: the install completes with no lifecycle-script warning beyond `esbuild` (already allowlisted at `package.json` `pnpm.onlyBuiltDependencies`).
 
-- [ ] **Step 2: Move `OhlcBar` into `series.ts` and export the seeded helpers**
+- [x] **Step 2: Move `OhlcBar` into `series.ts` and export the seeded helpers**
 
 `packages/core/src/market.ts:8-15` currently defines `OhlcBar` without an `id`. Move the interface to `packages/core/src/series.ts` with `id: string` as the first field, and change `market.ts` to import the type from `./series` (no re-export — `packages/core/src/index.ts` uses `export *` from both modules and a duplicate export would be ambiguous).
 
@@ -282,7 +282,7 @@ export const generateSyntheticBars = (options: {
 
 Also change `hashString` (`:44-51`) and `createRng` (`:54-63`) from module-private `const` to `export const`. **Decision, per Q4: export and reuse, do not duplicate.** One FNV-1a hash and one mulberry32 in the package means one definition of "deterministic" and one place to change it; a copy in `path.ts` would be a second source of truth for a correctness-critical helper. Exit strategy: removing the export is a deletion.
 
-- [ ] **Step 3: Write `packages/core/src/series.ts`**
+- [x] **Step 3: Write `packages/core/src/series.ts`**
 
 The seam, exactly as the design specifies (spec §3.2, §4):
 
@@ -326,7 +326,7 @@ export const seriesRevision = (spec: SeriesSpec): string;
 
 `materialiseSeries` re-stamps every bar's id to `` `${spec.id}:${index}` `` (spec §3.3 step 7) and sorts by `t` ascending. `seriesRevision` hashes the materialised content with `hashString` and returns the hex digest — an edited anchor, an edited bar or a changed seed all produce a different revision.
 
-- [ ] **Step 4: Write `packages/core/src/path.ts` with the normative generator**
+- [x] **Step 4: Write `packages/core/src/path.ts` with the normative generator**
 
 `packages/core/src/path.ts` is a **port** of `docs/reference/data-generation/path-to-candles-advanced.ts` — the author's reference implementation, which is the normative source for the algorithm. Port it; do not re-derive it. The port changes exactly two things and nothing else:
 
@@ -396,13 +396,13 @@ export const generateSeriesFromPath = (
 
 The **reveal** of a partially formed bar during playback is a separate concern and is not re-implemented here: `buildWaypoints` and `simulateBar` (`packages/core/src/market.ts:116-173`) stay the only intrabar reveal machinery, so AN-003's guarantees are unchanged. The generator's own intrabar bridge fixes each bar's `h` and `l`; the reveal walks that range.
 
-- [ ] **Step 5: Write `packages/core/src/elements.ts` and `packages/core/src/curve.ts`**
+- [x] **Step 5: Write `packages/core/src/elements.ts` and `packages/core/src/curve.ts`**
 
 `elements.ts` carries the element model verbatim from spec §3.4: `PaneSpec` (with `aggregation`, `rect`, `in`, `out`, `opacity`, `curve?`, `clock`, `priceRange`, `viewport?`, `holds?`, `zoom?`, `style?`), `PaneRelation` (the two kinds, `rollup` and `lockstep` — spec §3.4.1), `PaneHold`, `ZoomTrack`, `MarketAnchor` (the four variants: `price`, `candle`, `time`, `point`), `DrawingKind` (the eight kinds), `DrawingSpec`, `MarketClock`, `ClockBinding`, `ChartStyle`.
 
 `curve.ts` carries `CurvePreset` (`linear`, `easeIn`, `easeOut`, `easeInOut`, `bounceOut`, `elastic`, `overshoot`), `Curve` (`preset` | `cubicBezier`) and `evaluateCurve(curve, t)`: a cubic-bezier solver (bisection on x, then y) plus the presets expressed as control points. No Remotion import. `evaluateCurve(curve, 0) === 0` and `evaluateCurve(curve, 1) === 1` for every curve.
 
-- [ ] **Step 6: Write `packages/core/src/time.ts`**
+- [x] **Step 6: Write `packages/core/src/time.ts`**
 
 `evaluateClockAt(clock, chartLocalFrame)` returns `{ referenceIndex, progress }`:
 
@@ -420,7 +420,7 @@ progress       = fract(clockStep(f))
 - `range` comes from the revealed bars only when `priceRange.mode === 'auto'`, and from the author's `min`/`max` when the mode is `fixed`;
 - the uniform mapping of today (`evaluateBarsAtFrame`, `packages/core/src/market.ts:188-225`) stays the special case of this evaluation and keeps its name and its assertions.
 
-- [ ] **Step 7: Write `packages/core/src/validation.ts`**
+- [x] **Step 7: Write `packages/core/src/validation.ts`**
 
 The only module in the workspace that names a Zod symbol:
 
@@ -450,7 +450,7 @@ document tree — the document, its tracks, its clips and their effects — is t
 exactly the silent truncation the rule exists to prevent. A test asserts an unknown key survives
 the round trip.
 
-- [ ] **Step 8: Extend the document types in `packages/core/src/schemas.ts`**
+- [x] **Step 8: Extend the document types in `packages/core/src/schemas.ts`**
 
 Add to `Project`:
 
@@ -465,7 +465,7 @@ Add to `Project`:
 
 Extend the `ElementType` union at the end with the eight drawing types — `priceLine`, `highLowLine`, `verticalLine`, `trendline`, `priceZone`, `textLabel`, `arrow`, `position` — and nothing else. No existing member is renamed, renumbered or reused.
 
-- [ ] **Step 9: Write the v1 → v2 migration**
+- [x] **Step 9: Write the v1 → v2 migration**
 
 In `packages/components/src/project-migrate.ts`: `CURRENT_PROJECT_SCHEMA_VERSION` moves from `1` to `2` (`:21`). The v1 → v2 conversion, per spec §3.10:
 
@@ -480,7 +480,7 @@ The single migrated pane gets `rect: { x: 0, y: 0, width: 1, height: 1 }` (per Q
 
 The migration keeps its rejections unchanged: a higher `schemaVersion` (`:92-93`), an unknown component type via `getComponent` (`:37-38`), a clip whose `propsVersion` is newer than its component's (`:40-44`), and the malformed-scalar checks (`:96-101`) — the last group moves behind `validateProjectDocument` in Task 11, not now, so the migration's own error messages stay as they are.
 
-- [ ] **Step 10: Write the failing tests, then the implementation**
+- [x] **Step 10: Write the failing tests, then the implementation**
 
 `packages/core/src/series.test.ts` (new):
 - "materialises a manual series into a datasource with stable bar ids" — fails before Step 3 (no `series.ts`); passes after.
@@ -523,7 +523,7 @@ The migration keeps its rejections unchanged: a higher `schemaVersion` (`:92-93`
 `packages/components/src/trading/candlestick-chart.test.tsx` (modify):
 - "renders the migrated chart identically to the v1 chart" (R7) — fails before Step 9; passes after: render the v1 clip's props and the migrated clip's props at the same frame and compare the serialised SVG.
 
-- [ ] **Step 11: Verify**
+- [x] **Step 11: Verify**
 
 ```bash
 pnpm typecheck
@@ -534,7 +534,7 @@ node scripts/verify-r1.mjs
 
 The executor must report: the observed test counts (the suite was 154 tests over 12 files before this slice — `docs/quality/TEST_STRATEGY.md` §3), the typecheck result, the build result, and the render-gate still byte sizes and MP4 outcome for the migrated fixture (frames 0, 45, 179 asserted against the pre-migration render).
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add -A
