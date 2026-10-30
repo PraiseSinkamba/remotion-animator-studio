@@ -1,5 +1,5 @@
 import React from 'react';
-import { MousePointer2, PenTool, Spline } from 'lucide-react';
+import { MousePointer2, PenTool, Spline, TrendingUp } from 'lucide-react';
 import { findClip, useStore } from '@chart-studio/editor';
 import { Button } from '@chart-studio/ui';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@chart-studio/ui';
@@ -13,10 +13,12 @@ export const ToolRail: React.FC = () => {
   const project = useStore((s) => s.project);
   const selectedClipIds = useStore((s) => s.selectedClipIds);
   const drawingPath = useStore((s) => s.drawingPath);
+  const swingPath = useStore((s) => s.swingPath);
 
   const clip = findClip(project, selectedClipIds[0]);
   const motionPath = clip?.effects.find((fx) => fx.type === 'motionPath');
   const isTrail = clip?.element === 'nodeTrail';
+  const isChart = clip?.element === 'candlestickChart';
 
   return (
     <div className="flex flex-col items-center gap-2 w-12 shrink-0 border-r bg-card py-2">
@@ -65,6 +67,23 @@ export const ToolRail: React.FC = () => {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="right">Draw Trail</TooltipContent>
+        </Tooltip>
+      ) : null}
+
+      {isChart ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Path"
+              className={swingPath?.clipId === clip!.id ? 'bg-secondary text-secondary-foreground' : undefined}
+              onClick={() => useStore.getState().startSwingPath(clip!.id)}
+            >
+              <TrendingUp />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Path</TooltipContent>
         </Tooltip>
       ) : null}
     </div>

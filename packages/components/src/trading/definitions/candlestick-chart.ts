@@ -19,6 +19,7 @@ import {
   framesPerBar as framesPerBarOf,
   generateSyntheticBars,
   materialiseSeries,
+  seriesRevision,
   type Project,
   type SeriesSpec,
 } from '@chart-studio/core';
@@ -49,6 +50,29 @@ const evaluateChart = ({
   const seriesId = typeof props.seriesId === 'string' ? props.seriesId : undefined;
   const spec: SeriesSpec | undefined = project.series?.find((entry) => entry.id === seriesId);
   if (!spec) return undefined;
+
+  // A path the creator has not drawn yet has nothing to generate from. The
+  // chart shows an empty plot rather than failing: the path is the chart's
+  // data, and a chart whose data is not drawn yet is simply empty.
+  if (spec.origin === 'authored-path' && spec.path.anchors.length < 2) {
+    return {
+      panes: [
+        {
+          bars: [],
+          totalBars: 0,
+          developing: false,
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+        },
+      ],
+      provenance: {
+        origin: spec.origin,
+        revision: seriesRevision(spec),
+        label: spec.label,
+        symbol: spec.symbol,
+        timeframeId: spec.timeframeId,
+      },
+    };
+  }
 
   const datasource = materialiseSeries(spec);
   const clock = props.clock;

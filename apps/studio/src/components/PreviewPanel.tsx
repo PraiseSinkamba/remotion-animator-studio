@@ -4,11 +4,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { playerRef, seekTo, togglePlay } from '@chart-studio/editor';
 import { MainComposition } from '@chart-studio/video';
 import { findClip, useStore } from '@chart-studio/editor';
+import {
+  chartAnchorToPoint,
+  chartPointToAnchor,
+  chartPriceRange,
+  getComponent,
+  type CandlestickChartProps,
+  type ChartEvaluation,
+} from '@chart-studio/components';
+import { strokeToAnchorPoints } from '@chart-studio/core';
 import type { ElementType, Project } from '@chart-studio/core';
 import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit-test';
 import type { PickableClip } from './canvas-hit-test';
 import { SelectionOverlay } from './selection-overlay';
 import { Button, ELEMENT_MIME, PRESET_MIME } from '@chart-studio/ui';
+
+/** How close the pointer must be to an anchor to pick it up, in chart pixels. */
+const ANCHOR_GRAB_RADIUS = 10;
 
 /** Seconds label for the transport readout, e.g. "1.5s". */
 const secondsLabel = (frames: number, fps: number) => {
@@ -29,7 +41,19 @@ export const PreviewPanel: React.FC = () => {
   const updateClipProps = useStore((s) => s.updateClipProps);
 
   const drawingPath = useStore((s) => s.drawingPath);
+  const swingPath = useStore((s) => s.swingPath);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  /** The gesture in progress while a swing path is being authored. */
+  const swingDrag = useRef<
+    | { mode: 'anchor'; anchorId: string }
+    | {
+        mode: 'stroke';
+        points: Array<{ x: number; y: number }>;
+        /** The market point under the pointer, for a press that never moved. */
+        anchor: { barIndex: number; price: number };
+      }
+    | null
+  >(null);
   const drag = useRef<{
     startX: number;
     startY: number;
@@ -109,6 +133,63 @@ export const PreviewPanel: React.FC = () => {
   };
 
   /**
+   * The chart whose swing path is being authored, and its pane state.
+   *
+   * The pane state comes from the chart's own evaluation, so the geometry the
+   * creator points at is the geometry the renderer draws with.
+   */
+  const swingContext = () => {
+    const state = useStore.getState();
+    const session = state.swingPath;
+    if (!session) return null;
+    const clip = findClip(state.project, session.clipId);
+    if (!clip || clip.element !== 'candlestickChart') return null;
+    const definition = getComponent(clip.element);
+    const evaluated = definition?.evaluate?.({
+      clip,
+      props: clip.props,
+      sceneFrame: state.currentFrame,
+      project: state.project,
+    }) as ChartEvaluation | undefined;
+    if (!evaluated || evaluated.panes.length === 0) return null;
+    return { clip, pane: evaluated.panes[0], props: clip.props as unknown as CandlestickChartProps };
+  };
+
+  /** The chart-local point under the pointer, and the anchor it names. */
+  const swingPoint = (clientX: number, clientY: number) => {
+    const context = swingContext();
+    if (!context) return null;
+    const project = projectPoint(clientX, clientY);
+    if (!project) return null;
+    const local = {
+      x: project.x - Number(context.props.x ?? 0),
+      y: project.y - Number(context.props.y ?? 0),
+    };
+    const anchor = chartPointToAnchor(context.props, context.pane, local);
+    if (!anchor) return null;
+    return { context, local, anchor };
+  };
+
+  /** The anchor within a few pixels of a point, if there is one. */
+  const swingAnchorNear = (local: { x: number; y: number }) => {
+    const context = swingContext();
+    if (!context) return null;
+    const series = useStore
+      .getState()
+      .project.series?.find((entry) => entry.id === context.props.seriesId);
+    if (!series || series.origin !== 'authored-path') return null;
+    let nearest: { id: string; distance: number } | null = null;
+    for (const anchor of series.path.anchors) {
+      const point = chartAnchorToPoint(context.props, context.pane, anchor);
+      const distance = Math.hypot(point.x - local.x, point.y - local.y);
+      if (distance <= ANCHOR_GRAB_RADIUS && (!nearest || distance < nearest.distance)) {
+        nearest = { id: anchor.id, distance };
+      }
+    }
+    return nearest;
+  };
+
+  /**
    * Press an element on the canvas: it becomes the selection and the drag
    * handle. Pressing the background clears the selection and starts no drag,
    * so the canvas can never drag an element it was not pointed at.
@@ -117,6 +198,25 @@ export const PreviewPanel: React.FC = () => {
     if (e.button !== 0) return;
     const s = useStore.getState();
     if (s.drawingPath) return; // clicks belong to the path tool
+    if (s.swingPath) {
+      // The path session owns the canvas: a press on an anchor drags it, and
+      // a press anywhere else starts a freehand stroke.
+      const point = swingPoint(e.clientX, e.clientY);
+      if (!point) return;
+      const near = swingAnchorNear(point.local);
+      if (near) {
+        s.commit();
+        swingDrag.current = { mode: 'anchor', anchorId: near.id };
+      } else {
+        swingDrag.current = {
+          mode: 'stroke',
+          points: [point.local],
+          anchor: point.anchor,
+        };
+      }
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
     const hit = pickAt(e.clientX, e.clientY);
     if (!hit) {
       s.selectClip(null); // the background never drags
@@ -154,6 +254,23 @@ export const PreviewPanel: React.FC = () => {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const gesture = swingDrag.current;
+    if (gesture) {
+      const point = swingPoint(e.clientX, e.clientY);
+      if (!point) return;
+      if (gesture.mode === 'anchor') {
+        useStore
+          .getState()
+          .moveSwingAnchor(point.context.clip.id, gesture.anchorId, { price: point.anchor.price });
+      } else {
+        gesture.anchor = point.anchor;
+        const last = gesture.points[gesture.points.length - 1];
+        if (Math.hypot(point.local.x - last.x, point.local.y - last.y) > 2) {
+          gesture.points.push(point.local);
+        }
+      }
+      return;
+    }
     if (!drag.current) {
       // Hover feedback: only an element under the pointer can be picked up.
       if (wrapperRef.current) {
@@ -177,6 +294,42 @@ export const PreviewPanel: React.FC = () => {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    const gesture = swingDrag.current;
+    swingDrag.current = null;
+    if (gesture) {
+      if (gesture.mode === 'stroke') {
+        const context = swingContext();
+        if (gesture.points.length === 1) {
+          // A press that never moved is a click: it places one anchor.
+          if (context) {
+            useStore
+              .getState()
+              .addSwingAnchor(context.clip.id, {
+                barIndex: gesture.anchor.barIndex,
+                price: gesture.anchor.price,
+              });
+          }
+          return;
+        }
+        // A freehand stroke becomes the path: the trail is simplified and
+        // converted to anchors against the pane's own scale.
+        if (context && gesture.points.length >= 2) {
+          const range = chartPriceRange(context.pane.bars);
+          const points = strokeToAnchorPoints(gesture.points, {
+            width: Number(context.props.width ?? 0),
+            height: Number(context.props.height ?? 0),
+            candleCount: context.pane.totalBars,
+            minPrice: range.min,
+            maxPrice: range.max,
+          });
+          // The stroke is the path: it replaces what was there.
+          useStore
+            .getState()
+            .replaceSwingPath(context.clip.id, points.map((p) => ({ barIndex: p.barIndex, price: p.price })));
+        }
+      }
+      return;
+    }
     const current = drag.current;
     drag.current = null;
     if (current && !current.moved && current.collapse) {
@@ -252,6 +405,38 @@ export const PreviewPanel: React.FC = () => {
 
   const selected = findClip(project, selectedClipId);
 
+  /**
+   * The swing path's anchors, as positions in the composition.
+   *
+   * Drawn by the editor over the canvas — never by the render adapter, so the
+   * handles can never reach the rendered frame (CPT-005).
+   */
+  const swingHandles = (): Array<{ id: string; x: number; y: number }> => {
+    if (!swingPath) return [];
+    const clip = findClip(project, swingPath.clipId);
+    if (!clip || clip.element !== 'candlestickChart') return [];
+    const series = project.series?.find((entry) => entry.id === clip.props.seriesId);
+    if (!series || series.origin !== 'authored-path') return [];
+    const definition = getComponent(clip.element);
+    const evaluated = definition?.evaluate?.({
+      clip,
+      props: clip.props,
+      sceneFrame: currentFrame,
+      project,
+    }) as ChartEvaluation | undefined;
+    const pane = evaluated?.panes[0];
+    if (!pane) return [];
+    const props = clip.props as unknown as CandlestickChartProps;
+    return series.path.anchors.map((anchor) => {
+      const point = chartAnchorToPoint(props, pane, anchor);
+      return {
+        id: anchor.id,
+        x: Number(props.x ?? 0) + point.x,
+        y: Number(props.y ?? 0) + point.y,
+      };
+    });
+  };
+
   const onToggleMute = () => {
     const next = !muted;
     setMuted(next);
@@ -296,6 +481,27 @@ export const PreviewPanel: React.FC = () => {
           acknowledgeRemotionLicense
         />
         <SelectionOverlay />
+        {swingPath ? (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            <svg
+              viewBox={`0 0 ${project.width} ${project.height}`}
+              preserveAspectRatio="xMidYMid meet"
+              className="h-full w-full"
+            >
+              {swingHandles().map((handle) => (
+                <circle
+                  key={handle.id}
+                  cx={handle.x}
+                  cy={handle.y}
+                  r={7}
+                  fill="#6ee7a8"
+                  stroke="#0d0d14"
+                  strokeWidth={2}
+                />
+              ))}
+            </svg>
+          </div>
+        ) : null}
         {dropActive ? (
           <>
             {/* The stage lights up while a library card hovers over it. */}

@@ -2,7 +2,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
-import { CandlestickChart, type CandlestickChartProps } from './chart';
+import {
+  CandlestickChart,
+  chartAnchorToPoint,
+  chartPointToAnchor,
+  type CandlestickChartProps,
+} from './chart';
 import { CandlestickChartInspector } from './inspectors/candlestick-chart';
 import { candlestickChartDefinition } from './definitions/candlestick-chart';
 import { generateSyntheticBars, type OhlcBar } from '@chart-studio/core';
@@ -626,5 +631,123 @@ describe('the chart driven by the project registry', () => {
     expect(container.querySelector('[data-testid="provenance"]')?.textContent).toContain(
       'AUTHORED PATH',
     );
+  });
+});
+
+describe('the provenance badge of an authored path', () => {
+  const authoredEvaluation = (): unknown => {
+    const props = {
+      ...BASE_PROPS,
+      bars: [{ id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 }],
+      dataSource: 'synthetic',
+      revealMode: 'simulated',
+    } as CandlestickChartProps;
+    return {
+      panes: [
+        {
+          bars: [
+            {
+              bar: { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+              o: 100,
+              h: 110,
+              l: 95,
+              c: 105,
+              progress: 1,
+              complete: true,
+            },
+          ],
+          totalBars: 1,
+          developing: false,
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+        },
+      ],
+      provenance: {
+        origin: 'authored-path',
+        revision: 'abc123',
+        label: 'Authored path',
+      },
+    };
+  };
+
+  it('labels an authored path series AUTHORED PATH', () => {
+    const container = render(
+      <CandlestickChart
+        props={BASE_PROPS as CandlestickChartProps}
+        frame={0}
+        evaluated={authoredEvaluation()}
+      />,
+    ).container;
+    expect(container.querySelector('[data-testid="provenance"]')?.textContent).toContain(
+      'AUTHORED PATH',
+    );
+  });
+
+  it('keeps the badge when the reveal is simulated', () => {
+    const container = render(
+      <CandlestickChart
+        props={{ ...BASE_PROPS, revealMode: 'simulated' } as CandlestickChartProps}
+        frame={0}
+        evaluated={authoredEvaluation()}
+      />,
+    ).container;
+    expect(container.querySelector('[data-testid="provenance"]')?.textContent).toContain(
+      'SIMULATED INTRABAR',
+    );
+  });
+});
+
+describe('the geometry the path tool points with', () => {
+  const props: CandlestickChartProps = {
+    ...BASE_PROPS,
+    width: 720,
+    height: 420,
+    bars: [
+      { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+      { id: 'b1', t: 1, o: 105, h: 115, l: 101, c: 112 },
+      { id: 'b2', t: 2, o: 112, h: 120, l: 108, c: 118 },
+    ],
+    revealMode: 'discrete',
+  };
+
+  const pane = () => ({
+    bars: props.bars.map((bar) => ({
+      bar,
+      o: bar.o,
+      h: bar.h,
+      l: bar.l,
+      c: bar.c,
+      progress: 1,
+      complete: true,
+    })),
+    totalBars: 3,
+  });
+
+  it('maps a point on the chart to the bar and price it names', () => {
+    const anchor = chartPointToAnchor(props, pane(), { x: 200, y: 200 });
+    expect(anchor).not.toBeNull();
+    expect(anchor!.barIndex).toBe(0);
+    expect(anchor!.price).toBeGreaterThan(props.bars[0].l);
+    expect(anchor!.price).toBeLessThan(props.bars[0].h);
+  });
+
+  it('maps an anchor back to the point it came from', () => {
+    const anchor = { barIndex: 1, price: 108 };
+    const point = chartAnchorToPoint(props, pane(), anchor);
+    const back = chartPointToAnchor(props, pane(), point);
+    expect(back!.barIndex).toBe(anchor.barIndex);
+    expect(back!.price).toBeCloseTo(anchor.price, 6);
+  });
+
+  it('snaps a point to the bar it falls in', () => {
+    const first = chartPointToAnchor(props, pane(), { x: 20, y: 200 });
+    const second = chartPointToAnchor(props, pane(), { x: 240, y: 200 });
+    expect(first!.barIndex).toBe(0);
+    expect(second!.barIndex).toBe(1);
+  });
+
+  it('gives a point outside the plot the price at the edge of the range', () => {
+    const above = chartPointToAnchor(props, pane(), { x: 200, y: -500 });
+    const below = chartPointToAnchor(props, pane(), { x: 200, y: 5000 });
+    expect(above!.price).toBeGreaterThan(below!.price);
   });
 });

@@ -3,7 +3,14 @@ import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
 import { buildPresetClips, PRESETS } from './presets';
 import { sampleProject } from '@chart-studio/core';
-import type { Clip, EffectType, ElementType, Project, Track } from '@chart-studio/core';
+import {
+  addSwingAnchor,
+  moveSwingAnchor,
+  removeSwingAnchor,
+  type AnchorRegime,
+  type SwingPath,
+} from '@chart-studio/core';
+import type { Clip, EffectType, ElementType, Project, SeriesSpec, Track } from '@chart-studio/core';
 
 let idCounter = 0;
 export const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${idCounter++}`;
@@ -84,6 +91,28 @@ interface EditorState {
   /** Commit the drawn polyline: element moves to the first point, path becomes relative. */
   finishDrawingPath: () => void;
 
+  /** The chart whose swing path is being authored, or null. */
+  swingPath: { clipId: string } | null;
+  /** Opens the path session on a chart, giving it an authored-path series if it has none. */
+  startSwingPath: (clipId: string) => void;
+  addSwingAnchor: (
+    clipId: string,
+    anchor: { barIndex: number; price: number; regime?: AnchorRegime },
+  ) => void;
+  moveSwingAnchor: (
+    clipId: string,
+    anchorId: string,
+    patch: { barIndex?: number; price?: number },
+  ) => void;
+  removeSwingAnchor: (clipId: string, anchorId: string) => void;
+  /** Replaces the whole path, as a freehand stroke does. */
+  replaceSwingPath: (
+    clipId: string,
+    anchors: Array<{ barIndex: number; price: number }>,
+  ) => void;
+  /** Closes the path session. */
+  finishSwingPath: () => void;
+
   copySelection: () => void;
   /** Paste clipboard clips, re-timed so the earliest starts at `atFrame`. */
   paste: (atFrame: number) => void;
@@ -119,6 +148,28 @@ const cloneClip = (clip: Clip): Clip => ({
   effects: clip.effects.map((e) => ({ ...e, id: uid('e'), params: { ...e.params } })),
 });
 
+/** The series a chart clip draws, if the project holds one for it. */
+const chartSeries = (project: Project, clip: Clip | null): SeriesSpec | undefined => {
+  if (!clip) return undefined;
+  const seriesId = clip.props.seriesId;
+  if (typeof seriesId !== 'string') return undefined;
+  return project.series?.find((series) => series.id === seriesId);
+};
+
+/** Replaces an authored path in the project, leaving every other series alone. */
+const withAuthoredPath = (
+  project: Project,
+  seriesId: string,
+  change: (path: SwingPath) => SwingPath,
+): Project => ({
+  ...project,
+  series: project.series?.map((series) =>
+    series.id === seriesId && series.origin === 'authored-path'
+      ? { ...series, path: change(series.path) }
+      : series,
+  ),
+});
+
 export const useStore = create<EditorState>((set, get) => ({
   project: sampleProject,
   selectedClipIds: [],
@@ -127,6 +178,7 @@ export const useStore = create<EditorState>((set, get) => ({
   playing: false,
   muted: false,
   drawingPath: null,
+  swingPath: null,
   pixelsPerFrame: 4,
   history: [],
   future: [],
@@ -484,6 +536,146 @@ export const useStore = create<EditorState>((set, get) => ({
       drawingPath: null,
     }));
   },
+
+  /* ---------------------------------------------------------------- */
+  /* the swing path session                                            */
+  /* ---------------------------------------------------------------- */
+
+  startSwingPath: (clipId) => {
+    const s = get();
+    const clip = findClip(s.project, clipId);
+    if (!clip || clip.element !== 'candlestickChart') return;
+    set({ swingPath: { clipId } });
+
+    // A chart that already draws an authored path is opened as it is.
+    const series = chartSeries(s.project, clip);
+    if (series?.origin === 'authored-path') return;
+
+    // Otherwise the chart gets a new authored-path series and points at it.
+    // The series it had stays in the registry: it is the creator's data and
+    // removing it would destroy something they may still want.
+    get().commit();
+    set((state) => {
+      const seriesId = uid('series');
+      // The path starts as a flat market the creator reshapes: a drawing tool
+      // needs a canvas with a scale to aim at, and an empty path has neither a
+      // bar grid nor a price range.
+      const legacyBars = Array.isArray(clip.props.bars) ? (clip.props.bars as { o: number }[]) : [];
+      const barCount = Math.max(2, legacyBars.length);
+      const startPrice = legacyBars[0]?.o ?? 100;
+      const authored: SeriesSpec = {
+        id: seriesId,
+        origin: 'authored-path',
+        label: 'Authored path',
+        timeBasis: 'logical',
+        // The seed is created once and never re-seeded: an edit changes the
+        // path, not the seed.
+        seed: `${seriesId}-seed`,
+        algorithmVersion: 1,
+        path: {
+          anchors: [
+            { id: uid('anchor'), barIndex: 0, price: startPrice },
+            { id: uid('anchor'), barIndex: barCount - 1, price: startPrice },
+          ],
+        },
+      };
+      return {
+        project: {
+          ...state.project,
+          series: [...(state.project.series ?? []), authored],
+          tracks: state.project.tracks.map((t) => ({
+            ...t,
+            clips: t.clips.map((c) =>
+              c.id === clipId
+                ? {
+                    ...c,
+                    props: {
+                      ...c.props,
+                      seriesId,
+                      panes: [
+                        {
+                          id: `${c.id}-pane-0`,
+                          seriesId,
+                          aggregation: { factor: 1 },
+                          rect: { x: 0, y: 0, width: 1, height: 1 },
+                          in: 0,
+                          out: c.durationInFrames,
+                          opacity: 1,
+                          clock: { kind: 'reference' },
+                          priceRange: { mode: 'auto' },
+                        },
+                      ],
+                      clock: {
+                        id: `${c.id}-clock`,
+                        unit: 'logical',
+                        referenceSeriesId: seriesId,
+                        stepBars: 1,
+                        framesPerStep:
+                          typeof c.props.framesPerBar === 'number' ? c.props.framesPerBar : 15,
+                      },
+                    },
+                  }
+                : c,
+            ),
+          })),
+        },
+      };
+    });
+  },
+
+  addSwingAnchor: (clipId, anchor) => {
+    const s = get();
+    const series = chartSeries(s.project, findClip(s.project, clipId));
+    if (!series || series.origin !== 'authored-path') return;
+    s.commit();
+    set((state) => ({
+      project: withAuthoredPath(state.project, series.id, (path) =>
+        addSwingAnchor(path, {
+          id: uid('anchor'),
+          barIndex: anchor.barIndex,
+          price: anchor.price,
+          ...(anchor.regime ? { regime: anchor.regime } : {}),
+        }),
+      ),
+    }));
+  },
+
+  moveSwingAnchor: (clipId, anchorId, patch) => {
+    const s = get();
+    const series = chartSeries(s.project, findClip(s.project, clipId));
+    if (!series || series.origin !== 'authored-path') return;
+    s.commit();
+    set((state) => ({
+      project: withAuthoredPath(state.project, series.id, (path) =>
+        moveSwingAnchor(path, anchorId, patch),
+      ),
+    }));
+  },
+
+  removeSwingAnchor: (clipId, anchorId) => {
+    const s = get();
+    const series = chartSeries(s.project, findClip(s.project, clipId));
+    if (!series || series.origin !== 'authored-path') return;
+    s.commit();
+    set((state) => ({
+      project: withAuthoredPath(state.project, series.id, (path) => removeSwingAnchor(path, anchorId)),
+    }));
+  },
+
+  replaceSwingPath: (clipId, anchors) => {
+    const s = get();
+    const series = chartSeries(s.project, findClip(s.project, clipId));
+    if (!series || series.origin !== 'authored-path') return;
+    s.commit();
+    set((state) => ({
+      project: withAuthoredPath(state.project, series.id, (path) => ({
+        ...path,
+        anchors: anchors.map((anchor) => ({ id: uid('anchor'), ...anchor })),
+      })),
+    }));
+  },
+
+  finishSwingPath: () => set({ swingPath: null }),
 
   copySelection: () => {
     const s = get();

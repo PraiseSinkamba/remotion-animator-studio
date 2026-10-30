@@ -14,7 +14,9 @@ import {
   computePriceRange,
   evaluateBarsAtFrame,
   type ElementRect,
+  type MarketClock,
   type OhlcBar,
+  type PaneSpec,
   type PartialBar,
   type SeriesOrigin,
 } from '@chart-studio/core';
@@ -65,6 +67,12 @@ export interface CandlestickChartProps {
   showGrid: boolean;
   showPriceAxis: boolean;
   showProvenanceBadge: boolean;
+  /** The project series this chart draws. Absent on a chart with no series yet. */
+  seriesId?: string;
+  /** The chart's panes. Absent on a chart that predates the pane model. */
+  panes?: PaneSpec[];
+  /** The chart's clock. Absent on a chart that predates the clock. */
+  clock?: MarketClock;
 }
 
 /** Padding around the plot area. */
@@ -203,6 +211,72 @@ const panesToDraw = (
 };
 
 /**
+ * The price range a pane's visible bars give.
+ *
+ * The scale comes from the visible bars only — a future bar never moves it. A
+ * bar that has not moved yet (a simulated bar at progress 0) collapses the
+ * scale onto one price, so it is widened symmetrically by a fixed fraction
+ * rather than borrowing a price from a future bar.
+ */
+export const chartPriceRange = (bars: PartialBar[]): { min: number; max: number } => {
+  const visible = computePriceRange(
+    bars.map((bar) => ({ t: bar.bar.t, o: bar.o, h: bar.h, l: bar.l, c: bar.c })),
+  );
+  if (visible.max > visible.min) return visible;
+  return {
+    min: visible.min - Math.max(Math.abs(visible.min) * 0.005, 0.5),
+    max: visible.max + Math.max(Math.abs(visible.max) * 0.005, 0.5),
+  };
+};
+
+/**
+ * The market point under a position on the chart.
+ *
+ * The inverse of the renderer: the bar index from the slot the position falls
+ * in, and the price from the position against the pane's current range. It
+ * uses the same geometry and the same range the renderer draws with, so an
+ * anchor lands exactly where the creator pointed.
+ *
+ * The position is in the chart's own box coordinates, not the composition's.
+ */
+export const chartPointToAnchor = (
+  props: CandlestickChartProps,
+  pane: { bars: PartialBar[]; totalBars: number },
+  point: { x: number; y: number },
+): { barIndex: number; price: number } | null => {
+  if (pane.totalBars <= 0) return null;
+  const geometry = chartGeometry(props, pane.totalBars);
+  if (geometry.slotWidth <= 0) return null;
+  const slot = Math.floor((point.x - geometry.plotLeft) / geometry.slotWidth);
+  const barIndex = Math.max(0, Math.min(pane.totalBars - 1, slot));
+  const range = chartPriceRange(pane.bars);
+  const ratio =
+    geometry.plotHeight > 0 ? (geometry.plotBottom - point.y) / geometry.plotHeight : 0.5;
+  const price = range.min + ratio * (range.max - range.min);
+  return { barIndex, price: Math.max(0.0001, price) };
+};
+
+/**
+ * The position of an anchor on the chart.
+ *
+ * The inverse of `chartPointToAnchor`, so a handle drawn over the chart sits
+ * exactly on the bar and price it names. The position is in the chart's own
+ * box coordinates.
+ */
+export const chartAnchorToPoint = (
+  props: CandlestickChartProps,
+  pane: { bars: PartialBar[]; totalBars: number },
+  anchor: { barIndex: number; price: number },
+): { x: number; y: number } => {
+  const geometry = chartGeometry(props, pane.totalBars);
+  const range = chartPriceRange(pane.bars);
+  const centre = geometry.plotLeft + (anchor.barIndex + 0.5) * geometry.slotWidth;
+  const span = range.max - range.min;
+  const ratio = span > 0 ? (anchor.price - range.min) / span : 0.5;
+  return { x: centre, y: geometry.plotBottom - ratio * geometry.plotHeight };
+};
+
+/**
  * Render the chart. `props` are the merged component props, `frame` is the
  * clip-relative frame, and `evaluated` is the result of the chart's own
  * evaluation step.
@@ -230,19 +304,7 @@ export const renderCandlestickChart = (
     const geometry = chartGeometry(props, pane.totalBars, pane.rect);
 
     // The scale comes from the visible bars only — a future bar never moves it.
-    const visible = computePriceRange(
-      pane.bars.map((bar) => ({ t: bar.bar.t, o: bar.o, h: bar.h, l: bar.l, c: bar.c })),
-    );
-    // A bar that has not moved yet (a simulated bar at progress 0) collapses
-    // the scale onto one price. Widen it symmetrically by a fixed fraction so
-    // the grid stays readable without borrowing a price from a future bar.
-    const range =
-      visible.max > visible.min
-        ? visible
-        : {
-            min: visible.min - Math.max(Math.abs(visible.min) * 0.005, 0.5),
-            max: visible.max + Math.max(Math.abs(visible.max) * 0.005, 0.5),
-          };
+    const range = chartPriceRange(pane.bars);
 
     const gridPrices: number[] = [];
     for (let i = 0; i < GRID_LINES; i++) {

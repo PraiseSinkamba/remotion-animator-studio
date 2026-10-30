@@ -807,7 +807,23 @@ so there is one definition of determinism in the package.
   - `apps/studio/src/components/ToolRail.tsx` — a Path tool button, shown when the selected clip is a chart.
   - `apps/studio/src/components/PreviewPanel.tsx` — pointer handling that places an anchor on a click and drags an existing anchor.
 
-- [ ] **Step 1: Add the swing-path commands to the store**
+**The pointer gestures could not be exercised in the browser used for this slice.** The
+studio's own canvas interaction — pressing an element to select it, dragging it — is pointer
+driven too, and it does not respond in that browser either. Measured: the DOM receives
+`pointerdown` (a capture listener on the stage sees it, with a `pointerId`), and React's
+`onClick` handlers fire normally, but React's `onPointerDown` handlers do not — on the canvas
+and on a plain button alike, with both the page's own mouse helpers and the tool's. The
+behaviour is the same for the app's existing pointer interactions, so it is a property of that
+browser session rather than of this slice.
+
+What the browser did confirm: the Path tool appears for a selected chart, activating it gives
+the chart an authored-path series, the badge reads `AUTHORED PATH`, the anchor handles are drawn
+over the canvas, and the chart renders the drawn path. What it could not confirm is the press,
+drag and freehand gestures themselves; those are covered by the store tests and the geometry
+round-trip tests instead (`chartPointToAnchor` and `chartAnchorToPoint` are inverses, so an
+anchor lands exactly where the creator pointed).
+
+- [x] **Step 1: Add the swing-path commands to the store**
 
 The store's `drawingPath` session (`packages/editor/src/store.ts:26-31`, commands at `:80-85`) is the existing pattern for a canvas gesture: a session with points, committed at the end. The swing-path session adds `anchorIds` and the chart clip's `seriesId`.
 
@@ -815,11 +831,11 @@ The store's `drawingPath` session (`packages/editor/src/store.ts:26-31`, command
 
 The series the path belongs to is an `authored-path` entry in `project.series` with a stored `seed` and `algorithmVersion` — **never re-seeded on an edit** (R5). Moving an anchor changes the path, not the seed.
 
-- [ ] **Step 2: Add the Path tool to the tool rail**
+- [x] **Step 2: Add the Path tool to the tool rail**
 
 `apps/studio/src/components/ToolRail.tsx` shows Select always, Draw Path and Draw Trail conditionally (`:37-69`). Add a Path tool, shown when the selected clip's element is `candlestickChart`. The tool name in the UI is "Path"; it is not a new `ElementType` — it is a mode of the chart, so nothing is added to the registry.
 
-- [ ] **Step 3: Handle anchor placement and drag on the canvas**
+- [x] **Step 3: Handle anchor placement and drag on the canvas**
 
 `apps/studio/src/components/PreviewPanel.tsx` already converts a client point into project coordinates (`projectPoint`, `:81-90`) and owns the pointer gesture. With the Path tool active:
 
@@ -832,11 +848,11 @@ The freehand gesture needs the pane's own bounds: the canvas size, the bar count
 
 The live regeneration works because the chart's `evaluate` materialises the series from the path on every frame; the store only changes the path.
 
-- [ ] **Step 4: Show the provenance badge**
+- [x] **Step 4: Show the provenance badge**
 
 `packages/components/src/trading/chart.tsx`'s `provenanceLabel` (`:101-110`) gains the authored-path case: `AUTHORED PATH` for an `authored-path` series, `SYNTHETIC DATA` for a synthetic one, `MANUAL` for a manual one. The badge keeps its existing `SIMULATED INTRABAR` suffix, independently of the origin.
 
-- [ ] **Step 5: Write the failing tests**
+- [x] **Step 5: Write the failing tests**
 
 `packages/editor/src/store.test.ts` (modify — keep the two existing test names):
 
@@ -851,11 +867,11 @@ The live regeneration works because the chart's `evaluate` materialises the seri
 - "labels an authored path series AUTHORED PATH" (AP-004) — fails before Step 4; passes after.
 - "keeps the badge when the reveal is simulated" — fails before Step 4; passes after.
 
-- [ ] **Step 6: Exercise the pilot in the browser**
+- [x] **Step 6: Exercise the pilot in the browser** (not exercised here — see the note above)
 
 The executor opens the editor, selects the chart clip, activates the Path tool, clicks three anchors, drags the middle one, and reports what was observed: the candles follow the drawn path, the middle anchor's bar carries the dragged price exactly, the badge reads `AUTHORED PATH`, the preview and the export agree. The executor then draws a freehand stroke across the chart and reports that the stroke became a set of anchors and the series followed it. A recording or a screenshot is filed with the slice.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 ```bash
 pnpm typecheck
@@ -866,7 +882,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 0, 45, 140 and 179 against the pilot fixture: the badge is present and each anchor bar closes at the placed price.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add -A
