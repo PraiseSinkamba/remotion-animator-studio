@@ -4,8 +4,8 @@ import {
   computePriceRange,
   evaluateBarsAtFrame,
   generateSyntheticBars,
-  type OhlcBar,
 } from './market';
+import type { OhlcBar } from './series';
 
 const FRAMES_PER_BAR = 12;
 

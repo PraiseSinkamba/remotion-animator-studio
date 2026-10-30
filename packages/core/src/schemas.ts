@@ -1,3 +1,5 @@
+import type { SeriesSpec } from './series';
+
 export type ElementType =
   | 'text'
   | 'shape'
@@ -28,7 +30,16 @@ export type ElementType =
   /** Source-owned Remocn motion component adapted to the registry. */
   | 'remocnSoftBlurIn'
   /** Source-owned Remocn motion component adapted to the registry. */
-  | 'remocnTypewriter';
+  | 'remocnTypewriter'
+  /** Market-linked drawing tools (Chart Studio). */
+  | 'priceLine'
+  | 'highLowLine'
+  | 'verticalLine'
+  | 'trendline'
+  | 'priceZone'
+  | 'textLabel'
+  | 'arrow'
+  | 'position';
 
 export type EffectType =
   | 'fadeIn'
@@ -105,6 +116,16 @@ export interface Project {
   tracks: Track[];
   /** Document schema version. Absent means legacy (version 1). */
   schemaVersion?: number;
+  /**
+   * Project-level market data registry. Charts reference a series by id; the
+   * chart never holds the bars itself.
+   */
+  series?: SeriesSpec[];
+  /**
+   * 'derived' computes the length from the elements; 'fixed' uses
+   * durationInFrames. Absent means legacy (version 1).
+   */
+  durationMode?: 'derived' | 'fixed';
 }
 
 export interface ParamDef {

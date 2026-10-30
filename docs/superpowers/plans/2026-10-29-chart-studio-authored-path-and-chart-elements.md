@@ -241,7 +241,7 @@ For every user-interface change the executor exercises the actual surface in a b
 - Produces:
   - `packages/core/src/series.ts` — `SeriesOrigin = 'authored-path' | 'manual' | 'synthetic' | 'imported'`; `SeriesSpec` (discriminated by `origin`); `Datasource` (`id`, `origin`, `revision`, `label`, `symbol?`, `timeframeId?`, `timeBasis: 'logical' | 'utc'`, `bars: readonly OhlcBar[]`); `materialiseSeries(spec): Datasource` (pure); `seriesRevision(spec): string` (pure content hash); and the canonical `OhlcBar` with a required `id`.
   - `packages/core/src/path.ts` — `AnchorRegime`, `SwingAnchor`, `SwingPath`, `PathGeneratorOptions`, `PathSegment`, `AnchorPoint`, `generateSeriesFromPath(path, { seed, algorithmVersion, seriesId, generator })`, `strokeToAnchorPoints(points, cfg)`.
-  - `packages/core/src/elements.ts` — `ElementId`, `ElementRect`, `PaneSpec`, `PaneRelation`, `PaneHold`, `ZoomTrack`, `MarketAnchor`, `DrawingKind`, `DrawingSpec`, `MarketClock`, `ClockBinding`, `ChartStyle`.
+  - `packages/core/src/elements.ts` — `ElementId`, `ElementRect`, `PaneSpec`, `PaneRelation`, `PaneHold`, `ZoomTrack`, `MarketAnchor`, `DrawingKind`, `DrawingSpec`, `MarketClock`, `ClockBinding`, `ChartStyle`, and `ChartProps` (the **persisted** props of a chart clip). The persisted type is named `ChartProps`, not `CandlestickChartProps`: the components package already owns a `CandlestickChartProps` for the **render** props (the pixel-level settings), and `packages/components/src/index.ts` re-exports the core barrel, so the same name in both would collide — `TS2308: Module './registry' has already exported a member named 'CandlestickChartProps'`. One is the document, one is the picture; they are named for which they are.
   - `packages/core/src/curve.ts` — `CurvePreset`, `Curve`, `evaluateCurve(curve, t)`.
   - `packages/core/src/time.ts` — `PaneFrameState`, `evaluatePaneAt(pane, datasource, clock, chartLocalFrame)`, `evaluateClockAt(clock, chartLocalFrame)`.
   - `packages/core/src/validation.ts` — `validateProjectDocument(raw)`, `validateSeriesSpec(raw)`, `validateChartProps(raw)`, each returning `{ ok: true, value }` or `{ ok: false, issues: { path, message }[] }`.
@@ -333,7 +333,43 @@ export const seriesRevision = (spec: SeriesSpec): string;
 - **Seeding.** The reference takes a numeric seed and builds its own mulberry32 stream. The port uses the package's seeded PRNG: `hashString(seed)` produces the numeric state, and the reference's `randomSource` becomes a thin wrapper over the package's stream. The reference's `uniform`/`normal`/`integer` are the package's `createRng` extended with a Box–Muller normal and an integer draw — the reference's own `randomSource` already uses exactly that construction (mulberry32 + a cached Box–Muller spare), so the two agree bit for bit.
 - **Output shape.** The reference returns `Candle[]` (with `time`, `open`, `high`, `low`, `close`, `volume`); the port returns `OhlcBar[]` (`t`, `o`, `h`, `l`, `c`, `v?`) with `id` stamped, plus the per-segment diagnostics.
 
-**The parity test is the acceptance criterion for this step.** The port must reproduce the reference implementation's output *bit for bit* for a fixed set of configurations. Verified against the reference: with the reference seeded from `hashString(seed)` and the port seeded from the string `seed`, six configurations — including the flat-to-range case, the tick-quantised case and a case with retracements, consolidations and custom wicks — produce identical output. The test asserts this equality by running both implementations, so a future edit to either one that changes the numbers fails the build.
+The parity test is the acceptance criterion for this step. The port must reproduce the reference implementation's output *bit for bit* for a fixed set of configurations. Verified against the reference: with the reference seeded from `hashString(seed)` and the port seeded from the string `seed`, six configurations — including the flat-to-range case, the tick-quantised case and a case with retracements, consolidations and custom wicks — produce identical output. The test asserts this equality by running both implementations, so a future edit to either one that changes the numbers fails the build.
+
+**How the test reaches the reference.** The reference lives in `docs/reference/data-generation/`, outside the package, and `packages/core/tsconfig.json` sets `rootDir: "src"`. A **static** import of the reference from the package therefore fails to typecheck with `TS6059: File ... is not under 'rootDir'` — verified. The test loads it dynamically instead:
+
+```ts
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+
+const REFERENCE_PATH = resolve(
+  process.cwd(),
+  'docs/reference/data-generation/path-to-candles-advanced.ts',
+);
+
+const loadReference = async () => {
+  const mod = await import(/* @vite-ignore */ pathToFileURL(REFERENCE_PATH).href);
+  return mod as { generateCandlesWithMeta: (options: unknown) => unknown };
+};
+```
+
+A dynamic import with a computed specifier is not resolved by TypeScript, so `rootDir` does not apply, and Vitest transpiles the reference on the fly. Verified: the package typechecks and the test passes. The reference is loaded by path, so the test runs from the repository root — which is how the workspace test script already runs.
+
+The alternative — copying the reference into the package — is rejected: two copies of the same algorithm drift, and the parity test would then compare a file against itself.
+
+**Two decisions taken during execution, both recorded here so the next reader is not surprised.**
+
+*`algorithmVersion` selects the algorithm; it is not folded into the seed.* Folding the version into the
+seed string would change the output for the same path and seed, which breaks the parity guarantee
+with the reference — and the reference is the normative algorithm. Instead the version is checked:
+a version this build does not implement is **rejected**, not quietly rendered with version 1's bars.
+A series labelled with a version it was not generated by is a false provenance record, which is the
+same dishonesty the authored cross-asset link is guarded against. `SUPPORTED_ALGORITHM_VERSIONS` is
+`[1]`; a test asserts an unknown version is rejected.
+
+*`SwingPath` gained an optional `barCount`.* Without it, the spec's rule "the last anchor must be the
+final bar" is a tautology — the bar count is derived from the last anchor, so the rule can never
+fail. The optional field makes the rule a real check: when present it pins the extent of the path;
+when absent the count is derived exactly as before.
 
 The port keeps the reference's structure unchanged: validation (including the requirement that the first anchor is index `0` and the last is `candleCount - 1`), the AR(1) volatility series, the `auto` regime classification, the trend guide with its optional pause and retracement, the mean-reverting range guide, the weighted Brownian bridge over the guide, the exact-close override at anchor indices, the intrabar Brownian bridge that produces each bar's `h` and `l`, the optional tick quantisation, and the volume proxy.
 
@@ -405,6 +441,14 @@ export const validateProjectDocument: (raw: unknown) => ValidationResult<Project
 ```
 
 The Zod `safeParse` result never crosses the boundary; `issues` are mapped to `{ path, message }` strings. The project document schema is **loose about unknown keys** so a document written by a newer build is not silently truncated on load (ADR-008 §"The migration boundary").
+
+**Zod strips unknown keys by default, so the document tree must be declared `loose`.** Measured:
+`z.object({ a: z.string() })` parses `{ a: 'x', extra: 1 }` to `{ a: 'x' }` — the unknown key is
+gone. `z.looseObject({...})` and `z.object({...}).loose()` both keep it. Every object in the
+document tree — the document, its tracks, its clips and their effects — is therefore declared
+`loose`; otherwise a document written by a newer build loses its keys on the first load, which is
+exactly the silent truncation the rule exists to prevent. A test asserts an unknown key survives
+the round trip.
 
 - [ ] **Step 8: Extend the document types in `packages/core/src/schemas.ts`**
 

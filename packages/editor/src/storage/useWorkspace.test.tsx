@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sampleProject } from '@chart-studio/core';
+import { CURRENT_PROJECT_SCHEMA_VERSION } from '@chart-studio/components';
 import { useStore } from '../store';
 import type { Project } from '@chart-studio/core';
 import { useWorkspace } from './useWorkspace';
@@ -363,7 +364,9 @@ describe('useWorkspace — restore on boot', () => {
     const { unmount } = await mountWorkspace(fake);
 
     expect(useStore.getState().project.name).toBe('Legacy doc');
-    expect(useStore.getState().project.schemaVersion).toBe(1);
+    expect(useStore.getState().project.schemaVersion).toBe(
+      CURRENT_PROJECT_SCHEMA_VERSION,
+    );
     expect(useStore.getState().workspaceId).toBe('p-legacy');
 
     unmount();

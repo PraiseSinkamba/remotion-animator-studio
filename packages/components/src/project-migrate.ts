@@ -15,10 +15,10 @@
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
 import { getComponent } from './registry';
-import type { Clip, ElementType, Project, Track } from '@chart-studio/core';
+import type { Clip, ElementType, OhlcBar, Project, SeriesSpec, Track } from '@chart-studio/core';
 
 /** Schema version this build writes and understands. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 1;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 2;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -73,6 +73,101 @@ const migrateTrack = (raw: unknown, index: number): Track => {
 };
 
 /**
+ * The v1 → v2 conversion.
+ *
+ * Version 1 kept a chart's bars inside the clip's props. Version 2 moves them
+ * into a project-level series that the chart references by id, so the data's
+ * origin survives the move and two charts can share one series.
+ *
+ * The conversion is non-destructive: the legacy `bars` array stays on the
+ * migrated clip as an inert compatibility key, so the chart renderer keeps
+ * reading it and the document renders identically before and after.
+ */
+const migrateV1ToV2 = (
+  doc: Record<string, unknown>,
+  tracks: Track[],
+): { doc: Record<string, unknown>; tracks: Track[] } => {
+  const series: SeriesSpec[] = [];
+  const nextTracks = tracks.map((track) => {
+    const clips = track.clips.map((clip) => {
+      if (clip.element !== 'candlestickChart') return clip;
+      const props = clip.props as Record<string, unknown> | undefined;
+      const bars = props?.bars;
+      if (!Array.isArray(bars) || bars.length === 0) return clip;
+
+      const seriesId = `series-${clip.id}`;
+      const stamped = bars.map((bar, index) => ({
+        ...(bar as Record<string, unknown>),
+        id: `${seriesId}:${index}`,
+      })) as OhlcBar[];
+
+      const isSynthetic = props?.dataSource === 'synthetic';
+      series.push(
+        isSynthetic
+          ? {
+              id: seriesId,
+              origin: 'synthetic',
+              label: typeof props?.symbol === 'string' ? props.symbol : 'Series',
+              symbol: typeof props?.symbol === 'string' ? props.symbol : undefined,
+              timeBasis: 'logical',
+              seed: `${seriesId}-seed`,
+              algorithmVersion: 1,
+              generator: {
+                count: stamped.length,
+                startPrice: stamped[0]?.o ?? 1,
+                timeframeMs: 60_000,
+              },
+            }
+          : {
+              id: seriesId,
+              origin: 'manual',
+              label: typeof props?.symbol === 'string' ? props.symbol : 'Series',
+              symbol: typeof props?.symbol === 'string' ? props.symbol : undefined,
+              timeBasis: 'logical',
+              bars: stamped,
+            },
+      );
+
+      // The legacy `bars` key stays: the renderer reads it until the props
+      // move to v2 in a later slice.
+      return {
+        ...clip,
+        props: {
+          ...props,
+          bars: stamped,
+          seriesId,
+          panes: [
+            {
+              id: `${clip.id}-pane-0`,
+              seriesId,
+              aggregation: { factor: 1 },
+              rect: { x: 0, y: 0, width: 1, height: 1 },
+              in: 0,
+              out: clip.durationInFrames,
+              opacity: 1,
+              clock: { kind: 'reference' as const },
+              priceRange: { mode: 'auto' as const },
+            },
+          ],
+        },
+      };
+    });
+    return { ...track, clips };
+  });
+
+  return {
+    doc: {
+      ...doc,
+      series,
+      // The document keeps its length: 'fixed' means durationInFrames is
+      // authoritative, exactly as it was in version 1.
+      durationMode: 'fixed',
+    },
+    tracks: nextTracks,
+  };
+};
+
+/**
  * Validate and upgrade a project document.
  *
  * @throws when the document is malformed, uses an unsupported schema version,
@@ -101,15 +196,27 @@ export const migrateProject = (raw: unknown): Project => {
     fail('Invalid project file: "durationInFrames" must be a positive number.');
   }
 
+  const fps = doc.fps;
+  const width = doc.width;
+  const height = doc.height;
+  const durationInFrames = doc.durationInFrames;
+  const name = typeof doc.name === 'string' ? doc.name : 'Untitled';
+  const backgroundColor =
+    typeof doc.backgroundColor === 'string' ? doc.backgroundColor : '#0d0d14';
+
+  const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index));
+
+  const migrated = version < 2 ? migrateV1ToV2(doc, tracks) : { doc, tracks };
+
   return {
-    ...(doc as unknown as Project),
-    name: typeof doc.name === 'string' ? doc.name : 'Untitled',
-    width: doc.width,
-    height: doc.height,
-    fps: doc.fps,
-    durationInFrames: doc.durationInFrames,
-    backgroundColor: typeof doc.backgroundColor === 'string' ? doc.backgroundColor : '#0d0d14',
-    tracks: (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index)),
+    ...(migrated.doc as unknown as Project),
+    name,
+    width,
+    height,
+    fps,
+    durationInFrames,
+    backgroundColor,
+    tracks: migrated.tracks,
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
   };
 };

@@ -222,6 +222,13 @@ export interface SwingAnchor {
 export interface SwingPath {
   /** Ascending by barIndex. The first is bar 0 and the last is the final bar. */
   anchors: SwingAnchor[];
+  /**
+   * The number of bars the path spans. Optional: when absent it is derived
+   * from the last anchor's index, and the path is exactly as long as its
+   * anchors reach. When present it pins the extent, so "the last anchor is the
+   * final bar" is a real check rather than a tautology.
+   */
+  barCount?: number;
 }
 
 /** The generator's settings. Every field has a default; the creator sets few of them. */

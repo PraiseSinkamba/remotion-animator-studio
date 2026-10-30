@@ -5,14 +5,7 @@
  * Usable from a worker, a test or the Remotion render path.
  */
 
-export interface OhlcBar {
-  t: number;
-  o: number;
-  h: number;
-  l: number;
-  c: number;
-  v?: number;
-}
+import type { OhlcBar } from './series';
 
 export type BarRevealMode = 'discrete' | 'simulated';
 
@@ -41,7 +34,7 @@ export interface ChartFrameState {
 /* ------------------------------------------------------------------ */
 
 /** FNV-1a 32-bit string hash. */
-const hashString = (value: string): number => {
+export const hashString = (value: string): number => {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i++) {
     hash ^= value.charCodeAt(i);
@@ -51,7 +44,7 @@ const hashString = (value: string): number => {
 };
 
 /** mulberry32 — small, fast, deterministic. */
-const createRng = (seed: string): (() => number) => {
+export const createRng = (seed: string): (() => number) => {
   let a = hashString(seed);
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -76,8 +69,11 @@ export const generateSyntheticBars = (options: {
   timeframeMs: number;
   volatility?: number;
   drift?: number;
+  /** Prefix for the stable bar ids. Defaults to 'bar'. */
+  idPrefix?: string;
 }): OhlcBar[] => {
   const { count, seed, timeframeMs } = options;
+  const idPrefix = options.idPrefix ?? 'bar';
   const volatility = options.volatility ?? 0.02;
   const drift = options.drift ?? 0;
   if (!Number.isFinite(count) || count <= 0) return [];
@@ -93,7 +89,7 @@ export const generateSyntheticBars = (options: {
     const low = Math.max(Math.min(open, close) * (1 - rng() * volatility * 0.5), open * 1e-6);
     const volume = Math.round(1000 + rng() * 9000);
 
-    bars.push({ t: i * timeframeMs, o: open, h: high, l: low, c: close, v: volume });
+    bars.push({ id: `${idPrefix}:${i}`, t: i * timeframeMs, o: open, h: high, l: low, c: close, v: volume });
     price = close;
   }
 
@@ -228,7 +224,13 @@ export const evaluateBarsAtFrame = (
 /* series helpers                                                      */
 /* ------------------------------------------------------------------ */
 
-export const computePriceRange = (bars: OhlcBar[]): { min: number; max: number } => {
+/** The prices a price range is computed from. A partial bar has no identity. */
+export interface PriceRangeInput {
+  l: number;
+  h: number;
+}
+
+export const computePriceRange = (bars: readonly PriceRangeInput[]): { min: number; max: number } => {
   if (bars.length === 0) return { min: 0, max: 0 };
   let min = Infinity;
   let max = -Infinity;

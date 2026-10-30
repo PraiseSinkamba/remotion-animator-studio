@@ -89,7 +89,7 @@ describe('candlestick chart — what is on screen', () => {
   });
 
   it('maps the open and close of a known bar to the body rectangle', () => {
-    const bar: OhlcBar = { t: 0, o: 10, h: 20, l: 5, c: 15 };
+    const bar: OhlcBar = { id: 'b0', t: 0, o: 10, h: 20, l: 5, c: 15 };
     const props = { ...BASE_PROPS, bars: [bar] };
     const container = draw(props, 0);
 
@@ -105,13 +105,13 @@ describe('candlestick chart — what is on screen', () => {
   });
 
   it('gives a doji a visible body', () => {
-    const bar: OhlcBar = { t: 0, o: 10, h: 20, l: 5, c: 10 };
+    const bar: OhlcBar = { id: 'b0', t: 0, o: 10, h: 20, l: 5, c: 10 };
     const container = draw({ ...BASE_PROPS, bars: [bar] }, 0);
     expect(Number(bodies(container)[0].getAttribute('height'))).toBeGreaterThanOrEqual(1);
   });
 
   it('colours a falling bar with the down colour', () => {
-    const bar: OhlcBar = { t: 0, o: 20, h: 20, l: 5, c: 10 };
+    const bar: OhlcBar = { id: 'b0', t: 0, o: 20, h: 20, l: 5, c: 10 };
     const container = draw({ ...BASE_PROPS, bars: [bar] }, 0);
     expect(bodies(container)[0].getAttribute('fill')).toBe(BASE_PROPS.downColor);
   });
@@ -124,7 +124,7 @@ describe('candlestick chart — what is on screen', () => {
 });
 
 describe('candlestick chart — simulated reveal', () => {
-  const bar: OhlcBar = { t: 0, o: 100, h: 110, l: 95, c: 105 };
+  const bar: OhlcBar = { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 };
   const props = {
     ...BASE_PROPS,
     bars: [bar],
@@ -335,16 +335,67 @@ describe('candlestick chart — project round-trip', () => {
     };
 
     const migrated = migrateProject(JSON.parse(JSON.stringify(project)));
-    expect(migrated).toEqual(project);
-    expect(migrated.tracks[0].clips[0].props.bars).toEqual(props.bars);
+    // The migration lifts the bars into a project-level series and adds the
+    // chart's v2 props. The bars themselves stay on the clip as an inert
+    // compatibility key, so the renderer keeps reading them unchanged. Their
+    // prices are untouched; only the id becomes the series-scoped one.
+    expect(migrated.schemaVersion).toBe(2);
+    const migratedBars = migrated.tracks[0].clips[0].props.bars as OhlcBar[];
+    expect(migratedBars.map((b: OhlcBar) => [b.t, b.o, b.h, b.l, b.c])).toEqual(
+      props.bars.map((b: OhlcBar) => [b.t, b.o, b.h, b.l, b.c]),
+    );
+    expect(migratedBars[0].id).toBe('series-c1:0');
+    expect(migrated.series).toHaveLength(1);
+    expect(migrated.series?.[0].origin).toBe('synthetic');
+  });
+
+  it('renders the migrated chart identically to the v1 chart', (): void => {
+    const props = { ...candlestickChartDefinition.defaults };
+    const v1Project: Project = {
+      name: 'chart project',
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      durationInFrames: 600,
+      backgroundColor: '#000000',
+      schemaVersion: 1,
+      tracks: [
+        {
+          id: 't1',
+          name: 'Track 1',
+          clips: [
+            {
+              id: 'c1',
+              name: 'Candlestick Chart',
+              element: 'candlestickChart',
+              from: 0,
+              durationInFrames: 180,
+              props,
+              effects: [],
+              propsVersion: 1,
+            },
+          ],
+        },
+      ],
+    };
+
+    const migrated = migrateProject(JSON.parse(JSON.stringify(v1Project)));
+    const v1Props = v1Project.tracks[0].clips[0].props as unknown as CandlestickChartProps;
+    const migratedProps = migrated.tracks[0].clips[0].props as unknown as CandlestickChartProps;
+
+    for (const frame of [0, 45, 90]) {
+      const before = draw(v1Props, frame).innerHTML;
+      const after = draw(migratedProps, frame).innerHTML;
+      expect(after).toBe(before);
+    }
   });
 });
 
 describe('candlestick chart — inspector', () => {
   const bars: OhlcBar[] = [
-    { t: 0, o: 100, h: 110, l: 95, c: 105 },
-    { t: 60_000, o: 105, h: 112, l: 101, c: 108 },
-    { t: 120_000, o: 108, h: 115, l: 104, c: 112 },
+    { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+    { id: 'b1', t: 60_000, o: 105, h: 112, l: 101, c: 108 },
+    { id: 'b2', t: 120_000, o: 108, h: 115, l: 104, c: 112 },
   ];
 
   const setup = () => {
