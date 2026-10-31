@@ -36,6 +36,10 @@ export interface DrawingPick {
   price: number;
 }
 
+/** True when the element type is one of the drawing tools. */
+export const isDrawingKind = (type: string): type is DrawingKind =>
+  DRAWING_TOOLS.some((tool) => tool.kind === type);
+
 /**
  * The id of the bar in a slot.
  *

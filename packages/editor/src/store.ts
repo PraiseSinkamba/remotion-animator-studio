@@ -134,6 +134,10 @@ interface EditorState {
   /** The drawing tool the creator has armed, or null. */
   drawingTool: DrawingKind | null;
   setDrawingTool: (kind: DrawingKind | null) => void;
+  /** One short sentence the shell shows the creator; null when there is none. */
+  notice: string | null;
+  /** Shows a message, or clears it with null. */
+  setNotice: (message: string | null) => void;
   /**
    * Gives a chart the market it needs to host drawings: a series, a pane and a
    * clock. A chart added from the library carries inline bars and no series,
@@ -320,6 +324,7 @@ export const useStore = create<EditorState>((set, get) => ({
   drawingPath: null,
   swingPath: null,
   drawingTool: null,
+  notice: null,
   pixelsPerFrame: 4,
   history: [],
   future: [],
@@ -832,6 +837,8 @@ export const useStore = create<EditorState>((set, get) => ({
   /* ---------------------------------------------------------------- */
 
   setDrawingTool: (kind) => set({ drawingTool: kind }),
+
+  setNotice: (message) => set({ notice: message }),
 
   ensureChartMarket: (clipId) => {
     const s = get();

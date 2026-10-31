@@ -495,6 +495,20 @@ describe('store — holding the market', () => {
   });
 });
 
+describe('store — the notice', () => {
+  it('holds no notice by default', () => {
+    expect(useStore.getInitialState().notice).toBeNull();
+  });
+
+  it('holds the message the creator is shown, and lets it go again', () => {
+    useStore.getState().setNotice('A drawing needs a chart.');
+    expect(useStore.getState().notice).toBe('A drawing needs a chart.');
+
+    useStore.getState().setNotice(null);
+    expect(useStore.getState().notice).toBeNull();
+  });
+});
+
 describe('store — placing a drawing on a chart', () => {
   beforeEach(() => {
     useStore.setState({

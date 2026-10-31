@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   buildDrawingAnchors,
   DRAWING_TOOLS,
+  isDrawingKind,
   playerRef,
   seekTo,
   togglePlay,
@@ -19,7 +20,14 @@ import {
   type ChartEvaluation,
 } from '@chart-studio/components';
 import { strokeToAnchorPoints } from '@chart-studio/core';
-import type { Clip, ElementType, PaneSpec, Project, TransportAction } from '@chart-studio/core';
+import type {
+  Clip,
+  DrawingKind,
+  ElementType,
+  PaneSpec,
+  Project,
+  TransportAction,
+} from '@chart-studio/core';
 import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit-test';
 import type { PickableClip } from './canvas-hit-test';
 import { SelectionOverlay } from './selection-overlay';
@@ -80,12 +88,19 @@ const secondsLabel = (frames: number, fps: number) => {
   return s % 1 === 0 ? `${s}s` : `${s.toFixed(1)}s`;
 };
 
+/** What the creator still has to click to finish a drawing. */
+const drawingPendingNotice = (kind: DrawingKind, remaining: number) => {
+  const label = DRAWING_TOOLS.find((tool) => tool.kind === kind)?.label ?? kind;
+  return `${label} — ${remaining} more click${remaining === 1 ? '' : 's'} on the chart.`;
+};
+
 export const PreviewPanel: React.FC = () => {
   const project = useStore((s) => s.project);
   const muted = useStore((s) => s.muted);
   const playing = useStore((s) => s.playing);
   const currentFrame = useStore((s) => s.currentFrame);
   const selectedClipId = useStore((s) => s.selectedClipIds[0] ?? null);
+  const notice = useStore((s) => s.notice);
   const setCurrentFrame = useStore((s) => s.setCurrentFrame);
   const setPlaying = useStore((s) => s.setPlaying);
   const setMuted = useStore((s) => s.setMuted);
@@ -282,6 +297,9 @@ export const PreviewPanel: React.FC = () => {
 
     if (picks.length < (toolSpec?.clicks ?? 1)) {
       drawingPicks.current = picks;
+      useStore
+        .getState()
+        .setNotice(drawingPendingNotice(tool, (toolSpec?.clicks ?? 1) - picks.length));
       return null;
     }
 
@@ -296,6 +314,7 @@ export const PreviewPanel: React.FC = () => {
     const created = useStore.getState().addDrawing(tool, target.chart.id, target.paneId, anchors);
     drawingPicks.current = [];
     useStore.getState().setDrawingTool(null);
+    useStore.getState().setNotice(null);
     return created;
   };
 
@@ -480,6 +499,30 @@ export const PreviewPanel: React.FC = () => {
     setDropActive(false);
   };
 
+  /**
+   * The chart under a composition point, or null.
+   *
+   * The topmost hit can be a drawing lying over the chart, so the picks are
+   * searched for the chart whose box holds the point.
+   */
+  const chartAt = (point: { x: number; y: number }) => {
+    const list = picks();
+    const hit = hitTest(list, point.x, point.y);
+    if (hit && hit.element === 'candlestickChart') return hit;
+    for (const { clip, box } of list) {
+      if (clip.element !== 'candlestickChart') continue;
+      if (
+        point.x >= box.left &&
+        point.x <= box.left + box.width &&
+        point.y >= box.top &&
+        point.y <= box.top + box.height
+      ) {
+        return clip;
+      }
+    }
+    return null;
+  };
+
   /** Drop a library element or preset onto the canvas at the pointer. */
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -491,6 +534,55 @@ export const PreviewPanel: React.FC = () => {
     if (!point) return;
     const s = useStore.getState();
     const before = new Set(projectClips(s.project).map((c) => c.id));
+    if (element && isDrawingKind(element)) {
+      // A drawing names a market, so it can only land on a chart.
+      const chart = chartAt(point);
+      if (!chart) {
+        s.setNotice('A drawing needs a chart — drop it on one, or select a chart and use the tool rail.');
+        return;
+      }
+      const target = useStore.getState().resolveDrawingTarget(chart.id);
+      if (!target) {
+        s.setNotice('That chart has no market yet.');
+        return;
+      }
+      const anchor = chartPointToAnchor(
+        target.props,
+        target.pane,
+        chartLocalPoint(target.props, point),
+      );
+      if (!anchor) {
+        s.setNotice('That point is not on the chart.');
+        return;
+      }
+      const kind: DrawingKind = element;
+      const toolSpec = DRAWING_TOOLS.find((tool) => tool.kind === kind);
+      const clicks = toolSpec?.clicks ?? 1;
+      if (clicks > 1) {
+        // The drop is the first point; the creator finishes with clicks.
+        // The chart is selected so the follow-up clicks land on this chart.
+        drawingPicks.current = [{ barIndex: anchor.barIndex, price: anchor.price }];
+        s.selectClip(chart.id);
+        s.setDrawingTool(kind);
+        s.setNotice(drawingPendingNotice(kind, clicks - 1));
+        return;
+      }
+      const paneSpec = (target.chart.props.panes as PaneSpec[] | undefined)?.[0];
+      drawingPicks.current = []; // a one-click drawing leaves no clicks pending
+      const anchors = buildDrawingAnchors(
+        kind,
+        [{ barIndex: anchor.barIndex, price: anchor.price }],
+        paneSpec ??
+          ({
+            id: target.paneId,
+            seriesId: String(target.chart.props.seriesId ?? ''),
+            aggregation: { factor: 1 },
+          } as PaneSpec),
+      );
+      useStore.getState().addDrawing(kind, target.chart.id, target.paneId, anchors);
+      s.setNotice(null);
+      return;
+    }
     if (element) {
       const track = s.project.tracks[0];
       if (!track) return;
@@ -795,9 +887,11 @@ export const PreviewPanel: React.FC = () => {
       </div>
       {!drawingPath ? (
         <div className="preview-hint">
-          {selected
-            ? `Press an element on the canvas to select it — drag “${selected.name}” to move it`
-            : 'Press an element on the canvas to select it'}
+          {notice
+            ? notice
+            : selected
+              ? `Press an element on the canvas to select it — drag “${selected.name}” to move it`
+              : 'Press an element on the canvas to select it'}
         </div>
       ) : null}
     </div>

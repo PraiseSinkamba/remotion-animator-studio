@@ -9,7 +9,7 @@ import {
   type PaneSpec,
 } from '@chart-studio/core';
 
-import { buildDrawingAnchors, drawingBarId } from './drawings';
+import { buildDrawingAnchors, drawingBarId, isDrawingKind } from './drawings';
 
 const CLOCK: MarketClock = {
   id: 'clock-1',
@@ -61,6 +61,17 @@ const geometry = {
   slotWidth: 10,
   bodyWidth: 6,
 };
+
+describe('isDrawingKind', () => {
+  it('recognises a drawing tool', () => {
+    expect(isDrawingKind('priceLine')).toBe(true);
+  });
+
+  it('does not mistake an ordinary element for a drawing', () => {
+    expect(isDrawingKind('candlestickChart')).toBe(false);
+    expect(isDrawingKind('text')).toBe(false);
+  });
+});
 
 describe('drawingBarId', () => {
   it('names the pane\'s own bucket on a bucketing pane', () => {

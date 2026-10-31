@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useStore } from '../store';
+import { isDrawingKind } from '../drawings';
 import type { ElementType, Track } from '@chart-studio/core';
 import { ClipChip } from './ClipChip';
 import { LANE_HEIGHT, LABEL_COLUMN_WIDTH, packLanes, type TrackAccent } from './shared';
@@ -102,6 +103,9 @@ export const TrackRow: React.FC<{
           const el = e.dataTransfer.getData(ELEMENT_MIME);
           const preset = e.dataTransfer.getData(PRESET_MIME);
           if (!el && !preset) return;
+          // A drawing names a market, so it is placed on a chart and not on
+          // the timeline; the shell's timeline handler arms the tool instead.
+          if (isDrawingKind(el)) return;
           e.preventDefault();
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
           const frame = Math.max(0, Math.round((e.clientX - rect.left) / ppf));

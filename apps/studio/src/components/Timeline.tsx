@@ -4,10 +4,11 @@ import { Button } from '@chart-studio/ui';
 import { Badge } from '@chart-studio/ui';
 import { Separator } from '@chart-studio/ui';
 import { seekTo } from '@chart-studio/editor';
-import { useStore } from '@chart-studio/editor';
+import { findClip, isDrawingKind, useStore } from '@chart-studio/editor';
 import { TrackRow } from '@chart-studio/editor';
 import { TimelineRuler } from '@chart-studio/editor';
 import { accentForTrack, framesToLabel, LABEL_COLUMN_WIDTH, RULER_HEIGHT } from '@chart-studio/editor';
+import { ELEMENT_MIME } from '@chart-studio/ui';
 
 export const Timeline: React.FC = () => {
   const project = useStore((s) => s.project);
@@ -76,7 +77,28 @@ export const Timeline: React.FC = () => {
       </div>
 
       {/* tracks */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-auto"
+        onDragOver={(e) => {
+          // The payload is unreadable during a drag, so the mime type is the
+          // only thing that can be checked here; the drop handler reads it.
+          if (e.dataTransfer.types.includes(ELEMENT_MIME)) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          const element = e.dataTransfer.getData(ELEMENT_MIME);
+          if (!isDrawingKind(element)) return; // other elements are ignored here
+          e.preventDefault();
+          const state = useStore.getState();
+          const selected = findClip(state.project, state.selectedClipIds[0]);
+          if (selected?.element === 'candlestickChart') {
+            state.setDrawingTool(element);
+            state.setNotice('Click the chart to place the drawing.');
+          } else {
+            state.setNotice('A drawing needs a chart — select a chart first.');
+          }
+        }}
+      >
         <div className="relative min-h-full min-w-full" style={{ width: contentWidth }}>
           {/* ruler row: frozen corner cell plus the scrolling ruler */}
           <div className="sticky top-0 z-[20] flex bg-card">
