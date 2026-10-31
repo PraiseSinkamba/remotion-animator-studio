@@ -40,6 +40,20 @@ export const PRESET_CONTROL_POINTS: Record<CurvePreset, [number, number, number,
 
 type ControlPoints = [number, number, number, number];
 
+/**
+ * The presets the product offers, in the order they are listed.
+ * Ordered so every surface shows the same curve list.
+ */
+export const CURVE_PRESETS: readonly CurvePreset[] = [
+  'linear',
+  'easeIn',
+  'easeOut',
+  'easeInOut',
+  'bounceOut',
+  'elastic',
+  'overshoot',
+];
+
 const resolveControlPoints = (curve: Curve): ControlPoints => {
   if (curve.kind === 'preset') return PRESET_CONTROL_POINTS[curve.name];
   return curve.p;

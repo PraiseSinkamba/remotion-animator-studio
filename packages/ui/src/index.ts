@@ -18,6 +18,7 @@ export * from './components/inspector/header';
 export * from './components/inspector/row';
 export * from './components/inspector/section';
 export * from './components/inspector/param-control';
+export * from './components/inspector/curve-editor';
 export * from './components/library/catalog';
 export * from './components/library/group-header';
 export * from './components/library/library-card';

@@ -5,6 +5,11 @@
  * Usable from a worker, a test or the Remotion render path.
  */
 
+// The extension is deliberate: `scripts/verify-r1.mjs` imports this module
+// directly under plain node, which resolves a `.ts` specifier but not an
+// extensionless one. Dropping the extension breaks the render gate with
+// ERR_MODULE_NOT_FOUND, so keep it.
+import { evaluateCurve, type Curve } from './curve.ts';
 import type { OhlcBar } from './series';
 
 export type BarRevealMode = 'discrete' | 'simulated';
@@ -142,8 +147,17 @@ const pathPriceAt = (waypoints: Waypoint[], progress: number): number => {
 /**
  * Partial OHLC at `progress` along the seeded intrabar path.
  * Always OHLC-consistent: h >= max(o, c) and l <= min(o, c).
+ *
+ * `complete` is decided by the caller: with a curve the drawn shape follows
+ * the remapped progress while completion still follows the raw progress.
  */
-const simulateBar = (bar: OhlcBar, index: number, seed: string, progress: number): PartialBar => {
+const simulateBar = (
+  bar: OhlcBar,
+  index: number,
+  seed: string,
+  progress: number,
+  complete: boolean,
+): PartialBar => {
   const waypoints = buildWaypoints(bar, index, seed);
   const current = pathPriceAt(waypoints, progress);
 
@@ -164,7 +178,7 @@ const simulateBar = (bar: OhlcBar, index: number, seed: string, progress: number
     l: low,
     c: current,
     progress,
-    complete: progress >= 1,
+    complete,
   };
 };
 
@@ -187,6 +201,7 @@ export const evaluateBarsAtFrame = (
   framesPerBar: number,
   mode: BarRevealMode,
   seed = 'default',
+  curve?: Curve,
 ): ChartFrameState => {
   const empty: ChartFrameState = { bars: [], activeIndex: -1 };
   if (bars.length === 0 || !Number.isFinite(frame) || frame < 0) return empty;
@@ -194,7 +209,7 @@ export const evaluateBarsAtFrame = (
   const slot = Math.max(1, Math.floor(framesPerBar));
   const activeIndex = Math.min(bars.length - 1, Math.floor(frame / slot));
   const startFrame = activeIndex * slot;
-  const progress = slotProgress(frame - startFrame, slot);
+  const rawProgress = slotProgress(frame - startFrame, slot);
 
   const state: PartialBar[] = [];
   for (let i = 0; i < activeIndex; i++) {
@@ -203,19 +218,22 @@ export const evaluateBarsAtFrame = (
   }
 
   const active = bars[activeIndex];
-  state.push(
-    mode === 'discrete'
-      ? {
-          bar: active,
-          o: active.o,
-          h: active.h,
-          l: active.l,
-          c: active.c,
-          progress,
-          complete: true,
-        }
-      : simulateBar(active, activeIndex, seed, progress),
-  );
+  if (mode === 'discrete') {
+    state.push({
+      bar: active,
+      o: active.o,
+      h: active.h,
+      l: active.l,
+      c: active.c,
+      progress: rawProgress,
+      complete: true,
+    });
+  } else {
+    // A curve shapes the partial bar; completion still follows the raw progress
+    // so a candle completes on its own schedule.
+    const progress = curve ? clamp(evaluateCurve(curve, rawProgress), 0, 1) : rawProgress;
+    state.push(simulateBar(active, activeIndex, seed, progress, rawProgress >= 1));
+  }
 
   return { bars: state, activeIndex };
 };

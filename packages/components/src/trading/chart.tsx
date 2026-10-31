@@ -12,7 +12,10 @@
 import React from 'react';
 import {
   computePriceRange,
+  CURVE_PRESETS,
   evaluateBarsAtFrame,
+  type Curve,
+  type CurvePreset,
   type ElementRect,
   type MarketClock,
   type OhlcBar,
@@ -78,7 +81,36 @@ export interface CandlestickChartProps {
   clock?: MarketClock;
   /** The declared relations between this chart's panes. */
   relations?: PaneRelation[];
+  /** The chart's own curve. A pane's own curve overrides it. */
+  curve?: Curve;
 }
+
+/**
+ * A curve from a loosely typed value.
+ *
+ * The curve lives in the clip props, which are not typed, so a hand-edited
+ * project can carry anything. A shape that is not a curve is no curve.
+ */
+export const readCurve = (value: unknown): Curve | undefined => {
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as { kind?: unknown; name?: unknown; p?: unknown };
+  if (
+    candidate.kind === 'preset' &&
+    typeof candidate.name === 'string' &&
+    (CURVE_PRESETS as readonly string[]).includes(candidate.name)
+  ) {
+    return { kind: 'preset', name: candidate.name as CurvePreset };
+  }
+  if (
+    candidate.kind === 'cubicBezier' &&
+    Array.isArray(candidate.p) &&
+    candidate.p.length === 4 &&
+    candidate.p.every((point) => typeof point === 'number' && Number.isFinite(point))
+  ) {
+    return { kind: 'cubicBezier', p: candidate.p as [number, number, number, number] };
+  }
+  return undefined;
+};
 
 /** Padding around the plot area. */
 export const CHART_PADDING = 8;
@@ -202,6 +234,7 @@ const panesToDraw = (
     props.framesPerBar,
     props.revealMode,
     props.simulationSeed,
+    readCurve(props.curve),
   );
   return {
     panes: [

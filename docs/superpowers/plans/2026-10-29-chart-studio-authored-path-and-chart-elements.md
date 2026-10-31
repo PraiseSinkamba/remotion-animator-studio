@@ -1328,7 +1328,24 @@ clip, changing the viewport only and never a price.
   - `packages/ui/src/components/inspector/curve-editor.tsx` — `CurveEditor: React.FC<{ value: Curve; onChange: (curve: Curve) => void }>` — the one widget, used by every surface that exposes a curve (CV-004). A preset list plus a draggable cubic-bezier control; it writes `Curve` values for elements and panes and the legacy `easing`/`bez` strings for effects.
   - `packages/components/src/base/effects.ts` — the extended easing vocabulary.
 
-- [ ] **Step 1: Extend the effect easing vocabulary, carefully**
+**The legacy easing names keep their meaning, and every default reproduces today.** `easeOut` is
+now an explicit case that lands on the same function the `default` branch returned before, so
+nothing moved; `bounceOut` is still `Easing.bounce` and not `Easing.out(Easing.bounce)`.
+`fadeIn`, `fadeOut` and `blurIn` take an `easing` parameter defaulting to `linear` (the identity),
+`spinIn` defaults to `easeOut` and `bounceDrop` to `bounceOut`. The render gate is the proof: the
+stills and the video are byte-identical.
+
+**Two vocabularies, one widget.** The legacy effect easing names and the core curve presets are
+different vocabularies, so the effect surface keeps its legacy select and uses the curve editor only
+for the **custom bezier**; a creator picking a core preset on an effect writes an explicit custom
+bezier, never a legacy name.
+
+**`packages/core/src/market.ts` imports `'./curve.ts'` with the extension on purpose.**
+`scripts/verify-r1.mjs` imports that module directly under plain node, which resolves a `.ts`
+specifier but not an extensionless one; dropping the extension breaks the render gate with
+ERR_MODULE_NOT_FOUND. The import carries a comment saying so.
+
+- [x] **Step 1: Extend the effect easing vocabulary, carefully**
 
 The legacy vocabulary stays on Remotion's `Easing` (`packages/components/src/base/effects.ts:17-48`) so **no existing rendered frame changes** (R8). The changes are additive:
 
@@ -1339,15 +1356,15 @@ The legacy vocabulary stays on Remotion's `Easing` (`packages/components/src/bas
 
 Every default reproduces today's behaviour exactly, so an existing project renders byte for byte as before.
 
-- [ ] **Step 2: Write the curve editor**
+- [x] **Step 2: Write the curve editor**
 
 `packages/ui/src/components/inspector/curve-editor.tsx` presents a preset list and a draggable two-handle cubic-bezier control. It reads and writes `Curve` values: `{ kind: 'preset', name }` or `{ kind: 'cubicBezier', p }`. For an effect it writes the legacy strings instead — `easing: 'custom'` plus `bez: "x1, y1, x2, y2"` — so the two vocabularies stay where they belong and the creator edits a curve in one place (CV-004).
 
-- [ ] **Step 3: Apply the curve to elements, panes and candles**
+- [x] **Step 3: Apply the curve to elements, panes and candles**
 
 `packages/components/src/trading/chart.tsx` uses the pane's `curve` for the pane's growth: a pane's candles form along the curve rather than linearly, and where meaningful the curve applies per candle. `evaluateCurve` is the only evaluator — the same function in the preview and in the export (CV-003).
 
-- [ ] **Step 4: Write the failing tests**
+- [x] **Step 4: Write the failing tests**
 
 `packages/components/src/base/effects.test.ts` (new):
 
@@ -1372,7 +1389,7 @@ Every default reproduces today's behaviour exactly, so an existing project rende
 
 - "renders a curve-driven frame the same way on a fresh render and on a seek" (R3) — fails before Step 3; passes after.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 pnpm typecheck
@@ -1383,7 +1400,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 45 and 100 against the curve fixture, and confirm that a project with no curve renders exactly as it did before this slice.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A

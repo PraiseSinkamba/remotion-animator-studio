@@ -10,15 +10,13 @@
  */
 import React from 'react';
 import {
-  PRESET_CONTROL_POINTS,
-  type CurvePreset,
+  type Curve,
   type OhlcBar,
   type PaneSpec,
   type ZoomTrack,
 } from '@chart-studio/core';
-
-/** The curves a segment can be shaped with. */
-const PRESETS = Object.keys(PRESET_CONTROL_POINTS) as CurvePreset[];
+import { CurveEditor } from '@chart-studio/ui/inspector/curve-editor';
+import { readCurve } from '../chart';
 
 export interface PanePausePanelProps {
   panes: readonly PaneSpec[];
@@ -204,18 +202,17 @@ export const PaneZoomPanel: React.FC<PanePausePanelProps> = ({
       },
     }));
 
-  const setCurve = (pane: PaneSpec, index: number, value: string) =>
+  const setCurve = (pane: PaneSpec, index: number, value: Curve | undefined) =>
     setPane(pane, (entry) => ({
       ...entry,
       zoom: {
         segments: (entry.zoom?.segments ?? []).map((segment, position) => {
           if (position !== index) return segment;
-          if (value === '') {
+          if (value === undefined) {
             const { curve: _dropped, ...rest } = segment;
             return rest;
           }
-          if (value === 'custom') return segment;
-          return { ...segment, curve: { kind: 'preset' as const, name: value as CurvePreset } };
+          return { ...segment, curve: value };
         }),
       },
     }));
@@ -295,27 +292,12 @@ export const PaneZoomPanel: React.FC<PanePausePanelProps> = ({
                     updateSide(pane, index, 'to', { fromBar: Number(e.target.value) })
                   }
                 />
-                <select
-                  aria-label={`Pane ${paneIndex + 1} zoom ${index + 1} curve`}
-                  value={
-                    segment.curve
-                      ? segment.curve.kind === 'preset'
-                        ? segment.curve.name
-                        : 'custom'
-                      : ''
-                  }
-                  onChange={(e) => setCurve(pane, index, e.target.value)}
-                >
-                  <option value="">no curve</option>
-                  {segment.curve && segment.curve.kind !== 'preset' ? (
-                    <option value="custom">custom</option>
-                  ) : null}
-                  {PRESETS.map((preset) => (
-                    <option key={preset} value={preset}>
-                      {preset}
-                    </option>
-                  ))}
-                </select>
+                <CurveEditor
+                  value={readCurve(segment.curve)}
+                  onChange={(curve) => setCurve(pane, index, curve)}
+                  onClear={() => setCurve(pane, index, undefined)}
+                  label={`Pane ${paneIndex + 1} zoom ${index + 1} curve`}
+                />
               </div>
             </div>
           ))}

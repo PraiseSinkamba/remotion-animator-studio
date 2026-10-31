@@ -16,6 +16,8 @@ import {
   type PaneRelation,
   type PaneSpec,
 } from '@chart-studio/core';
+import { CurveEditor } from '@chart-studio/ui/inspector/curve-editor';
+import { readCurve } from '../chart';
 import { PaneRelationPanel } from './pane-relations';
 import { PaneHoldPanel, PaneZoomPanel } from './pane-pauses';
 
@@ -201,10 +203,19 @@ export const CandlestickChartInspector: React.FC<ComponentInspectorContext> = ({
         Fit clip length to bars
       </button>
 
+      <div className="section-title">Curve</div>
+      <CurveEditor
+        value={readCurve(props.curve)}
+        onChange={(curve) => edit({ curve })}
+        onClear={() => edit({ curve: undefined })}
+        label="Chart curve"
+      />
+
       {panes.length > 0 ? (
         <PaneRelationPanel
           panes={panes}
           relations={relations}
+          chartCurve={readCurve(props.curve)}
           onChange={onChange}
           commit={commit}
         />

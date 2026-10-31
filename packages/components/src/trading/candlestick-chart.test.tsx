@@ -1282,3 +1282,106 @@ describe('the pause point and zoom panels', () => {
     ]);
   });
 });
+
+describe('the curve of the chart', () => {
+  const BAR: OhlcBar = { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 };
+  const CURVE = { kind: 'preset' as const, name: 'easeIn' as const };
+
+  it('changes the candle-body growth compared with no curve', () => {
+    const plain = draw(
+      { ...BASE_PROPS, bars: [BAR], revealMode: 'simulated', framesPerBar: 10 },
+      4,
+    );
+    const curved = draw(
+      {
+        ...BASE_PROPS,
+        bars: [BAR],
+        revealMode: 'simulated',
+        framesPerBar: 10,
+        curve: CURVE,
+      },
+      4,
+    );
+
+    // The curve shapes the growth of the developing candle, so the body is
+    // drawn at a different height than without one.
+    expect(Number(bodies(curved)[0].getAttribute('height'))).not.toBe(
+      Number(bodies(plain)[0].getAttribute('height')),
+    );
+  });
+
+  it('draws the same frame on the evaluated path as on the inline path', () => {
+    const BARS: OhlcBar[] = [
+      { id: 'series-c:0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+      { id: 'series-c:1', t: 10_000, o: 105, h: 115, l: 101, c: 112 },
+      { id: 'series-c:2', t: 20_000, o: 112, h: 120, l: 108, c: 118 },
+      { id: 'series-c:3', t: 30_000, o: 118, h: 125, l: 114, c: 123 },
+    ];
+
+    const project = (): Project => ({
+      name: 'Project',
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      durationInFrames: 300,
+      backgroundColor: '#000000',
+      schemaVersion: 2,
+      series: [
+        {
+          id: 'series-c',
+          origin: 'manual',
+          label: 'Series C',
+          timeBasis: 'logical',
+          bars: BARS,
+        },
+      ],
+      tracks: [],
+    });
+
+    const props = {
+      ...BASE_PROPS,
+      bars: BARS,
+      dataSource: 'manual',
+      revealMode: 'simulated',
+      framesPerBar: 10,
+      simulationSeed: 'curve-seed',
+      seriesId: 'series-c',
+      curve: CURVE,
+      panes: [
+        {
+          id: 'pane-0',
+          seriesId: 'series-c',
+          aggregation: { factor: 1 },
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+          in: 0,
+          out: 300,
+          opacity: 1,
+          clock: { kind: 'reference' },
+          priceRange: { mode: 'auto' },
+        },
+      ],
+      clock: {
+        id: 'clock-0',
+        unit: 'logical',
+        referenceSeriesId: 'series-c',
+        stepBars: 1,
+        framesPerStep: 10,
+      },
+    } as unknown as CandlestickChartProps;
+
+    const evaluated = candlestickChartDefinition.evaluate?.({
+      clip: { from: 0, durationInFrames: 300 } as Clip,
+      props: props as unknown as Record<string, unknown>,
+      sceneFrame: 25,
+      project: project(),
+    });
+
+    const fromEvaluated = render(
+      <CandlestickChart props={props} frame={25} evaluated={evaluated} />,
+    ).container;
+    const fromInline = render(<CandlestickChart props={props} frame={25} />).container;
+
+    // The same curve, the same frame — preview and export draw the same thing.
+    expect(fromEvaluated.innerHTML).toBe(fromInline.innerHTML);
+  });
+});

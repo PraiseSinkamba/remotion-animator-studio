@@ -1,7 +1,13 @@
 import { noise2D } from '@remotion/noise';
 import { getLength, getPointAtLength, getTangentAtLength } from '@remotion/paths';
 import { Easing, interpolate, spring } from 'remotion';
-import type { EffectInstance, EffectType, ParamDef } from '@chart-studio/core';
+import {
+  PRESET_CONTROL_POINTS,
+  type Curve,
+  type EffectInstance,
+  type EffectType,
+  type ParamDef,
+} from '@chart-studio/core';
 
 /** Named animation curves, selectable on movement effects. */
 export const EASING_NAMES = [
@@ -32,6 +38,9 @@ export const getEasing = (name: string, customBezier?: string): ((t: number) => 
       return Easing.linear;
     case 'easeIn':
       return Easing.in(Easing.cubic);
+    case 'easeOut':
+      // The same function the default branch has always returned.
+      return Easing.out(Easing.cubic);
     case 'easeInOut':
       return Easing.inOut(Easing.cubic);
     case 'bounceOut':
@@ -51,7 +60,44 @@ const EASING_PARAM: ParamDef = {
   key: 'easing',
   label: 'Curve',
   kind: 'select',
-  options: [...EASING_NAMES],
+  options: [...EASING_NAMES, 'custom'],
+};
+
+/** The bezier that `easing: 'custom'` uses — "x1, y1, x2, y2". */
+const BEZ_PARAM: ParamDef = {
+  key: 'bez',
+  label: 'Custom curve — x1, y1, x2, y2 (cubic-bezier)',
+  kind: 'text',
+};
+
+/** Every effect that offers a curve offers the bezier with it. */
+const EASING_PARAMS: ParamDef[] = [EASING_PARAM, BEZ_PARAM];
+
+/** The default bezier a custom easing starts from. */
+const DEFAULT_BEZ = '0.34, 1.56, 0.64, 1';
+
+/**
+ * The bezier of a curve, as the legacy "x1, y1, x2, y2" string.
+ * A preset resolves to its control points.
+ */
+export const curveToBezier = (curve: Curve): string => {
+  const points = curve.kind === 'preset' ? PRESET_CONTROL_POINTS[curve.name] : curve.p;
+  return points.join(', ');
+};
+
+/**
+ * A curve from the legacy "x1, y1, x2, y2" string.
+ * An unparseable string falls back to `easeInOut`.
+ */
+export const bezierToCurve = (bezier: string): Curve => {
+  const nums = String(bezier ?? '')
+    .split(/[,\s]+/)
+    .map(Number)
+    .filter((v) => Number.isFinite(v));
+  if (nums.length === 4) {
+    return { kind: 'cubicBezier', p: [nums[0], nums[1], nums[2], nums[3]] };
+  }
+  return { kind: 'preset', name: 'easeInOut' };
 };
 
 export interface EffectDef {
@@ -71,16 +117,22 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     icon: '🌅',
     category: 'in',
     description: 'Fades from transparent at the start',
-    params: [{ key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 }],
-    defaults: { duration: 15 },
+    params: [
+      { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
+      ...EASING_PARAMS,
+    ],
+    defaults: { duration: 15, easing: 'linear', bez: DEFAULT_BEZ },
   },
   fadeOut: {
     label: 'Fade Out',
     icon: '🌆',
     category: 'out',
     description: 'Fades to transparent at the end',
-    params: [{ key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 }],
-    defaults: { duration: 15 },
+    params: [
+      { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
+      ...EASING_PARAMS,
+    ],
+    defaults: { duration: 15, easing: 'linear', bez: DEFAULT_BEZ },
   },
   slideIn: {
     label: 'Slide In',
@@ -91,9 +143,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
       { key: 'direction', label: 'From', kind: 'select', options: ['left', 'right', 'top', 'bottom'] },
       { key: 'distance', label: 'Distance (px)', kind: 'number', min: 20, max: 4000, step: 10 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { direction: 'left', distance: 400, duration: 20, easing: 'easeOut' },
+    defaults: { direction: 'left', distance: 400, duration: 20, easing: 'easeOut', bez: DEFAULT_BEZ },
   },
   slideOut: {
     label: 'Slide Out',
@@ -104,9 +156,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
       { key: 'direction', label: 'To', kind: 'select', options: ['left', 'right', 'top', 'bottom'] },
       { key: 'distance', label: 'Distance (px)', kind: 'number', min: 20, max: 4000, step: 10 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { direction: 'right', distance: 400, duration: 20, easing: 'easeIn' },
+    defaults: { direction: 'right', distance: 400, duration: 20, easing: 'easeIn', bez: DEFAULT_BEZ },
   },
   zoomIn: {
     label: 'Zoom In',
@@ -116,9 +168,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'fromScale', label: 'Start scale', kind: 'number', min: 0, max: 3, step: 0.05 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { fromScale: 0.3, duration: 20, easing: 'easeOut' },
+    defaults: { fromScale: 0.3, duration: 20, easing: 'easeOut', bez: DEFAULT_BEZ },
   },
   zoomOut: {
     label: 'Zoom Out',
@@ -128,9 +180,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'toScale', label: 'End scale', kind: 'number', min: 0, max: 3, step: 0.05 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { toScale: 0.2, duration: 20, easing: 'easeIn' },
+    defaults: { toScale: 0.2, duration: 20, easing: 'easeIn', bez: DEFAULT_BEZ },
   },
   springPop: {
     label: 'Spring Pop',
@@ -151,8 +203,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'rotations', label: 'Rotations', kind: 'number', min: 0.25, max: 5, step: 0.25 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
+      ...EASING_PARAMS,
     ],
-    defaults: { rotations: 1, duration: 25 },
+    defaults: { rotations: 1, duration: 25, easing: 'easeOut', bez: DEFAULT_BEZ },
   },
   wipeIn: {
     label: 'Wipe In',
@@ -162,9 +215,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'direction', label: 'From', kind: 'select', options: ['left', 'right', 'top', 'bottom'] },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { direction: 'left', duration: 20, easing: 'easeOut' },
+    defaults: { direction: 'left', duration: 20, easing: 'easeOut', bez: DEFAULT_BEZ },
   },
   wipeOut: {
     label: 'Wipe Out',
@@ -174,9 +227,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'direction', label: 'To', kind: 'select', options: ['left', 'right', 'top', 'bottom'] },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { direction: 'right', duration: 20, easing: 'easeIn' },
+    defaults: { direction: 'right', duration: 20, easing: 'easeIn', bez: DEFAULT_BEZ },
   },
   rotate: {
     label: 'Rotate (loop)',
@@ -241,9 +294,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'axis', label: 'Axis', kind: 'select', options: ['vertical', 'horizontal'] },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { axis: 'vertical', duration: 22, easing: 'easeOut' },
+    defaults: { axis: 'vertical', duration: 22, easing: 'easeOut', bez: DEFAULT_BEZ },
   },
   flipOut: {
     label: 'Flip Out (3D)',
@@ -253,9 +306,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'axis', label: 'Axis', kind: 'select', options: ['vertical', 'horizontal'] },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { axis: 'vertical', duration: 22, easing: 'easeIn' },
+    defaults: { axis: 'vertical', duration: 22, easing: 'easeIn', bez: DEFAULT_BEZ },
   },
   colorAdjust: {
     label: 'Color Adjust',
@@ -314,8 +367,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'height', label: 'Drop height (px)', kind: 'number', min: 20, max: 2000, step: 10 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 5, max: 300, step: 1 },
+      ...EASING_PARAMS,
     ],
-    defaults: { height: 400, duration: 45 },
+    defaults: { height: 400, duration: 45, easing: 'bounceOut', bez: DEFAULT_BEZ },
   },
   transform: {
     label: 'Transform',
@@ -335,8 +389,7 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
       { key: 'toRotate', label: 'To rotation', kind: 'number', min: -720, max: 720, step: 1 },
       { key: 'fromOpacity', label: 'From opacity', kind: 'number', min: 0, max: 1, step: 0.05 },
       { key: 'toOpacity', label: 'To opacity', kind: 'number', min: 0, max: 1, step: 0.05 },
-      { key: 'easing', label: 'Curve', kind: 'select', options: [...EASING_NAMES, 'custom'] },
-      { key: 'bez', label: 'Custom curve — x1, y1, x2, y2 (cubic-bezier)', kind: 'text' },
+      ...EASING_PARAMS,
     ],
     defaults: {
       start: 0,
@@ -363,9 +416,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'path', label: 'SVG path', kind: 'text' },
       { key: 'orient', label: 'Rotate to follow path', kind: 'select', options: ['no', 'yes'] },
-      EASING_PARAM,
+      ...EASING_PARAMS,
     ],
-    defaults: { path: 'M 0 0 C 150 -250 450 -250 600 0', orient: 'no', easing: 'easeInOut' },
+    defaults: { path: 'M 0 0 C 150 -250 450 -250 600 0', orient: 'no', easing: 'easeInOut', bez: DEFAULT_BEZ },
   },
   drift: {
     label: 'Drift',
@@ -386,8 +439,9 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
     params: [
       { key: 'startBlur', label: 'Start blur (px)', kind: 'number', min: 1, max: 120, step: 1 },
       { key: 'duration', label: 'Duration (frames)', kind: 'number', min: 1, max: 300, step: 1 },
+      ...EASING_PARAMS,
     ],
-    defaults: { startBlur: 20, duration: 20 },
+    defaults: { startBlur: 20, duration: 20, easing: 'linear', bez: DEFAULT_BEZ },
   },
   glow: {
     label: 'Glow',
@@ -567,15 +621,21 @@ export const computeEffectStyle = (
     const p = effectParams(e);
     switch (e.type) {
       case 'fadeIn':
-        out.opacity *= interpolate(frame, [0, Number(p.duration)], [0, 1], clampOpts);
+        out.opacity *= interpolate(frame, [0, Number(p.duration)], [0, 1], {
+          ...clampOpts,
+          easing: getEasing(String(p.easing ?? 'linear'), String(p.bez ?? '')),
+        });
         break;
       case 'fadeOut':
-        out.opacity *= interpolate(frame, [clipDuration - Number(p.duration), clipDuration], [1, 0], clampOpts);
+        out.opacity *= interpolate(frame, [clipDuration - Number(p.duration), clipDuration], [1, 0], {
+          ...clampOpts,
+          easing: getEasing(String(p.easing ?? 'linear'), String(p.bez ?? '')),
+        });
         break;
       case 'slideIn': {
         const t = interpolate(frame, [0, Number(p.duration)], [0, 1], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeOut')),
+          easing: getEasing(String(p.easing ?? 'easeOut'), String(p.bez ?? '')),
         });
         const d = (1 - t) * Number(p.distance);
         if (p.direction === 'left') out.translateX -= d;
@@ -587,7 +647,7 @@ export const computeEffectStyle = (
       case 'slideOut': {
         const t = interpolate(frame, [clipDuration - Number(p.duration), clipDuration], [0, 1], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeIn')),
+          easing: getEasing(String(p.easing ?? 'easeIn'), String(p.bez ?? '')),
         });
         const d = t * Number(p.distance);
         if (p.direction === 'left') out.translateX -= d;
@@ -599,14 +659,14 @@ export const computeEffectStyle = (
       case 'zoomIn': {
         out.scale *= interpolate(frame, [0, Number(p.duration)], [Number(p.fromScale), 1], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeOut')),
+          easing: getEasing(String(p.easing ?? 'easeOut'), String(p.bez ?? '')),
         });
         break;
       }
       case 'zoomOut': {
         out.scale *= interpolate(frame, [clipDuration - Number(p.duration), clipDuration], [1, Number(p.toScale)], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeIn')),
+          easing: getEasing(String(p.easing ?? 'easeIn'), String(p.bez ?? '')),
         });
         break;
       }
@@ -616,7 +676,7 @@ export const computeEffectStyle = (
       case 'spinIn': {
         const t = interpolate(frame, [0, Number(p.duration)], [0, 1], {
           ...clampOpts,
-          easing: Easing.out(Easing.cubic),
+          easing: getEasing(String(p.easing ?? 'easeOut'), String(p.bez ?? '')),
         });
         out.rotate += (1 - t) * 360 * Number(p.rotations);
         break;
@@ -624,7 +684,7 @@ export const computeEffectStyle = (
       case 'wipeIn': {
         const t = interpolate(frame, [0, Number(p.duration)], [0, 1], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeOut')),
+          easing: getEasing(String(p.easing ?? 'easeOut'), String(p.bez ?? '')),
         });
         out.clipPath = wipeClip(String(p.direction), t);
         break;
@@ -632,7 +692,7 @@ export const computeEffectStyle = (
       case 'wipeOut': {
         const t = interpolate(frame, [clipDuration - Number(p.duration), clipDuration], [1, 0], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeIn')),
+          easing: getEasing(String(p.easing ?? 'easeIn'), String(p.bez ?? '')),
         });
         // reuse wipeClip but mirror the direction so it exits toward `direction`
         const mirror: Record<string, string> = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
@@ -665,7 +725,7 @@ export const computeEffectStyle = (
       case 'flipIn': {
         const t = interpolate(frame, [0, Number(p.duration)], [0, 1], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeOut')),
+          easing: getEasing(String(p.easing ?? 'easeOut'), String(p.bez ?? '')),
         });
         if (p.axis === 'horizontal') out.rotateX += (1 - t) * 90;
         else out.rotateY += (1 - t) * 90;
@@ -675,7 +735,7 @@ export const computeEffectStyle = (
       case 'flipOut': {
         const t = interpolate(frame, [clipDuration - Number(p.duration), clipDuration], [0, 1], {
           ...clampOpts,
-          easing: getEasing(String(p.easing ?? 'easeIn')),
+          easing: getEasing(String(p.easing ?? 'easeIn'), String(p.bez ?? '')),
         });
         if (p.axis === 'horizontal') out.rotateX -= t * 90;
         else out.rotateY -= t * 90;
@@ -710,7 +770,8 @@ export const computeEffectStyle = (
       }
       case 'bounceDrop': {
         const t = Math.max(0, Math.min(1, frame / Number(p.duration)));
-        out.translateY -= (1 - Easing.bounce(t)) * Number(p.height);
+        const eased = getEasing(String(p.easing ?? 'bounceOut'), String(p.bez ?? ''));
+        out.translateY -= (1 - eased(t)) * Number(p.height);
         break;
       }
       case 'transform': {
@@ -730,7 +791,7 @@ export const computeEffectStyle = (
         try {
           const d = String(p.path);
           const length = getLength(d);
-          const t = getEasing(String(p.easing ?? 'easeInOut'))(
+          const t = getEasing(String(p.easing ?? 'easeInOut'), String(p.bez ?? ''))(
             Math.max(0, Math.min(1, clipDuration > 0 ? frame / clipDuration : 0)),
           );
           const pt = getPointAtLength(d, t * length);
@@ -757,7 +818,10 @@ export const computeEffectStyle = (
       case 'blurIn':
         out.blur = Math.max(
           out.blur,
-          interpolate(frame, [0, Number(p.duration)], [Number(p.startBlur), 0], clampOpts),
+          interpolate(frame, [0, Number(p.duration)], [Number(p.startBlur), 0], {
+            ...clampOpts,
+            easing: getEasing(String(p.easing ?? 'linear'), String(p.bez ?? '')),
+          }),
         );
         break;
       case 'glow': {

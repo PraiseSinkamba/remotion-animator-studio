@@ -1,9 +1,26 @@
 import React from 'react';
 import { Pencil, X } from 'lucide-react';
-import { EFFECTS, getEasing } from '@chart-studio/components';
+import { EFFECTS, bezierToCurve, curveToBezier, getEasing } from '@chart-studio/components';
 import { useStore } from '@chart-studio/editor';
-import type { Clip } from '@chart-studio/core';
-import { Button, ParamControl } from '@chart-studio/ui';
+import type { Clip, Curve } from '@chart-studio/core';
+import { CURVE_PRESETS, PRESET_CONTROL_POINTS } from '@chart-studio/core';
+import { Button, CurveEditor, ParamControl } from '@chart-studio/ui';
+
+/**
+ * The curve of a custom bezier, snapped back to a preset when it matches one.
+ *
+ * The preset names here are the core's curve vocabulary, not the legacy
+ * easing names: a custom curve is written as a bezier, never as an easing.
+ */
+const customCurve = (bezier: string): Curve => {
+  const curve = bezierToCurve(bezier);
+  if (curve.kind !== 'cubicBezier') return curve;
+  const match = CURVE_PRESETS.find((name) => {
+    const points = PRESET_CONTROL_POINTS[name];
+    return points.every((value, index) => value === curve.p[index]);
+  });
+  return match ? { kind: 'preset', name: match } : curve;
+};
 
 /** Small graph of the selected animation curve. */
 const EasingPreview: React.FC<{ name: string; bez?: string }> = ({ name, bez }) => {
@@ -37,8 +54,10 @@ export const EffectList: React.FC<{ clip: Clip; commit: () => void }> = ({ clip,
 
   return (
     <div className="space-y-2">
-      {clip.effects.map((fx) => {
+      {clip.effects.map((fx, index) => {
         const fxDef = EFFECTS[fx.type];
+        const easing = String(fx.params.easing ?? fxDef.defaults.easing ?? '');
+        const bez = String(fx.params.bez ?? fxDef.defaults.bez ?? '');
         return (
           <div key={fx.id} className="rounded-md border border-border bg-muted/40 p-2">
             <div className="mb-2 flex items-center justify-between gap-2">
@@ -80,6 +99,19 @@ export const EffectList: React.FC<{ clip: Clip; commit: () => void }> = ({ clip,
                   </React.Fragment>
                 );
               })}
+              {easing === 'custom' ? (
+                <CurveEditor
+                  value={customCurve(bez)}
+                  onChange={(curve) => {
+                    commit();
+                    updateEffectParams(clip.id, fx.id, {
+                      easing: 'custom',
+                      bez: curveToBezier(curve),
+                    });
+                  }}
+                  label={`${fxDef.label} ${index + 1} custom curve`}
+                />
+              ) : null}
               {fx.type === 'motionPath' ? (
                 <Button
                   variant="outline"

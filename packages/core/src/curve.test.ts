@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CURVE_PRESETS,
   evaluateCurve,
   PRESET_CONTROL_POINTS,
   type Curve,
@@ -23,11 +24,24 @@ const bezierCurve = (p: [number, number, number, number]): Curve => ({
 });
 
 describe('evaluateCurve', () => {
-  it('maps 0 to 0 and 1 to 1 for every preset', () => {
+  it('maps every preset onto the same endpoints', () => {
     for (const name of PRESETS) {
       const curve = presetCurve(name);
       expect(evaluateCurve(curve, 0)).toBe(0);
       expect(evaluateCurve(curve, 1)).toBe(1);
+    }
+  });
+
+  it('evaluates the same curve to the same value at the same t', () => {
+    for (const name of PRESETS) {
+      const curve = presetCurve(name);
+      for (const t of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]) {
+        const first = evaluateCurve(curve, t);
+        expect(evaluateCurve(curve, t)).toBe(first);
+        expect(evaluateCurve(curve, t)).toBe(
+          evaluateCurve(bezierCurve(PRESET_CONTROL_POINTS[name]), t),
+        );
+      }
     }
   });
 
@@ -74,6 +88,10 @@ describe('evaluateCurve', () => {
       ...Array.from({ length: 40 }, (_, i) => evaluateCurve(curve, i / 39)),
     );
     expect(peak).toBeGreaterThan(1);
+  });
+
+  it('lists the presets in a fixed order', () => {
+    expect([...CURVE_PRESETS]).toEqual(PRESETS);
   });
 
   it('gives every preset a control point set', () => {

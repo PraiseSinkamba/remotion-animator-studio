@@ -15,10 +15,13 @@ import {
   seriesBaseRung,
   seriesBaseUnits,
   TIMEFRAME_BASE_UNITS,
+  type Curve,
   type PaneRelation,
   type PaneSpec,
   type TimeframeId,
 } from '@chart-studio/core';
+import { CurveEditor } from '@chart-studio/ui/inspector/curve-editor';
+import { readCurve } from '../chart';
 
 /** The ladder, in order. A rung is a rung, never a free multiplier. */
 export const LADDER: TimeframeId[] = Object.keys(TIMEFRAME_BASE_UNITS) as TimeframeId[];
@@ -56,6 +59,8 @@ export const applyRung = (
 export interface PaneRelationPanelProps {
   panes: readonly PaneSpec[];
   relations: readonly PaneRelation[];
+  /** The chart's own curve. A pane without a curve of its own inherits it. */
+  chartCurve?: Curve;
   onChange: (patch: Record<string, unknown>) => void;
   commit: () => void;
 }
@@ -68,12 +73,32 @@ export interface PaneRelationPanelProps {
 export const PaneRelationPanel: React.FC<PaneRelationPanelProps> = ({
   panes,
   relations,
+  chartCurve,
   onChange,
   commit,
 }) => {
   const edit = (patch: Record<string, unknown>) => {
     commit();
     onChange(patch);
+  };
+
+  /**
+   * Writes the pane's own curve.
+   *
+   * The pane states the curve explicitly, so it never inherits ambiguously:
+   * a pane with no curve of its own falls back to the chart's curve.
+   */
+  const setPaneCurve = (pane: PaneSpec, curve: Curve | undefined) => {
+    edit({
+      panes: panes.map((entry) => {
+        if (entry.id !== pane.id) return entry;
+        if (curve === undefined) {
+          const { curve: _dropped, ...rest } = entry;
+          return rest;
+        }
+        return { ...entry, curve };
+      }),
+    });
   };
 
   const setRect = (pane: PaneSpec, patch: Partial<PaneSpec['rect']>) => {
@@ -242,6 +267,20 @@ export const PaneRelationPanel: React.FC<PaneRelationPanelProps> = ({
                   }
                 />
               ) : null}
+            </div>
+
+            <div className="param-row">
+              <label>Curve</label>
+              <CurveEditor
+                value={readCurve(pane.curve) ?? chartCurve}
+                onChange={(curve) => setPaneCurve(pane, curve)}
+                onClear={
+                  readCurve(pane.curve) === undefined
+                    ? undefined
+                    : () => setPaneCurve(pane, undefined)
+                }
+                label={`Pane ${index + 1} curve`}
+              />
             </div>
           </div>
         );

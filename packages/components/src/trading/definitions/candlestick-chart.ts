@@ -10,7 +10,7 @@
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
 import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '@chart-studio/core';
-import { CandlestickChart, type ChartEvaluation, type CandlestickChartProps } from '../chart';
+import { CandlestickChart, readCurve, type ChartEvaluation, type CandlestickChartProps } from '../chart';
 import { CandlestickChartInspector } from '../inspectors/candlestick-chart';
 import {
   applyHold,
@@ -83,6 +83,9 @@ const evaluateChart = ({
   const panes = Array.isArray(props.panes) ? props.panes : [];
   if (!clock || panes.length === 0) return undefined;
 
+  // The chart's own curve is the default; a pane's own curve overrides it.
+  const chartCurve = readCurve(props.curve);
+
   // The clock is in chart-local frames; the scene frame is absolute.
   const chartLocalFrame = sceneFrame - clip.from;
   // The clock carries the pace, so the reveal and the market position agree.
@@ -103,12 +106,15 @@ const evaluateChart = ({
       marketFrame,
     );
     const held = applyHold(state, pane.holds, chartLocalFrame, pane.priceRange ?? { mode: 'auto' });
+    // A pane's own curve shapes its growth; the chart's curve is the default.
+    const curve = readCurve(pane.curve) ?? chartCurve;
     const revealed = evaluateBarsAtFrame(
       held.bars,
       marketFrame,
       framesPerBar,
       props.revealMode === 'simulated' ? 'simulated' : 'discrete',
       props.simulationSeed ?? 'chart',
+      curve,
     );
     // The window starts at the zoomed bar; the slots shrink with it, so the
     // zoomed pane fills the same box.
