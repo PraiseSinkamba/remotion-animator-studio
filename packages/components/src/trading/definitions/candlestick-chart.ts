@@ -204,6 +204,18 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
     }),
   inspector: CandlestickChartInspector,
   evaluate: evaluateChart,
+  // The chart offers the transport a hold on the market: it freezes the pane
+  // on the candle it is at. The shell executes it without knowing what a
+  // chart is.
+  transportActions: [
+    {
+      id: 'hold',
+      label: 'Hold',
+      icon: '⏸',
+      kind: 'toggle',
+      toggle: 'hold',
+    },
+  ],
   // The chart renders at its own width/height around its anchor.
   bounds: componentBounds,
   // A new chart is long enough to show its whole series.

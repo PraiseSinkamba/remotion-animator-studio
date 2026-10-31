@@ -1,7 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { migrateProject } from '@chart-studio/components';
-import { sampleProject, type Project } from '@chart-studio/core';
+import { effectiveDuration, sampleProject, type Project } from '@chart-studio/core';
 import { MainComposition } from '@chart-studio/video';
 import { authoredPathProject } from './authored-path-fixture';
 
@@ -21,7 +21,10 @@ export const RemotionRoot: React.FC = () => {
           // the default props. Either way the document is migrated before use.
           const project = migrateProject(props.project ?? defaultProps.project);
           return {
-            durationInFrames: project.durationInFrames,
+            // 'derived' computes the length from the content; 'fixed' uses the
+            // author's own number. A legacy document with no mode keeps its
+            // authored length.
+            durationInFrames: effectiveDuration(project),
             fps: project.fps,
             width: project.width,
             height: project.height,
@@ -43,7 +46,10 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props, defaultProps }) => {
           const project = migrateProject(props.project ?? defaultProps.project);
           return {
-            durationInFrames: project.durationInFrames,
+            // 'derived' computes the length from the content; 'fixed' uses the
+            // author's own number. A legacy document with no mode keeps its
+            // authored length.
+            durationInFrames: effectiveDuration(project),
             fps: project.fps,
             width: project.width,
             height: project.height,

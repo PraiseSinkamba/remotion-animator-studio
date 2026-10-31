@@ -110,6 +110,7 @@ export interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
   const project = useStore((s) => s.project);
+  const durationMode = useStore((s) => s.project.durationMode ?? 'fixed');
   const canUndo = useStore((s) => s.history.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
   const { setProject, resizeProject, replaceProject, undo, redo } = useStore.getState();
@@ -407,13 +408,44 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
               max={3600}
               aria-label="Duration in seconds"
               title="Duration in seconds"
+              disabled={durationMode === 'derived'}
               value={Math.round(project.durationInFrames / project.fps)}
               onChange={(e) =>
-                setProject({ durationInFrames: Math.max(1, Number(e.target.value)) * project.fps })
+                useStore.getState().setFixedDuration(Math.max(1, Number(e.target.value)))
               }
-              className="w-[34px] bg-transparent text-right font-mono text-[11px] leading-none text-foreground outline-none"
+              className="w-[34px] bg-transparent text-right font-mono text-[11px] leading-none text-foreground outline-none disabled:text-muted-foreground"
             />
           </ValueChip>
+
+          {/* The duration's mode: derived from the content, or the author's own number. */}
+          <button
+            type="button"
+            aria-label="Duration mode"
+            title={
+              durationMode === 'derived'
+                ? 'Duration follows the content — click to set it yourself'
+                : 'Duration is set by the author — click to follow the content'
+            }
+            onClick={() =>
+              useStore.getState().setDurationMode(durationMode === 'derived' ? 'fixed' : 'derived')
+            }
+            className="h-5 rounded border border-border px-1 font-mono text-[10px] leading-none text-muted-foreground hover:text-foreground"
+          >
+            {durationMode === 'derived' ? 'auto' : 'set'}
+          </button>
+
+          {/* A draggable slider bound to the same length as the seconds field. */}
+          <input
+            type="range"
+            min={1}
+            max={3600}
+            aria-label="Duration slider"
+            title="Duration in seconds"
+            disabled={durationMode === 'derived'}
+            value={Math.round(project.durationInFrames / project.fps)}
+            onChange={(e) => useStore.getState().setFixedDuration(Math.max(1, Number(e.target.value)))}
+            className="h-1 w-20 accent-foreground disabled:opacity-40"
+          />
 
           <span className="h-4 w-px bg-border" aria-hidden="true" />
           <ValueChip label="FPS">

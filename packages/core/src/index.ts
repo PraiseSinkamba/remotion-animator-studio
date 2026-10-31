@@ -10,3 +10,4 @@ export * from './curve';
 export * from './time';
 export * from './validation';
 export * from './transition';
+export * from './duration';

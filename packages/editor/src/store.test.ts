@@ -432,3 +432,32 @@ describe('store — the transitions', () => {
     expect(useStore.getState().project.tracks[0].transitions ?? []).toHaveLength(0);
   });
 });
+
+describe('store — the duration mode', () => {
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+    });
+  });
+
+  it('switches the duration mode and keeps the fixed length', () => {
+    useStore.getState().setFixedDuration(10);
+    expect(useStore.getState().project.durationInFrames).toBe(300);
+
+    useStore.getState().setDurationMode('derived');
+    expect(useStore.getState().project.durationMode).toBe('derived');
+    // The author's own number is kept, so switching back keeps it.
+    expect(useStore.getState().project.durationInFrames).toBe(300);
+
+    useStore.getState().setDurationMode('fixed');
+    expect(useStore.getState().project.durationMode).toBe('fixed');
+    expect(useStore.getState().project.durationInFrames).toBe(300);
+  });
+});

@@ -163,6 +163,17 @@ interface EditorState {
   updateTransition: (trackId: string, transitionId: string, patch: { element?: ElementType; durationInFrames?: number }) => void;
   removeTransition: (trackId: string, transitionId: string) => void;
 
+  /** Switches the composition's length between derived from the content and the author's own number. */
+  setDurationMode: (mode: 'derived' | 'fixed') => void;
+  /** Sets the authored length, in seconds. The project's fps converts it to frames. */
+  setFixedDuration: (seconds: number) => void;
+  /**
+   * Holds the market on a bar, or releases it if it is already held there.
+   * The hold covers the rest of the clip, so the market stops where the
+   * creator pressed the button.
+   */
+  togglePaneHold: (clipId: string, paneId: string, barId: string) => void;
+
   /**
    * Adds a pause point to a pane: the pane holds on one candle for a frame
    * range, relative to the chart clip. One undo step.
@@ -976,6 +987,55 @@ export const useStore = create<EditorState>((set, get) => ({
             : t,
         ),
       },
+    }));
+  },
+
+  setDurationMode: (mode) => {
+    get().commit();
+    set((s) => ({
+      project: { ...s.project, durationMode: mode },
+    }));
+  },
+
+  togglePaneHold: (clipId, paneId, barId) => {
+    const s = get();
+    const clip = findClip(s.project, clipId);
+    if (!clip) return;
+    // The hold's frames are relative to the chart clip's own start.
+    const localFrame = Math.max(0, s.currentFrame - clip.from);
+
+    get().commit();
+    set((state) => ({
+      project: mapClips(state.project, clipId, (c) => {
+        const panes = c.props.panes;
+        if (!Array.isArray(panes)) return c;
+        return {
+          ...c,
+          props: {
+            ...c.props,
+            panes: panes.map((pane: any) => {
+              if (pane.id !== paneId) return pane;
+              const holds = (pane.holds ?? []) as Array<{ barId: string; in: number; out: number }>;
+              const held = holds.some((hold) => hold.barId === barId);
+              return {
+                ...pane,
+                holds: held
+                  ? holds.filter((hold) => hold.barId !== barId)
+                  : [...holds, { barId, in: localFrame, out: c.durationInFrames }],
+              };
+            }),
+          },
+        };
+      }),
+    }));
+  },
+
+  setFixedDuration: (seconds) => {
+    const s = get();
+    const frames = Math.max(1, Math.round(seconds * s.project.fps));
+    get().commit();
+    set((state) => ({
+      project: { ...state.project, durationInFrames: frames },
     }));
   },
 

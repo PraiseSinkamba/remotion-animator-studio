@@ -19,11 +19,33 @@ import {
   type ChartEvaluation,
 } from '@chart-studio/components';
 import { strokeToAnchorPoints } from '@chart-studio/core';
-import type { ElementType, PaneSpec, Project } from '@chart-studio/core';
+import type { Clip, ElementType, PaneSpec, Project, TransportAction } from '@chart-studio/core';
 import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit-test';
 import type { PickableClip } from './canvas-hit-test';
 import { SelectionOverlay } from './selection-overlay';
 import { Button, ELEMENT_MIME, PRESET_MIME } from '@chart-studio/ui';
+
+/**
+ * The bar a clip's first pane is showing at a frame.
+ *
+ * The shell asks the component's own evaluation, so it needs no knowledge of
+ * what the component is.
+ */
+const activePaneBarId = (
+  clip: Clip,
+  sceneFrame: number,
+  project: Project,
+): string | undefined => {
+  const definition = getComponent(clip.element);
+  const evaluated = definition?.evaluate?.({
+    clip,
+    props: clip.props,
+    sceneFrame,
+    project,
+  }) as { panes?: Array<{ bars?: Array<{ bar?: { id: string } }> }> } | undefined;
+  const bars = evaluated?.panes?.[0]?.bars ?? [];
+  return bars[bars.length - 1]?.bar?.id;
+};
 
 /** How close the pointer must be to an anchor to pick it up, in chart pixels. */
 const ANCHOR_GRAB_RADIUS = 10;
@@ -544,6 +566,37 @@ export const PreviewPanel: React.FC = () => {
     });
   };
 
+  /**
+   * The transport actions the selected clip's component declares.
+   *
+   * The shell names no component: it reads whatever the definition declares
+   * and acts on the contract.
+   */
+  const transportActions = (() => {
+    if (!selected) return [];
+    const definition = getComponent(selected.element);
+    return definition?.transportActions ?? [];
+  })();
+
+  /** Executes a declared transport action. */
+  const runTransportAction = (action: TransportAction) => {
+    if (!selected) return;
+    if (action.kind === 'seek') {
+      const frame = action.seekTo?.({ props: selected.props, sceneFrame: currentFrame });
+      if (frame !== null && frame !== undefined) seekTo(frame);
+      return;
+    }
+    // A toggle acts on the component's own state, through the editor's store so
+    // it is one undo step.
+    if (action.toggle === 'hold') {
+      const paneId = (selected.props.panes as Array<{ id: string }> | undefined)?.[0]?.id;
+      const barId = activePaneBarId(selected, currentFrame, project);
+      if (paneId && barId) {
+        useStore.getState().togglePaneHold(selected.id, paneId, barId);
+      }
+    }
+  };
+
   const onToggleMute = () => {
     const next = !muted;
     setMuted(next);
@@ -723,6 +776,20 @@ export const PreviewPanel: React.FC = () => {
             >
               {muted ? <VolumeX data-icon="inline-start" /> : <Volume2 data-icon="inline-start" />}
             </Button>
+            {transportActions.map((action) => (
+              <Button
+                key={action.id}
+                variant="ghost"
+                size="icon-sm"
+                className="size-6 text-muted-foreground hover:text-foreground"
+                title={action.label}
+                aria-label={action.label}
+                disabled={action.kind === 'seek' && action.seekTo?.({ props: selected?.props ?? {}, sceneFrame: currentFrame }) === null}
+                onClick={() => runTransportAction(action)}
+              >
+                <span className="text-[10px] leading-none">{action.icon}</span>
+              </Button>
+            ))}
             <span className="ml-1 font-mono text-[11px] tabular-nums text-muted-foreground">
               {secondsLabel(currentFrame, project.fps)} / {secondsLabel(project.durationInFrames, project.fps)}
             </span>
