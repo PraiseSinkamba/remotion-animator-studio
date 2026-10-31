@@ -69,11 +69,13 @@ export const App: React.FC = () => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
-      if (typing) return;
+      if (typing || e.defaultPrevented) return;
       const s = useStore.getState();
       const mod = e.metaKey || e.ctrlKey;
 
       if (e.code === 'Space') {
+        // Native buttons and Radix controls own Space while they have focus.
+        if (target.closest('button, [role="menu"], [role="menuitem"], [role="dialog"], [role="combobox"]')) return;
         e.preventDefault();
         togglePlay();
       } else if (e.key === 'Enter' && s.drawingPath) {

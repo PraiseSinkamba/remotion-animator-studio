@@ -23,7 +23,7 @@ export const HelpModal: React.FC<{ onClose: () => void }> = ({ onClose }) => (
   >
     <DialogContent className="sm:max-w-2xl">
       <DialogHeader>
-        <DialogTitle>How to use Chart Studio</DialogTitle>
+        <DialogTitle>How to use Chart Studio <span className="ml-2 text-xs font-normal text-muted-foreground">v0.1.0</span></DialogTitle>
         <DialogDescription>Build animations in the library, arrange them on the timeline, then export an MP4.</DialogDescription>
       </DialogHeader>
 

@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import {
   Camera,
   Check,
-  ChevronDown,
   CircleHelp,
   Clapperboard,
   Download,
@@ -11,15 +10,12 @@ import {
   Plus,
   Redo2,
   Save,
-  SkipBack,
   Undo2,
 } from 'lucide-react';
-import { seekTo } from '@chart-studio/editor';
 import { migrateProject } from '@chart-studio/components';
 import { useStore } from '@chart-studio/editor';
 import type { WorkspaceUiState } from '@chart-studio/editor';
 import type { Project } from '@chart-studio/core';
-import { Badge } from '@chart-studio/ui';
 import { Button } from '@chart-studio/ui';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@chart-studio/ui';
 import { cn } from '@chart-studio/ui';
@@ -53,7 +49,9 @@ const SizeInput: React.FC<{
   max?: number;
   list?: string;
   onCommit: (v: number) => void;
-}> = ({ value, title, min = 16, max = 7680, list, onCommit }) => {
+  className?: string;
+  disabled?: boolean;
+}> = ({ value, title, min = 16, max = 7680, list, onCommit, className, disabled }) => {
   const [text, setText] = useState(String(value));
   React.useEffect(() => setText(String(value)), [value]);
   const commit = () => {
@@ -64,13 +62,14 @@ const SizeInput: React.FC<{
   return (
     <input
       type="number"
+      disabled={disabled}
       min={min}
       max={max}
       value={text}
       title={title}
       list={list}
       aria-label={title}
-      className="w-[52px] bg-transparent text-right font-mono text-[11px] leading-none text-foreground outline-none"
+      className={cn('w-[72px] shrink-0 border-0! bg-transparent! p-0! text-right font-mono text-xs leading-none text-foreground outline-none disabled:text-muted-foreground', className)}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -83,7 +82,7 @@ const SizeInput: React.FC<{
 /** One editable figure in the format group: a micro label and a mono value. */
 const ValueChip: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <span className="flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5">
-    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+    <span className="text-[10px] tracking-wide text-muted-foreground">{label}</span>
     {children}
   </span>
 );
@@ -222,6 +221,13 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
     }
   };
 
+  const newProject = () => {
+    if (window.confirm('Start a new project? (Current work stays in undo history)')) {
+      fileHandleRef.current = null;
+      replaceProject(blankProject());
+    }
+  };
+
   const sizeKey =
     Object.keys(SIZE_PRESETS).find(
       (k) => SIZE_PRESETS[k][0] === project.width && SIZE_PRESETS[k][1] === project.height,
@@ -236,100 +242,180 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
         ? 'bg-muted-foreground'
         : 'bg-primary';
 
-  return (
-    <header className="flex h-13 shrink-0 items-center gap-2 overflow-x-auto border-b border-border bg-card/90 px-3 py-1.5 backdrop-blur-md">
-      {/* Brand */}
+  const formatControls = (
+    <div className="flex shrink-0 items-center gap-2">
+      <Select value={sizeKey} onValueChange={(value) => {
+        const preset = SIZE_PRESETS[value];
+        if (preset) resizeProject(preset[0], preset[1]);
+      }}>
+        <SelectTrigger size="sm" className="h-7 w-[158px] shrink-0 text-xs" aria-label="Composition preset" title="Changing size rescales all content to fit">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent><SelectGroup>
+          {[...Object.keys(SIZE_PRESETS), 'Custom'].map((key) => <SelectItem key={key} value={key}>{key}</SelectItem>)}
+        </SelectGroup></SelectContent>
+      </Select>
+      <ValueChip label="Width">
+        <SizeInput value={project.width} title="Width" onCommit={(width) => resizeProject(width, project.height)} />
+      </ValueChip>
+      <span className="text-xs text-muted-foreground" aria-hidden="true">×</span>
+      <ValueChip label="Height">
+        <SizeInput value={project.height} title="Height" onCommit={(height) => resizeProject(project.width, height)} />
+      </ValueChip>
+      <ValueChip label="FPS">
+        <SizeInput value={project.fps} title="FPS" className="w-[54px]" min={1} max={240} list="fps-presets" onCommit={(fps) => {
+          const seconds = project.durationInFrames / project.fps;
+          setProject({ fps, durationInFrames: Math.round(seconds * fps) });
+        }} />
+      </ValueChip>
+      <datalist id="fps-presets">{FPS_PRESETS.map((fps) => <option key={fps} value={fps} />)}</datalist>
+      <span className="h-5 w-px bg-border" aria-hidden="true" />
       <div className="flex shrink-0 items-center gap-2">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-primary ring-1 ring-primary/25">
-          <Clapperboard className="size-4" aria-hidden="true" />
-        </span>
-        <span className="text-xs font-semibold text-foreground">ChartStudio</span>
-        <Badge
-          variant="secondary"
-          className="h-4 px-1.5 text-[10px] font-medium text-muted-foreground"
-        >
-          v0.1.0
-        </Badge>
+        <span className="text-xs text-muted-foreground">Duration</span>
+        <Select value={durationMode} onValueChange={(value: 'fixed' | 'derived') => useStore.getState().setDurationMode(value)}>
+          <SelectTrigger size="sm" className="h-7 w-[116px] text-xs" aria-label="Duration mode"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fixed">Fixed</SelectItem>
+            <SelectItem value="derived">From content</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1" title={durationMode === 'derived' ? 'Duration follows the content' : 'Set the composition length in seconds'}>
+          <SizeInput value={Math.round(project.durationInFrames / project.fps)} title="Duration in seconds" className="w-[54px]" min={1} max={3600} disabled={durationMode === 'derived'} onCommit={(seconds) => useStore.getState().setFixedDuration(seconds)} />
+          <span className="text-xs text-muted-foreground">s</span>
+        </div>
+        <input type="range" min={1} max={3600} aria-label="Duration slider" aria-valuetext={`${Math.round(project.durationInFrames / project.fps)} seconds`} title="Drag to adjust the duration in seconds" disabled={durationMode === 'derived'} value={Math.round(project.durationInFrames / project.fps)} onChange={(event) => useStore.getState().setFixedDuration(Math.max(1, Number(event.target.value)))} className="h-1 w-20 accent-foreground disabled:opacity-40" />
       </div>
+    </div>
+  );
 
-      {/* Project name — the field only shows itself on hover */}
-      <div className="group flex shrink-0 items-center gap-1">
-        <input
-          aria-label="Project name"
-          value={project.name}
-          onChange={(e) => setProject({ name: e.target.value })}
-          className="h-7 w-[170px] rounded-md border border-transparent bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors group-hover:border-border group-hover:bg-background focus-visible:border-ring"
-        />
-        <ChevronDown className="size-3 text-muted-foreground" aria-hidden="true" />
-      </div>
+  return (
+    <header className="shrink-0 border-b border-border bg-card/90 backdrop-blur-md">
+      <div aria-label="Project toolbar" className="flex min-h-10 items-center gap-2 border-b border-border/60 px-3 py-1">
+        {/* Brand */}
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-primary ring-1 ring-primary/25">
+            <Clapperboard className="size-4" aria-hidden="true" />
+          </span>
+          <span className="text-xs font-semibold text-foreground">ChartStudio</span>
 
-      {/* File and render actions */}
-      <div className="flex shrink-0 items-center gap-0.5">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs"
-          title="New project"
-          onClick={() => {
-            if (window.confirm('Start a new project? (Current work stays in undo history)')) {
-              fileHandleRef.current = null;
-              replaceProject(blankProject());
-            }
-          }}
-        >
-          <Plus data-icon="inline-start" />
-          New
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs"
-          onClick={save}
-          title={fsAccess ? 'Overwrites the opened file' : 'Downloads a JSON file'}
-        >
-          {savedFlash ? (
-            <>
-              <Check data-icon="inline-start" />
-              Saved
-            </>
-          ) : (
-            <>
-              <Save data-icon="inline-start" />
-              Save
-            </>
-          )}
-        </Button>
-        {fsAccess ? (
+        </div>
+
+        {/* Project name — the field only shows itself on hover */}
+        <div className="group flex min-w-0 items-center gap-1">
+          <input
+            aria-label="Project name"
+            value={project.name}
+            onChange={(e) => setProject({ name: e.target.value })}
+            className="h-7 w-full min-w-16 max-w-[200px] rounded-md border border-transparent bg-transparent px-2 text-xs font-medium text-foreground outline-none transition-colors group-hover:border-border group-hover:bg-background focus-visible:border-ring"
+          />
+        </div>
+
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
             size="sm"
             className="text-xs"
-            onClick={saveAs}
-            title="Save to a new file"
+            title="New project"
+            onClick={newProject}
           >
-            Save As…
+            <Plus data-icon="inline-start" />
+            New
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={open}
+            title="Open a saved project"
+          >
+            <FolderOpen data-icon="inline-start" />
+            Open
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={save}
+            title={fsAccess ? 'Overwrites the opened file' : 'Downloads a JSON file'}
+          >
+            {savedFlash ? (
+              <>
+                <Check data-icon="inline-start" />
+                Saved
+              </>
+            ) : (
+              <>
+                <Save data-icon="inline-start" />
+                Save
+              </>
+            )}
+          </Button>
+          {fsAccess ? (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={saveAs} title="Save to a new file">
+              Save As…
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex-1" />
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            aria-label="Help & docs"
+            onClick={() => setShowHelp(true)}
+            title="Help & docs"
+          >
+            <CircleHelp data-icon="inline-start" />
+          </Button>
+          <ThemeToggle />
+        </div>
+        {/* Saved status */}
+        {storage ? (
+          <div
+            className={cn(
+              'flex min-w-0 items-center gap-1.5 rounded-full border border-border bg-background/60 py-0.5 pl-2 pr-1.5',
+              '[&_[data-slot=badge]]:shrink [&_button]:whitespace-normal [&_button]:text-left [&_[data-slot=badge]]:h-auto [&_[data-slot=badge]]:border-0 [&_[data-slot=badge]]:bg-transparent [&_[data-slot=badge]]:px-0 [&_[data-slot=badge]]:text-xs [&_[data-slot=badge]]:font-medium [&_[data-slot=badge]]:text-foreground',
+            )}
+          >
+            <span className={cn('size-1.5 shrink-0 rounded-full', storageTone)} aria-hidden="true" />
+            <StorageIndicator
+              status={storage.status}
+              saving={storage.saving}
+              error={storage.error}
+              onSave={onSave}
+            />
+          </div>
         ) : null}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs"
-          onClick={open}
-          title="Open a saved project"
-        >
-          <FolderOpen data-icon="inline-start" />
-          Open
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs"
-          onClick={() => setShowHelp(true)}
-          title="Help & docs"
-        >
-          <CircleHelp data-icon="inline-start" />
-          Help
-        </Button>
+
+      </div>
+      <div aria-label="Editing toolbar" className="flex min-h-10 items-center gap-2 px-3 py-1">
+        <div className="flex shrink-0 items-center gap-0.5 border-r border-border pr-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-7 px-0"
+            disabled={!canUndo}
+            onClick={undo}
+            aria-label="Undo"
+            title="Undo (Ctrl/⌘Z)"
+          >
+            <Undo2 data-icon="inline-start" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-7 px-0"
+            disabled={!canRedo}
+            onClick={redo}
+            aria-label="Redo"
+            title="Redo (Ctrl/⌘⇧Z)"
+          >
+            <Redo2 data-icon="inline-start" />
+          </Button>
+        </div>
+        {formatControls}
+        <div className="flex-1" />
         <Button
           variant="ghost"
           size="sm"
@@ -350,190 +436,17 @@ export const TopBar: React.FC<TopBarProps> = ({ storage, onSave }) => {
             </>
           )}
         </Button>
-      </div>
-
-      {/* Format group — preset, size, duration, fps. It shrinks first so the
-          save, theme and export actions on the right stay reachable. */}
-      <div className="flex min-w-0 shrink items-center gap-1 overflow-hidden rounded-lg border border-border bg-background/80 px-1.5 py-1">
-        <Select
-          value={sizeKey}
-          onValueChange={(v) => {
-            const preset = SIZE_PRESETS[v];
-            if (preset) resizeProject(preset[0], preset[1]);
-          }}
-        >
-          <SelectTrigger
-            size="sm"
-            className="h-6 w-[124px] shrink-0 border-0 bg-muted text-xs font-medium"
-            title="Changing size rescales all content to fit"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {[...Object.keys(SIZE_PRESETS), 'Custom'].map((k) => (
-                <SelectItem key={k} value={k}>
-                  {k}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-
-        <span className="h-4 w-px bg-border" aria-hidden="true" />
-        <ValueChip label="W">
-          <SizeInput
-            value={project.width}
-            title="Width"
-            onCommit={(v) => resizeProject(v, project.height)}
-          />
-        </ValueChip>
-        <span className="text-[11px] text-muted-foreground" aria-hidden="true">
-          ×
-        </span>
-        <ValueChip label="H">
-          <SizeInput
-            value={project.height}
-            title="Height"
-            onCommit={(v) => resizeProject(project.width, v)}
-          />
-        </ValueChip>
-
-        <div className="hidden shrink-0 items-center gap-1 xl:flex">
-          <span className="h-4 w-px bg-border" aria-hidden="true" />
-          <ValueChip label="s">
-            <input
-              type="number"
-              min={1}
-              max={3600}
-              aria-label="Duration in seconds"
-              title="Duration in seconds"
-              disabled={durationMode === 'derived'}
-              value={Math.round(project.durationInFrames / project.fps)}
-              onChange={(e) =>
-                useStore.getState().setFixedDuration(Math.max(1, Number(e.target.value)))
-              }
-              className="w-[34px] bg-transparent text-right font-mono text-[11px] leading-none text-foreground outline-none disabled:text-muted-foreground"
-            />
-          </ValueChip>
-
-          {/* The duration's mode: derived from the content, or the author's own number. */}
-          <button
-            type="button"
-            aria-label="Duration mode"
-            title={
-              durationMode === 'derived'
-                ? 'Duration follows the content — click to set it yourself'
-                : 'Duration is set by the author — click to follow the content'
-            }
-            onClick={() =>
-              useStore.getState().setDurationMode(durationMode === 'derived' ? 'fixed' : 'derived')
-            }
-            className="h-5 rounded border border-border px-1 font-mono text-[10px] leading-none text-muted-foreground hover:text-foreground"
-          >
-            {durationMode === 'derived' ? 'auto' : 'set'}
-          </button>
-
-          {/* A draggable slider bound to the same length as the seconds field. */}
-          <input
-            type="range"
-            min={1}
-            max={3600}
-            aria-label="Duration slider"
-            title="Duration in seconds"
-            disabled={durationMode === 'derived'}
-            value={Math.round(project.durationInFrames / project.fps)}
-            onChange={(e) => useStore.getState().setFixedDuration(Math.max(1, Number(e.target.value)))}
-            className="h-1 w-20 accent-foreground disabled:opacity-40"
-          />
-
-          <span className="h-4 w-px bg-border" aria-hidden="true" />
-          <ValueChip label="FPS">
-            <SizeInput
-              value={project.fps}
-              title="FPS"
-              min={1}
-              max={240}
-              list="fps-presets"
-              onCommit={(fps) => {
-                const seconds = project.durationInFrames / project.fps;
-                setProject({ fps, durationInFrames: Math.round(seconds * fps) });
-              }}
-            />
-          </ValueChip>
-        </div>
-        <datalist id="fps-presets">
-          {FPS_PRESETS.map((f) => (
-            <option key={f} value={f} />
-          ))}
-        </datalist>
-      </div>
-
-      {/* Jump to start, undo, redo */}
-      <div className="flex shrink-0 items-center gap-0.5">
         <Button
-          variant="ghost"
-          size="sm"
-          className="w-7 px-0"
-          onClick={() => seekTo(0)}
-          title="Back to start"
+          variant="default"
+          className="h-[30px] shrink-0 gap-1.5 px-3 text-xs font-semibold"
+          onClick={() => setShowExport(true)}
+          title="Export the project as an MP4"
         >
-          <SkipBack data-icon="inline-start" />
+          <Download data-icon="inline-start" />
+          Export MP4
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-7 px-0"
-          disabled={!canUndo}
-          onClick={undo}
-          title="Undo (⌘Z)"
-        >
-          <Undo2 data-icon="inline-start" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-7 px-0"
-          disabled={!canRedo}
-          onClick={redo}
-          title="Redo (⇧⌘Z)"
-        >
-          <Redo2 data-icon="inline-start" />
-        </Button>
+
       </div>
-
-      <div className="flex-1" />
-
-      {/* Saved status */}
-      {storage ? (
-        <div
-          className={cn(
-            'flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-background/60 py-0.5 pl-2 pr-1.5',
-            '[&_[data-slot=badge]]:h-auto [&_[data-slot=badge]]:border-0 [&_[data-slot=badge]]:bg-transparent [&_[data-slot=badge]]:px-0 [&_[data-slot=badge]]:text-xs [&_[data-slot=badge]]:font-medium [&_[data-slot=badge]]:text-foreground',
-          )}
-        >
-          <span className={cn('size-1.5 shrink-0 rounded-full', storageTone)} aria-hidden="true" />
-          <StorageIndicator
-            status={storage.status}
-            saving={storage.saving}
-            error={storage.error}
-            onSave={onSave}
-          />
-        </div>
-      ) : null}
-
-      <ThemeToggle />
-
-      <Button
-        variant="default"
-        className="h-[30px] gap-1.5 px-3 text-xs font-semibold"
-        onClick={() => setShowExport(true)}
-        title="Export the project as an MP4"
-      >
-        <Download data-icon="inline-start" />
-        Export MP4
-      </Button>
-
       <input
         ref={fileRef}
         type="file"
