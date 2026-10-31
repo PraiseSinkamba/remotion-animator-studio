@@ -327,10 +327,20 @@ const clipSchema = z.looseObject({
   propsVersion: z.number().int().optional(),
 });
 
+const trackTransitionSchema = z.looseObject({
+  id: z.string().min(1),
+  fromClipId: z.string().min(1),
+  toClipId: z.string().min(1),
+  element: z.string().min(1),
+  durationInFrames: z.number().int().nonnegative(),
+  props: z.record(z.string(), z.unknown()).optional(),
+});
+
 const trackSchema = z.looseObject({
   id: z.string().min(1),
   name: z.string(),
   clips: z.array(clipSchema),
+  transitions: z.array(trackTransitionSchema).optional(),
 });
 
 /**

@@ -373,3 +373,62 @@ describe('store — the pause points of a pane', () => {
     expect(pane(clipId, paneId).zoom ?? null).toBeNull();
   });
 });
+
+describe('store — the transitions', () => {
+  const twoClips = () => {
+    useStore.getState().addClip('text', 't-empty', 0);
+    const first = useStore.getState().project.tracks[0].clips[0];
+    // The second clip starts exactly where the first ends, so they meet.
+    useStore.getState().addClip('text', 't-empty', first.from + first.durationInFrames);
+    return useStore.getState().project.tracks[0];
+  };
+
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+    });
+  });
+
+  it('adds a transition between two adjacent clips', () => {
+    const track = twoClips();
+    const [from, to] = track.clips;
+
+    useStore.getState().addTransition(track.id, from.id, to.id, 'crossfade');
+
+    const updated = useStore.getState().project.tracks[0];
+    expect(updated.transitions).toHaveLength(1);
+    expect(updated.transitions?.[0].fromClipId).toBe(from.id);
+    expect(updated.transitions?.[0].toClipId).toBe(to.id);
+    expect(updated.transitions?.[0].element).toBe('crossfade');
+  });
+
+  it('refuses a transition between clips that do not meet', () => {
+    useStore.getState().addClip('text', 't-empty', 0);
+    const first = useStore.getState().project.tracks[0].clips[0];
+    useStore.getState().addClip('text', 't-empty', first.from + first.durationInFrames + 10);
+    const track = useStore.getState().project.tracks[0];
+    const [from, to] = track.clips;
+
+    useStore.getState().addTransition(track.id, from.id, to.id, 'crossfade');
+
+    expect(useStore.getState().project.tracks[0].transitions ?? []).toHaveLength(0);
+  });
+
+  it('undoes a transition', () => {
+    const track = twoClips();
+    const [from, to] = track.clips;
+
+    useStore.getState().addTransition(track.id, from.id, to.id, 'crossfade');
+    expect(useStore.getState().project.tracks[0].transitions).toHaveLength(1);
+
+    useStore.getState().undo();
+    expect(useStore.getState().project.tracks[0].transitions ?? []).toHaveLength(0);
+  });
+});

@@ -1444,25 +1444,39 @@ rendered frame changes. One widget edits every curve.
   - `packages/core/src/transition.ts` — `clampTransitionDuration(from: Clip, to: Clip, requested: number): number` — the duration the adjacent clips can actually give.
   - `packages/components/src/base/transitions.ts` — the transition components: a crossfade and a wipe, each registering itself like every other component.
 
-- [ ] **Step 1: Add the transition slot**
+**A true simultaneous dissolve is not possible under the rules this slice is held to.** A
+crossfade that showed both clips at half opacity at the same instant would need one of them drawn
+outside its own frames — either a clip shifted or its content duplicated — and both are forbidden
+(TL-006, TL-008). So the crossfade is a **fade through the cut**: the outgoing clip fades out over
+its own tail, the incoming clip fades in over its own head, and at no instant are both half
+visible. That is a real limitation of the model, not a shortcut, and it is stated here rather than
+left to be discovered.
+
+**A transition belongs to the boundary, and it never touches the clips.** `Track.transitions` is the
+slot; the clips' own in and out frames are untouched, and the compositor clamps the duration to
+what the two clips can give — never overlapping the outgoing clip. The inspector shows the clamped
+duration and says so when it differs from the requested one, because a silent clamp would hide a
+number the creator typed.
+
+- [x] **Step 1: Add the transition slot**
 
 ADR-003's addendum decides the location: a transition belongs to the boundary between two clips on a track, not to a clip. `Track.transitions` is that slot. Nothing in the slot is scene-specific — the hierarchical timeline will reuse it.
 
-- [ ] **Step 2: Clamp the duration and report the clamp**
+- [x] **Step 2: Clamp the duration and report the clamp**
 
 `clampTransitionDuration(from, to, requested)` returns the largest duration the two adjacent clips can give without overlapping either clip's content. The inspector shows the requested value and the clamped value, and says that the duration was clamped (TL-006). The transition never retimes the underlying market history: the clips keep their own in/out frames.
 
-- [ ] **Step 3: Build the transition components**
+- [x] **Step 3: Build the transition components**
 
 A transition is a registry component like any other: `registerComponent` (`packages/core/src/registry.ts:13`), its own `ElementType`, its own defaults, its own `render`. The composition renders a transition between two adjacent clips on the same track, at the boundary, for the clamped duration.
 
 The transition renders **only** in the composition. Editor affordances — the slot, the handles, the duration field — never reach the render path (CPT-005).
 
-- [ ] **Step 4: Add the editor surface**
+- [x] **Step 4: Add the editor surface**
 
 `apps/studio/src/components/Inspector.tsx` gains a transition section on a clip: the transition element, its duration and the clamped duration. The store gains `addTransition`, `updateTransition` and `removeTransition`.
 
-- [ ] **Step 5: Write the failing tests**
+- [x] **Step 5: Write the failing tests**
 
 `packages/core/src/transition.test.ts` (new):
 
@@ -1478,7 +1492,7 @@ The transition renders **only** in the composition. Editor affordances — the s
 
 - "adds a transition between two adjacent clips" — fails before Step 4; passes after.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 ```bash
 pnpm typecheck
@@ -1489,7 +1503,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 45 and 100 against the transition fixture: the transition boundary renders and the clips keep their own timings.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A

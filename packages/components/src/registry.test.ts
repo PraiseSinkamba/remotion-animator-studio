@@ -75,8 +75,8 @@ describe('component registry', () => {
     // imports them for their side effect, so this fails if a definition is
     // ever dropped — which is what happens when a package that registers
     // components is wrongly declared free of side effects.
-    expect(listComponents().length).toBe(34);
-    expect(listComponentsByCategory('base').length).toBe(22);
+    expect(listComponents().length).toBe(36);
+    expect(listComponentsByCategory('base').length).toBe(24);
     expect(listComponentsByCategory('trading').length).toBe(9);
     expect(listComponentsByCategory('motion').length).toBe(3);
   });

@@ -2,6 +2,7 @@ export * from './registry';
 export * from './project-migrate';
 export * from './base/definitions';
 export * from './base/effects';
+export * from './base/transitions';
 export * from './trading/definitions/candlestick-chart';
 export * from './trading/inspectors/candlestick-chart';
 export * from './trading/inspectors/pane-relations';

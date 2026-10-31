@@ -5,6 +5,13 @@ import { computeEffectStyle, type ComputedStyle } from '@chart-studio/components
 import { getComponent } from '@chart-studio/components';
 import { evaluateClip } from './evaluate';
 import type { Clip, Project } from '@chart-studio/core';
+import {
+  planTrackTransitions,
+  transitionClip,
+  transitionProps,
+  type TransitionBlend,
+  type TransitionPlan,
+} from '@chart-studio/core';
 
 /** Renders glitch slice copies on top of the content when the glitch gate is open. */
 const GlitchLayers: React.FC<{
@@ -43,7 +50,12 @@ const GlitchLayers: React.FC<{
   );
 };
 
-const ClipRenderer: React.FC<{ clip: Clip; project: Project }> = ({ clip, project }) => {
+const ClipRenderer: React.FC<{
+  clip: Clip;
+  project: Project;
+  /** Set when this clip is one of the two a transition joins. */
+  transition?: { plan: TransitionPlan; role: 'from' | 'to' };
+}> = ({ clip, project, transition }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const fx = computeEffectStyle(frame, clip.durationInFrames, fps, clip.effects);
@@ -61,6 +73,33 @@ const ClipRenderer: React.FC<{ clip: Clip; project: Project }> = ({ clip, projec
   });
   const content = React.createElement(definition.render, { clip, props, frame, fps, evaluated });
 
+  // A transition's blend, when this clip is one of the two it joins. The
+  // transition never shifts a clip: the outgoing clip fades over its own tail
+  // and the incoming clip comes in over its own head.
+  let blendOpacity = 1;
+  let blendClipPath: string | undefined;
+  if (transition) {
+    const { plan, role } = transition;
+    const transitionFrame = clip.from + frame - plan.start;
+    const inWindow =
+      role === 'from'
+        ? transitionFrame >= 0 && transitionFrame < plan.before
+        : transitionFrame >= plan.before && transitionFrame < plan.durationInFrames;
+    if (inWindow) {
+      const transitionDefinition = getComponent(plan.transition.element);
+      const blend = transitionDefinition?.evaluate?.({
+        clip: transitionClip(plan),
+        props: transitionProps(plan),
+        sceneFrame: plan.start + transitionFrame,
+        project,
+      }) as TransitionBlend | undefined;
+      if (blend) {
+        blendOpacity = role === 'from' ? blend.fromOpacity : blend.toOpacity;
+        if (role === 'to') blendClipPath = blend.toClipPath;
+      }
+    }
+  }
+
   if (definition.renderMode === 'audio') {
     // Audio layers are not wrapped in the positioned box.
     return content;
@@ -73,9 +112,9 @@ const ClipRenderer: React.FC<{ clip: Clip; project: Project }> = ({ clip, projec
     return (
       <AbsoluteFill
         style={{
-          opacity: fx.opacity,
+          opacity: fx.opacity * blendOpacity,
           filter: filters.length ? filters.join(' ') : undefined,
-          clipPath: fx.clipPath ?? undefined,
+          clipPath: blendClipPath ?? fx.clipPath ?? undefined,
           transform: `scale(${fx.scale})`,
         }}
       >
@@ -90,9 +129,9 @@ const ClipRenderer: React.FC<{ clip: Clip; project: Project }> = ({ clip, projec
         position: 'absolute',
         left: props.x,
         top: props.y,
-        opacity: fx.opacity,
+        opacity: fx.opacity * blendOpacity,
         filter: filters.length ? filters.join(' ') : undefined,
-        clipPath: fx.clipPath ?? undefined,
+        clipPath: blendClipPath ?? fx.clipPath ?? undefined,
         transform:
           `translate(-50%, -50%) translate(${fx.translateX}px, ${fx.translateY}px) scale(${fx.scale}) rotate(${fx.rotate}deg)` +
           (fx.rotateX !== 0 || fx.rotateY !== 0
@@ -131,18 +170,34 @@ export const MainComposition: React.FC<{ project: Project }> = ({ project }) => 
   return (
     <AbsoluteFill style={{ backgroundColor: project.backgroundColor }}>
       {/* tracks[0] is the top layer, so render in reverse order */}
-      {[...project.tracks].reverse().map((track) =>
-        track.clips.map((clip) => (
-          <Sequence
-            key={clip.id}
-            from={clip.from}
-            durationInFrames={Math.max(1, clip.durationInFrames)}
-            layout="none"
-          >
-            <ClipRenderer clip={clip} project={project} />
-          </Sequence>
-        )),
-      )}
+      {[...project.tracks].reverse().map((track) => {
+        const plans = planTrackTransitions(track);
+        return track.clips.map((clip) => {
+          const plan = plans.find(
+            (candidate) =>
+              candidate.fromClip.id === clip.id || candidate.toClip.id === clip.id,
+          );
+          const role = plan
+            ? plan.fromClip.id === clip.id
+              ? ('from' as const)
+              : ('to' as const)
+            : undefined;
+          return (
+            <Sequence
+              key={clip.id}
+              from={clip.from}
+              durationInFrames={Math.max(1, clip.durationInFrames)}
+              layout="none"
+            >
+              <ClipRenderer
+                clip={clip}
+                project={project}
+                transition={plan && role ? { plan, role } : undefined}
+              />
+            </Sequence>
+          );
+        });
+      })}
     </AbsoluteFill>
   );
 };

@@ -9,6 +9,7 @@
  * and add its import below. Nothing else needs to change.
  */
 import './base/definitions';
+import './base/transitions';
 // Trading components (Chart Studio first-party) register here:
 import './trading/definitions/candlestick-chart';
 import './trading/drawings/definitions';

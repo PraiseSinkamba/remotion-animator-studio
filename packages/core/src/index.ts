@@ -9,3 +9,4 @@ export * from './elements';
 export * from './curve';
 export * from './time';
 export * from './validation';
+export * from './transition';

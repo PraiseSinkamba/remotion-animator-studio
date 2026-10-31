@@ -1,4 +1,6 @@
 import type { ChartGroupSpec } from './elements';
+// Type-only, so it is erased at runtime and the two modules do not cycle.
+import type { ComponentProps } from './contract';
 import type { SeriesSpec } from './series';
 
 export type ElementType =
@@ -40,7 +42,10 @@ export type ElementType =
   | 'priceZone'
   | 'textLabel'
   | 'arrow'
-  | 'position';
+  | 'position'
+  /** Transition components: they render at a clip boundary, not as a clip. */
+  | 'crossfade'
+  | 'wipe';
 
 export type EffectType =
   | 'fadeIn'
@@ -104,10 +109,33 @@ export interface Clip {
   hidden?: boolean;
 }
 
+/**
+ * A transition at the boundary between two adjacent clips on a track.
+ *
+ * A transition is not a clip: it has no place of its own on the track, it
+ * only names the outgoing clip, the incoming clip, the transition component
+ * and how long the transition may last.
+ */
+export interface TrackTransition {
+  id: string;
+  /** The clip that leaves. */
+  fromClipId: string;
+  /** The clip that arrives. */
+  toClipId: string;
+  /** The transition component that renders the boundary. */
+  element: ElementType;
+  /** The requested duration, in frames. The compositor clamps it. */
+  durationInFrames: number;
+  /** Props of the transition component. */
+  props?: ComponentProps;
+}
+
 export interface Track {
   id: string;
   name: string;
   clips: Clip[];
+  /** The transitions on this track's clip boundaries. */
+  transitions?: TrackTransition[];
 }
 
 export interface Project {

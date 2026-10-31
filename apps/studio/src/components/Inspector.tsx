@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
-import { getComponent } from '@chart-studio/components';
+import { getComponent, TRANSITION_TYPES } from '@chart-studio/components';
 import { CHART_GROUP_LAYOUTS, CHART_GROUP_LAYOUT_LABELS, findClip, useStore } from '@chart-studio/editor';
-import type { Clip } from '@chart-studio/core';
+import { clampTransitionDuration, type Clip, type ElementType } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
 import {
   Button,
@@ -184,6 +184,23 @@ export const Inspector: React.FC = () => {
   const chartGroup = clip.groupId
     ? project.chartGroups?.find((group) => group.id === clip.groupId)
     : undefined;
+
+  // The transition on the boundary this clip leaves, if the creator put one
+  // there. It is a property of the boundary, not of the clip.
+  const clipTrack = project.tracks.find((track) => track.clips.some((c) => c.id === clip.id));
+  const nextClip = clipTrack
+    ? [...clipTrack.clips]
+        .sort((a, b) => a.from - b.from)
+        .find((candidate) => candidate.from === clip.from + clip.durationInFrames)
+    : undefined;
+  const clipTransition =
+    clipTrack && nextClip
+      ? (clipTrack.transitions ?? []).find(
+          (transition) => transition.fromClipId === clip.id && transition.toClipId === nextClip.id,
+        )
+      : undefined;
+  const clampedTransitionFrames =
+    clipTransition && nextClip ? clampTransitionDuration(clip, nextClip, clipTransition.durationInFrames) : 0;
   const positionParams = definition.params.filter((p) => p.key === 'x' || p.key === 'y');
   const ownParams = definition.params.filter((p) => p.key !== 'x' && p.key !== 'y');
 
@@ -343,6 +360,68 @@ export const Inspector: React.FC = () => {
                 The group lays its charts out and gives them one clock. Each chart keeps its own series,
                 scale and lifecycle.
               </p>
+            </Section>
+          ) : null}
+
+          {clipTrack && nextClip ? (
+            <Section title="TRANSITION">
+              <Row label="Between">
+                <span className="text-xs text-foreground">
+                  {clip.name} → {nextClip.name}
+                </span>
+              </Row>
+              <Row label="Effect">
+                <select
+                  aria-label="Transition effect"
+                  className={numberFieldClass}
+                  value={clipTransition?.element ?? 'none'}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const store = useStore.getState();
+                    if (value === 'none') {
+                      if (clipTransition) store.removeTransition(clipTrack.id, clipTransition.id);
+                      return;
+                    }
+                    if (clipTransition) {
+                      store.updateTransition(clipTrack.id, clipTransition.id, {
+                        element: value as ElementType,
+                      });
+                    } else {
+                      store.addTransition(clipTrack.id, clip.id, nextClip.id, value as ElementType);
+                    }
+                  }}
+                >
+                  <option value="none">None</option>
+                  {TRANSITION_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type === 'crossfade' ? 'Crossfade' : 'Wipe'}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+              {clipTransition ? (
+                <Row label="Frames">
+                  <Input
+                    type="number"
+                    min={1}
+                    value={clipTransition.durationInFrames}
+                    onChange={(event) =>
+                      useStore
+                        .getState()
+                        .updateTransition(clipTrack.id, clipTransition.id, {
+                          durationInFrames: Number(event.target.value),
+                        })
+                    }
+                    className="h-8"
+                  />
+                </Row>
+              ) : null}
+              {clipTransition && clampedTransitionFrames !== clipTransition.durationInFrames ? (
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Clamped to {clampedTransitionFrames} frames — the transition cannot run longer than
+                  the shorter of the two clips.
+                </p>
+              ) : null}
             </Section>
           ) : null}
 

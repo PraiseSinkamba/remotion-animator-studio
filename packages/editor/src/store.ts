@@ -6,6 +6,7 @@ import { buildChartGroup, relayoutChartGroup, withChartMarket } from './chartGro
 import { sampleProject } from '@chart-studio/core';
 import {
   addSwingAnchor,
+  clampTransitionDuration,
   moveSwingAnchor,
   removeSwingAnchor,
   type AnchorRegime,
@@ -156,6 +157,12 @@ interface EditorState {
   setDrawingLocked: (clipId: string, locked: boolean) => void;
   setDrawingHidden: (clipId: string, hidden: boolean) => void;
 
+  /** Adds a transition on the boundary between two adjacent clips of a track. */
+  addTransition: (trackId: string, fromClipId: string, toClipId: string, element: ElementType) => void;
+  /** Changes a transition's element or its requested duration. */
+  updateTransition: (trackId: string, transitionId: string, patch: { element?: ElementType; durationInFrames?: number }) => void;
+  removeTransition: (trackId: string, transitionId: string) => void;
+
   /**
    * Adds a pause point to a pane: the pane holds on one candle for a frame
    * range, relative to the chart clip. One undo step.
@@ -224,6 +231,9 @@ const copyClipProps = (props: Record<string, any>): Record<string, any> => {
   }
   return { ...props, anchors: copiedAnchors };
 };
+
+/** The duration a new transition asks for, before the clips clamp it. */
+const DEFAULT_TRANSITION_FRAMES = 12;
 
 const cloneClip = (clip: Clip): Clip => ({
   ...clip,
@@ -912,6 +922,77 @@ export const useStore = create<EditorState>((set, get) => ({
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({ ...c, hidden })),
+    }));
+  },
+
+  addTransition: (trackId, fromClipId, toClipId, element) => {
+    const s = get();
+    const track = s.project.tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    const from = track.clips.find((c) => c.id === fromClipId);
+    const to = track.clips.find((c) => c.id === toClipId);
+    if (!from || !to) return;
+    // A transition lives on a boundary between two clips that actually meet.
+    if (to.from !== from.from + from.durationInFrames) return;
+
+    get().commit();
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((t) =>
+          t.id === trackId
+            ? {
+                ...t,
+                transitions: [
+                  ...(t.transitions ?? []),
+                  {
+                    id: uid('tr'),
+                    fromClipId,
+                    toClipId,
+                    element,
+                    durationInFrames: clampTransitionDuration(from, to, DEFAULT_TRANSITION_FRAMES),
+                  },
+                ],
+              }
+            : t,
+        ),
+      },
+    }));
+  },
+
+  updateTransition: (trackId, transitionId, patch) => {
+    get().commit();
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((t) =>
+          t.id === trackId
+            ? {
+                ...t,
+                transitions: (t.transitions ?? []).map((transition) =>
+                  transition.id === transitionId ? { ...transition, ...patch } : transition,
+                ),
+              }
+            : t,
+        ),
+      },
+    }));
+  },
+
+  removeTransition: (trackId, transitionId) => {
+    get().commit();
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((t) =>
+          t.id === trackId
+            ? {
+                ...t,
+                transitions: (t.transitions ?? []).filter((transition) => transition.id !== transitionId),
+              }
+            : t,
+        ),
+      },
     }));
   },
 
