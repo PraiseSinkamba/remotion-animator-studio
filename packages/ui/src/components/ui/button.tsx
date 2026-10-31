@@ -40,20 +40,24 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
+// The ref is forwarded so a radix trigger can adopt this element as its
+// anchor. Without it the trigger's anchor ref is never attached, which is
+// both a React warning and a tooltip that cannot position itself.
+const Button = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> &
+    VariantProps<typeof buttonVariants> & {
+      asChild?: boolean
+    }
+>(function Button(
+  { className, variant = "default", size = "default", asChild = false, ...props },
+  ref,
+) {
   const Comp = asChild ? Slot.Root : "button"
 
   return (
     <Comp
+      ref={ref}
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -61,6 +65,6 @@ function Button({
       {...props}
     />
   )
-}
+})
 
 export { Button, buttonVariants }
