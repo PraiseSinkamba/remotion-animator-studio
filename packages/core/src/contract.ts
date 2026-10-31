@@ -109,6 +109,21 @@ export interface ComponentInspectorContext {
   updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) => void;
   /** Push an undo snapshot before a discrete edit. */
   commit: () => void;
+  /**
+   * The absolute scene frame the editor is on.
+   *
+   * A panel that edits the market needs to know where the playhead is: a hold
+   * starts at the frame the creator is looking at.
+   */
+  sceneFrame?: number;
+  /**
+   * The component's own evaluation at that frame, as its `evaluate` step
+   * returned it.
+   *
+   * The shell runs the evaluation so a panel reads the same state the renderer
+   * draws, instead of evaluating the market a second time.
+   */
+  evaluated?: unknown;
 }
 
 /**

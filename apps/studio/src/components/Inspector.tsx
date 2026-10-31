@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
 import { getComponent, TRANSITION_TYPES } from '@chart-studio/components';
 import { CHART_GROUP_LAYOUTS, CHART_GROUP_LAYOUT_LABELS, findClip, useStore } from '@chart-studio/editor';
-import { clampTransitionDuration, type Clip, type ElementType } from '@chart-studio/core';
+import { clampTransitionDuration, type Clip, type ElementType, type VideoComponentDefinition } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
 import {
   Button,
@@ -88,6 +88,39 @@ const Shell: React.FC<{
 
 const TRIGGER =
   'h-6 flex-none rounded-full border border-border bg-muted px-2.5 text-[11px] font-medium text-muted-foreground data-[state=active]:border-primary/50 data-[state=active]:bg-primary/10 data-[state=active]:text-foreground';
+
+/**
+ * The component's own inspector panel.
+ *
+ * The panel reads the market at the playhead: the shell runs the component's
+ * `evaluate` step for the current frame and hands the result to the panel, so
+ * a panel never evaluates the market a second time.
+ */
+const CustomInspector: React.FC<{
+  clip: Clip;
+  definition: VideoComponentDefinition;
+}> = ({ clip, definition }) => {
+  const currentFrame = useStore((s) => s.currentFrame);
+  const project = useStore((s) => s.project);
+  const evaluated = definition.evaluate?.({
+    clip,
+    props: clip.props,
+    sceneFrame: currentFrame,
+    project,
+  });
+  const { updateClipProps, updateClip, commit } = useStore.getState();
+  if (!definition.inspector) return null;
+  return React.createElement(definition.inspector, {
+    clip,
+    props: clip.props,
+    onChange: (patch: Record<string, any>) => updateClipProps(clip.id, patch),
+    updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) =>
+      updateClip(clip.id, patch),
+    commit,
+    sceneFrame: currentFrame,
+    evaluated,
+  });
+};
 
 export const Inspector: React.FC = () => {
   const project = useStore((s) => s.project);
@@ -320,16 +353,9 @@ export const Inspector: React.FC = () => {
               </React.Fragment>
             ))}
 
-            {definition.inspector
-              ? React.createElement(definition.inspector, {
-                  clip,
-                  props: clip.props,
-                  onChange: (patch: Record<string, any>) => updateClipProps(clip.id, patch),
-                  updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) =>
-                    updateClip(clip.id, patch),
-                  commit,
-                })
-              : null}
+            {definition.inspector ? (
+              <CustomInspector clip={clip} definition={definition} />
+            ) : null}
           </Section>
 
           {chartGroup ? (

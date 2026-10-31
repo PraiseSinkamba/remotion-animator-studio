@@ -279,11 +279,11 @@ export const chartPriceRange = (bars: PartialBar[]): { min: number; max: number 
  */
 export const chartPointToAnchor = (
   props: CandlestickChartProps,
-  pane: { bars: PartialBar[]; totalBars: number },
+  pane: { bars: PartialBar[]; totalBars: number; rect?: ElementRect },
   point: { x: number; y: number },
 ): { barIndex: number; price: number } | null => {
   if (pane.totalBars <= 0) return null;
-  const geometry = chartGeometry(props, pane.totalBars);
+  const geometry = chartGeometry(props, pane.totalBars, pane.rect);
   if (geometry.slotWidth <= 0) return null;
   const slot = Math.floor((point.x - geometry.plotLeft) / geometry.slotWidth);
   const barIndex = Math.max(0, Math.min(pane.totalBars - 1, slot));
@@ -303,10 +303,10 @@ export const chartPointToAnchor = (
  */
 export const chartAnchorToPoint = (
   props: CandlestickChartProps,
-  pane: { bars: PartialBar[]; totalBars: number },
+  pane: { bars: PartialBar[]; totalBars: number; rect?: ElementRect },
   anchor: { barIndex: number; price: number },
 ): { x: number; y: number } => {
-  const geometry = chartGeometry(props, pane.totalBars);
+  const geometry = chartGeometry(props, pane.totalBars, pane.rect);
   const range = chartPriceRange(pane.bars);
   const centre = geometry.plotLeft + (anchor.barIndex + 0.5) * geometry.slotWidth;
   const span = range.max - range.min;
@@ -364,6 +364,10 @@ export const renderCandlestickChart = (
       ? geometry.plotLeft + (pane.bars.length - 0.5) * geometry.slotWidth
       : null;
 
+    // The forming bucket is the pane's last candle: a bucket that has not
+    // closed yet is not a closed candle, and it must not look like one.
+    const developingIndex = pane.developing ? pane.bars.length - 1 : -1;
+
     const candles = pane.bars.map((bar, index) => {
       const centre = geometry.plotLeft + (index + 0.5) * geometry.slotWidth;
       const yHigh = priceToY(bar.h, range.min, range.max, geometry);
@@ -372,8 +376,15 @@ export const renderCandlestickChart = (
       const yClose = priceToY(bar.c, range.min, range.max, geometry);
       const top = Math.min(yOpen, yClose);
       const height = Math.max(1, Math.abs(yClose - yOpen));
+      const developing = index === developingIndex;
+      const color = bar.c >= bar.o ? props.upColor : props.downColor;
       return (
-        <g key={index} data-testid="candle" data-index={index}>
+        <g
+          key={index}
+          data-testid="candle"
+          data-index={index}
+          data-developing={developing ? 'true' : undefined}
+        >
           <line
             data-testid="candle-wick"
             x1={centre}
@@ -389,7 +400,10 @@ export const renderCandlestickChart = (
             y={top}
             width={geometry.bodyWidth}
             height={height}
-            fill={bar.c >= bar.o ? props.upColor : props.downColor}
+            fill={developing ? 'none' : color}
+            stroke={developing ? color : undefined}
+            strokeWidth={developing ? 1 : undefined}
+            strokeDasharray={developing ? '4 2' : undefined}
           />
         </g>
       );

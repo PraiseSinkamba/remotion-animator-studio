@@ -7,6 +7,7 @@ import {
   chartAnchorToPoint,
   chartPointToAnchor,
   type CandlestickChartProps,
+  type ChartEvaluation,
 } from './chart';
 import { CandlestickChartInspector } from './inspectors/candlestick-chart';
 import { candlestickChartDefinition } from './definitions/candlestick-chart';
@@ -596,6 +597,29 @@ describe('the chart driven by the project registry', () => {
     expect(container.querySelector('[data-testid="provenance"]')).toBeNull();
   });
 
+  it('keeps the other panes when one pane names a binding the data cannot honour', () => {
+    const props = chartProps();
+    const basePane = props.panes?.[0];
+    const withUtcPane = {
+      ...props,
+      panes: [
+        { ...basePane, id: 'pane-utc', clock: { kind: 'utc' as const } },
+        { ...basePane, id: 'pane-ok' },
+      ],
+    };
+
+    // One bad pane must not take the whole frame down.
+    let evaluated: unknown;
+    expect(() => {
+      evaluated = evaluate(withUtcPane as CandlestickChartProps, 25);
+    }).not.toThrow();
+
+    const panes = (evaluated as ChartEvaluation).panes;
+    expect(panes).toHaveLength(2);
+    expect(panes[0].bars).toHaveLength(0);
+    expect(panes[1].bars.length).toBeGreaterThan(0);
+  });
+
   it('labels an authored path as an authored path', () => {
     const authoredProject: Project = {
       ...project(),
@@ -1058,6 +1082,39 @@ describe('the pane and relation panel', () => {
     expect(rungs).toContain('2D');
   });
 
+  it('says a relation needs a second pane when the chart holds one pane', () => {
+    setup([pane('fine', 'series-a', '1m', 1)]);
+
+    expect(screen.getByTestId('relation-needs-second-pane').textContent).toContain(
+      'a relation needs a second pane',
+    );
+    // The control cannot act, so it is disabled rather than silently inert.
+    const rollup = screen.getByRole('button', { name: '+ Rollup' }) as HTMLButtonElement;
+    const lockstep = screen.getByRole('button', { name: '+ Lockstep' }) as HTMLButtonElement;
+    expect(rollup.disabled).toBe(true);
+    expect(lockstep.disabled).toBe(true);
+  });
+
+  it('does not offer a utc clock binding', () => {
+    setup([pane('fine', 'series-a', '1m', 1)]);
+
+    const picker = screen.getByLabelText('Pane 1 clock binding') as HTMLSelectElement;
+    const kinds = Array.from(picker.options).map((option) => option.value);
+    expect(kinds).toContain('reference');
+    expect(kinds).toContain('offset');
+    expect(kinds).not.toContain('utc');
+  });
+
+  it('says a hand-authored utc binding cannot be honoured instead of offering it', () => {
+    setup([{ ...pane('fine', 'series-a', '1m', 1), clock: { kind: 'utc' as const } }]);
+
+    const picker = screen.getByLabelText('Pane 1 clock binding') as HTMLSelectElement;
+    expect(Array.from(picker.options).map((option) => option.value)).not.toContain('utc');
+    expect(screen.getByTestId('pane-unavailable-binding').textContent).toContain(
+      'cannot honour',
+    );
+  });
+
   it('derives the factor when a rung is chosen', () => {
     const { onChange, commit } = setup([pane('fine', 'series-a', '1m', 1)]);
     fireEvent.change(screen.getByLabelText('Pane 1 timeframe'), { target: { value: '5m' } });
@@ -1282,7 +1339,10 @@ describe('the pause point and zoom panels', () => {
     ...(holds ? { holds } : {}),
   });
 
-  const setup = (panes: unknown[]) => {
+  const setup = (
+    panes: unknown[],
+    options?: { sceneFrame?: number; evaluated?: unknown },
+  ) => {
     const props = {
       ...candlestickChartDefinition.defaults,
       bars,
@@ -1309,19 +1369,25 @@ describe('the pause point and zoom panels', () => {
         onChange={onChange}
         updateClip={updateClip}
         commit={commit}
+        sceneFrame={options?.sceneFrame}
+        evaluated={options?.evaluated}
       />,
     );
     return { onChange, commit };
   };
 
-  it('adds a hold on the last candle', () => {
-    const { onChange, commit } = setup([pane()]);
+  it('adds a hold on the candle the pane is showing, from the current frame', () => {
+    // The pane is showing the first candle, not the last of the series.
+    const { onChange, commit } = setup([pane()], {
+      sceneFrame: 20,
+      evaluated: { panes: [{ bars: [{ bar: { id: 'b0' } }] }] },
+    });
 
-    fireEvent.click(screen.getByText('+ Hold on the last candle'));
+    fireEvent.click(screen.getByText('+ Hold on the current candle'));
     const patch = onChange.mock.calls[0][0] as {
       panes: Array<{ holds: Array<{ barId: string; in: number; out: number }> }>;
     };
-    expect(patch.panes[0].holds).toEqual([{ barId: 'b1', in: 0, out: 45 }]);
+    expect(patch.panes[0].holds).toEqual([{ barId: 'b0', in: 20, out: 90 }]);
     expect(commit).toHaveBeenCalled();
   });
 
@@ -1451,5 +1517,145 @@ describe('the curve of the chart', () => {
 
     // The same curve, the same frame — preview and export draw the same thing.
     expect(fromEvaluated.innerHTML).toBe(fromInline.innerHTML);
+  });
+});
+
+describe('the developing candle of a pane', () => {
+  const bars: OhlcBar[] = [
+    { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+    { id: 'b1', t: 1, o: 105, h: 115, l: 101, c: 112 },
+  ];
+
+  const evaluation = (developing: boolean) => ({
+    panes: [
+      {
+        bars: bars.map((bar) => ({
+          bar,
+          o: bar.o,
+          h: bar.h,
+          l: bar.l,
+          c: bar.c,
+          progress: 1,
+          complete: true,
+        })),
+        totalBars: bars.length,
+        developing,
+        rect: { x: 0, y: 0, width: 1, height: 1 },
+      },
+    ],
+    provenance: { origin: 'manual' as const, revision: 'r', label: 'Series' },
+  });
+
+  const groups = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('[data-testid="candle"]'));
+  const bodyOf = (group: Element) =>
+    group.querySelector('[data-testid="candle-body"]') as SVGElement;
+
+  it('marks the last candle of a pane that is still forming', () => {
+    const container = render(
+      <CandlestickChart props={BASE_PROPS} frame={0} evaluated={evaluation(true)} />,
+    ).container;
+    const candles = groups(container);
+
+    // The forming bucket is the last candle of the pane; the closed ones
+    // before it stay as they were.
+    expect(candles[candles.length - 1].getAttribute('data-developing')).toBe('true');
+    expect(candles[0].getAttribute('data-developing')).toBeNull();
+  });
+
+  it('draws the forming candle differently from the same closed candle', () => {
+    const forming = render(
+      <CandlestickChart props={BASE_PROPS} frame={0} evaluated={evaluation(true)} />,
+    ).container;
+    const closed = render(
+      <CandlestickChart props={BASE_PROPS} frame={0} evaluated={evaluation(false)} />,
+    ).container;
+
+    const formingBody = bodyOf(groups(forming)[groups(forming).length - 1]);
+    const closedBody = bodyOf(groups(closed)[groups(closed).length - 1]);
+
+    // The forming body is not filled the way a closed one is, and it says so.
+    expect(formingBody.getAttribute('fill')).not.toBe(closedBody.getAttribute('fill'));
+    expect(formingBody.getAttribute('fill')).toBe('none');
+    expect(formingBody.getAttribute('stroke-dasharray')).toBeTruthy();
+  });
+
+  it('draws a closed pane the way it always did', () => {
+    const container = render(
+      <CandlestickChart props={BASE_PROPS} frame={0} evaluated={evaluation(false)} />,
+    ).container;
+    const candles = groups(container);
+
+    expect(container.querySelector('[data-developing]')).toBeNull();
+    const body = bodyOf(candles[candles.length - 1]);
+    expect(body.getAttribute('fill')).toBe(BASE_PROPS.upColor);
+    expect(body.getAttribute('stroke-dasharray')).toBeNull();
+  });
+});
+
+describe('the geometry of a pane that does not fill the chart box', () => {
+  const props: CandlestickChartProps = {
+    ...BASE_PROPS,
+    width: 720,
+    height: 420,
+    bars: [
+      { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+      { id: 'b1', t: 1, o: 105, h: 115, l: 101, c: 112 },
+      { id: 'b2', t: 2, o: 112, h: 120, l: 108, c: 118 },
+    ],
+    revealMode: 'discrete',
+  };
+
+  const rect = { x: 0, y: 0, width: 0.5, height: 1 };
+
+  const partial = props.bars.map((bar) => ({
+    bar,
+    o: bar.o,
+    h: bar.h,
+    l: bar.l,
+    c: bar.c,
+    progress: 1,
+    complete: true,
+  }));
+
+  const pane = () => ({ bars: partial, totalBars: 3, rect });
+
+  it('places an anchor where the renderer draws the bar', () => {
+    const container = render(
+      <CandlestickChart
+        props={props}
+        frame={0}
+        evaluated={{
+          panes: [
+            { bars: partial, totalBars: 3, developing: false, rect },
+          ],
+          provenance: { origin: 'manual' as const, revision: 'r', label: 'Series' },
+        }}
+      />,
+    ).container;
+
+    const body = container.querySelectorAll('[data-testid="candle-body"]')[1];
+    const drawnCentre =
+      Number(body.getAttribute('x')) + Number(body.getAttribute('width')) / 2;
+
+    // The anchor lands on the bar the renderer drew, inside the pane.
+    const point = chartAnchorToPoint(props, pane(), { barIndex: 1, price: 112 });
+    expect(point.x).toBeCloseTo(drawnCentre, 6);
+    expect(point.y).toBeCloseTo(Number(body.getAttribute('y')), 6);
+  });
+
+  it('maps an anchor back to the point it came from', () => {
+    const anchor = { barIndex: 2, price: 112 };
+    const point = chartAnchorToPoint(props, pane(), anchor);
+    const back = chartPointToAnchor(props, pane(), point);
+    expect(back!.barIndex).toBe(anchor.barIndex);
+    expect(back!.price).toBeCloseTo(anchor.price, 6);
+  });
+
+  it('lays the anchor out against the pane, not against the whole chart box', () => {
+    const anchor = { barIndex: 1, price: 110 };
+    const inPane = chartAnchorToPoint(props, pane(), anchor);
+    const inBox = chartAnchorToPoint(props, { bars: partial, totalBars: 3 }, anchor);
+    expect(inPane.x).not.toBeCloseTo(inBox.x, 3);
   });
 });

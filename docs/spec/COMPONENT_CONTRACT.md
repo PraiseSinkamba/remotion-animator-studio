@@ -98,6 +98,14 @@ before the registry still renders.
 Because the evaluation is pure and the composition runs it for the preview and the export alike,
 the same frame always evaluates to the same thing — whatever order the frames were visited in.
 
+### The inspector context
+
+A custom inspector panel (`definition.inspector`) receives a `ComponentInspectorContext`: the
+clip, its props, `onChange`, `updateClip` and `commit`, plus two optional fields — `sceneFrame`
+(the absolute frame the playhead is on) and `evaluated` (the component's own `evaluate` result at
+that frame). The shell runs the evaluation and hands it to the panel, so a panel that edits the
+market acts on the state the renderer draws instead of evaluating the market a second time.
+
 ### Element-declared transport actions
 
 A component may declare extra playback controls:

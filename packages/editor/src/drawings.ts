@@ -41,13 +41,13 @@ export interface DrawingPick {
  *
  * The ids are the ones `materialiseSeries` stamps: a pane that shows the
  * source bars unchanged carries the source bar's id, and a pane that buckets
- * them carries the bucket's id. An anchor that names a bar the pane has not
- * revealed yet simply stays unresolved until it is.
+ * them carries the bucket's id (`${pane.id}:${bucket}`). An anchor that names a
+ * bar the pane has not revealed yet simply stays unresolved until it is.
  */
 export const drawingBarId = (pane: PaneSpec, slot: number): string => {
   const factor = Math.max(1, Math.floor(pane.aggregation?.factor ?? 1));
   if (factor === 1) return `${pane.seriesId}:${slot}`;
-  return `${pane.id}:${Math.floor(slot / factor)}`;
+  return `${pane.id}:${slot}`;
 };
 
 /**

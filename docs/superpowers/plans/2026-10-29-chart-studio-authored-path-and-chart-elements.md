@@ -1073,7 +1073,7 @@ than an ownership.
 
 - [x] **Step 1: Resolve the clock bindings**
 
-`ClockBinding` is `reference` (the pane follows the reference series' own bars), `offset` (an explicit authored offset in bars, logical time only) or `utc` (real market time; requires a `timeBasis: 'utc'` series and is unavailable while import is deferred). The `utc` binding must fail loudly — not silently fall back — when the series has no UTC basis.
+`ClockBinding` is `reference` (the pane follows the reference series' own bars), `offset` (an explicit authored offset in bars, logical time only) or `utc` (real market time; requires a `timeBasis: 'utc'` series and is unavailable while import is deferred). A `utc` binding on a series with no UTC basis is not offered by the inspector; a hand-authored document that names one degrades to an empty pane rather than taking the frame down.
 
 Two different series are aligned by an author-supplied offset and never by row index (CH-005).
 

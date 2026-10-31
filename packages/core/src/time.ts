@@ -219,14 +219,12 @@ export const evaluatePaneAt = (
   clock: MarketClock,
   chartLocalFrame: number,
 ): PaneFrameState => {
-  const binding = pane.clock;
-  if (binding.kind === 'utc' && datasource.timeBasis !== 'utc') {
-    throw new Error(
-      `Pane "${pane.id}" uses a utc clock binding but series "${datasource.id}" has no utc time basis.`,
-    );
-  }
-
   const empty: PaneFrameState = { bars: [], activeIndex: -1, range: { min: 0, max: 0 }, developing: false };
+
+  const binding = pane.clock;
+  // A binding the series cannot honour shows an empty pane. It never throws:
+  // one hand-authored pane must not take the whole frame down.
+  if (binding.kind === 'utc' && datasource.timeBasis !== 'utc') return empty;
 
   const { referenceIndex } = evaluateClockAt(clock, chartLocalFrame);
   const offset = binding.kind === 'offset' ? binding.offsetBars : 0;

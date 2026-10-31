@@ -11,18 +11,27 @@
 import React from 'react';
 import {
   type Curve,
-  type OhlcBar,
   type PaneSpec,
   type ZoomTrack,
 } from '@chart-studio/core';
 import { CurveEditor } from '@chart-studio/ui/inspector/curve-editor';
 import { readCurve } from '../chart';
 
-export interface PanePausePanelProps {
+export interface PaneHoldPanelProps {
   panes: readonly PaneSpec[];
-  /** The chart's own bars, so a hold can name a candle. */
-  bars: readonly OhlcBar[];
+  /** The candle each pane is showing now, by pane id. */
+  activeBarIds: ReadonlyMap<string, string>;
+  /** The chart-local frame the playhead is on. */
+  frame: number;
   /** The chart clip's length, so a new hold covers a real range. */
+  durationInFrames: number;
+  onChange: (patch: Record<string, unknown>) => void;
+  commit: () => void;
+}
+
+export interface PaneZoomPanelProps {
+  panes: readonly PaneSpec[];
+  /** The chart clip's length, so a new segment covers a real range. */
   durationInFrames: number;
   onChange: (patch: Record<string, unknown>) => void;
   commit: () => void;
@@ -33,10 +42,16 @@ export interface PanePausePanelProps {
  *
  * A hold is identified by the candle it holds, so a pane holds each candle
  * once: adding a hold on a candle that is already held replaces it.
+ *
+ * The hold names the candle the pane is *showing* — the last one the pane
+ * has revealed at the playhead — and starts at the frame the creator is
+ * looking at. A pane that has revealed no candle cannot be held: there is no
+ * last-known value to stand still on.
  */
-export const PaneHoldPanel: React.FC<PanePausePanelProps> = ({
+export const PaneHoldPanel: React.FC<PaneHoldPanelProps> = ({
   panes,
-  bars,
+  activeBarIds,
+  frame,
   durationInFrames,
   onChange,
   commit,
@@ -50,13 +65,16 @@ export const PaneHoldPanel: React.FC<PanePausePanelProps> = ({
     edit({ panes: panes.map((entry) => (entry.id === pane.id ? change(entry) : entry)) });
 
   const addHold = (pane: PaneSpec) => {
-    const barId = bars[bars.length - 1]?.id ?? '';
-    const out = Math.max(1, Math.floor(durationInFrames / 2));
+    const barId = activeBarIds.get(pane.id);
+    if (!barId) return;
+    // The hold covers the rest of the chart clip, and starts at the frame
+    // the creator is looking at: the market stands still from here on.
+    const inFrame = Math.max(0, Math.min(Math.floor(frame), Math.max(0, durationInFrames - 1)));
     setPane(pane, (entry) => ({
       ...entry,
       holds: [
         ...(entry.holds ?? []).filter((hold) => hold.barId !== barId),
-        { barId, in: 0, out },
+        { barId, in: inFrame, out: durationInFrames },
       ],
     }));
   };
@@ -121,10 +139,19 @@ export const PaneHoldPanel: React.FC<PanePausePanelProps> = ({
           ))}
 
           <div className="chart-buttons">
-            <button className="btn btn-small" onClick={() => addHold(pane)}>
-              + Hold on the last candle
+            <button
+              className="btn btn-small"
+              disabled={!activeBarIds.get(pane.id)}
+              onClick={() => addHold(pane)}
+            >
+              + Hold on the current candle
             </button>
           </div>
+          {activeBarIds.get(pane.id) ? null : (
+            <div className="chart-length-hint" data-testid="hold-unavailable">
+              this pane shows no candle here, so there is nothing to hold
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -137,7 +164,7 @@ export const PaneHoldPanel: React.FC<PanePausePanelProps> = ({
  * A segment moves the pane from one aggregation and bar range to another
  * across a frame range, shaped by an optional curve.
  */
-export const PaneZoomPanel: React.FC<PanePausePanelProps> = ({
+export const PaneZoomPanel: React.FC<PaneZoomPanelProps> = ({
   panes,
   durationInFrames,
   onChange,

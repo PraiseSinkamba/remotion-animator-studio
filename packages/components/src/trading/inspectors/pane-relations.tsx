@@ -109,7 +109,7 @@ export const PaneRelationPanel: React.FC<PaneRelationPanelProps> = ({
     });
   };
 
-  const setClock = (pane: PaneSpec, kind: 'reference' | 'offset' | 'utc') => {
+  const setClock = (pane: PaneSpec, kind: 'reference' | 'offset') => {
     edit({
       panes: panes.map((entry) =>
         entry.id === pane.id
@@ -235,15 +235,26 @@ export const PaneRelationPanel: React.FC<PaneRelationPanelProps> = ({
               <label>Clock</label>
               <select
                 aria-label={`Pane ${index + 1} clock binding`}
-                value={pane.clock.kind}
-                onChange={(e) =>
-                  setClock(pane, e.target.value as 'reference' | 'offset' | 'utc')
-                }
+                value={pane.clock.kind === 'utc' ? '' : pane.clock.kind}
+                onChange={(e) => {
+                  const chosen = e.target.value;
+                  if (chosen !== 'reference' && chosen !== 'offset') return;
+                  setClock(pane, chosen);
+                }}
               >
+                {pane.clock.kind === 'utc' ? (
+                  <option value="">unavailable</option>
+                ) : null}
                 <option value="reference">reference</option>
                 <option value="offset">offset</option>
-                <option value="utc">utc</option>
               </select>
+              {pane.clock.kind === 'utc' ? (
+                // A hand-authored document may name a binding the chart cannot
+                // honour. The picker does not offer it; the note says why.
+                <div className="chart-length-hint" data-testid="pane-unavailable-binding">
+                  this pane names a clock binding the chart cannot honour
+                </div>
+              ) : null}
               {pane.clock.kind === 'offset' ? (
                 <input
                   type="number"
@@ -326,13 +337,18 @@ export const PaneRelationPanel: React.FC<PaneRelationPanelProps> = ({
       })}
 
       <div className="chart-buttons">
-        <button className="btn btn-small" onClick={addRollup}>
+        <button className="btn btn-small" onClick={addRollup} disabled={panes.length < 2}>
           + Rollup
         </button>
-        <button className="btn btn-small" onClick={addLockstep}>
+        <button className="btn btn-small" onClick={addLockstep} disabled={panes.length < 2}>
           + Lockstep
         </button>
       </div>
+      {panes.length < 2 ? (
+        <div className="chart-length-hint" data-testid="relation-needs-second-pane">
+          a relation needs a second pane
+        </div>
+      ) : null}
     </div>
   );
 };

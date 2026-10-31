@@ -12,6 +12,7 @@ import {
   framesPerBar,
   marketFrameAt,
   paneBarCount,
+  type PaneFrameState,
 } from './time';
 
 const CLOCK: MarketClock = {
@@ -164,9 +165,20 @@ describe('evaluatePaneAt', () => {
     expect(state.range).toEqual({ min: 0, max: 1000 });
   });
 
-  it('refuses a utc binding on a series that has no utc basis', () => {
+  it('shows an empty pane for a utc binding on a series that has no utc basis', () => {
     const pane = makePane({ clock: { kind: 'utc' } });
-    expect(() => evaluatePaneAt(pane, datasource, CLOCK, 0)).toThrow(/utc/);
+    // A hand-authored document may name a binding the data cannot honour. The
+    // pane draws nothing; it does not take the frame down with it.
+    let state: PaneFrameState | undefined;
+    expect(() => {
+      state = evaluatePaneAt(pane, datasource, CLOCK, 0);
+    }).not.toThrow();
+    expect(state).toEqual({
+      bars: [],
+      activeIndex: -1,
+      range: { min: 0, max: 0 },
+      developing: false,
+    });
   });
 
   it('buckets a pane\'s bars by the ladder rung\'s base units', () => {

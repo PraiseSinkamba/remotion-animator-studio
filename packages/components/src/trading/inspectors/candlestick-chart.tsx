@@ -43,12 +43,41 @@ export const CandlestickChartInspector: React.FC<ComponentInspectorContext> = ({
   onChange,
   updateClip,
   commit,
+  sceneFrame,
+  evaluated,
 }) => {
   const bars: OhlcBar[] = Array.isArray(props.bars) ? props.bars : [];
   const framesPerBar = Number(props.framesPerBar) || 1;
   const needed = barsToFrames(bars, framesPerBar);
   const panes: PaneSpec[] = Array.isArray(props.panes) ? props.panes : [];
   const relations: PaneRelation[] = Array.isArray(props.relations) ? props.relations : [];
+
+  /**
+   * The candle each pane is showing now, by pane id.
+   *
+   * The shell hands the panel the chart's own evaluation at the playhead, so
+   * the panel reads the same state the renderer draws: the last revealed
+   * candle of the pane.
+   */
+  const activeBarIds = new Map<string, string>();
+  const evaluatedPanes =
+    (evaluated as { panes?: Array<{ bars?: Array<{ bar?: { id?: string } }> }> } | undefined)
+      ?.panes ?? [];
+  const paneCount = Math.min(evaluatedPanes.length, panes.length);
+  for (let index = 0; index < paneCount; index += 1) {
+    const revealed = evaluatedPanes[index]?.bars ?? [];
+    const barId = revealed[revealed.length - 1]?.bar?.id;
+    if (barId) activeBarIds.set(panes[index].id, barId);
+  }
+
+  // The chart-local frame the playhead is on, clamped into the clip.
+  const frame = Math.max(
+    0,
+    Math.min(
+      Math.floor((sceneFrame ?? 0) - clip.from),
+      Math.max(0, clip.durationInFrames - 1),
+    ),
+  );
 
   const [seed, setSeed] = React.useState(String(props.simulationSeed ?? 'chart-1'));
   const [count, setCount] = React.useState(String(bars.length || 12));
@@ -225,14 +254,14 @@ export const CandlestickChartInspector: React.FC<ComponentInspectorContext> = ({
         <>
           <PaneHoldPanel
             panes={panes}
-            bars={bars}
+            activeBarIds={activeBarIds}
+            frame={frame}
             durationInFrames={clip.durationInFrames}
             onChange={onChange}
             commit={commit}
           />
           <PaneZoomPanel
             panes={panes}
-            bars={bars}
             durationInFrames={clip.durationInFrames}
             onChange={onChange}
             commit={commit}
