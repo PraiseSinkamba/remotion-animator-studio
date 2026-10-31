@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
+import type { CandlestickChartProps, ChartEvaluation } from '@chart-studio/components';
+import type { DrawingTarget } from './drawings';
 import { buildPresetClips, PRESETS } from './presets';
 import { buildChartGroup, relayoutChartGroup, withChartMarket } from './chartGroup';
 import { sampleProject } from '@chart-studio/core';
@@ -145,6 +147,15 @@ interface EditorState {
   addChartGroup: (chartClipIds: string[], layout: ChartGroupSpec['layout']) => string;
   /** Moves a group's charts into another layout. */
   setChartGroupLayout: (groupId: string, layout: ChartGroupSpec['layout']) => void;
+  /**
+   * The chart and pane a drawing would land on, or null when the selection is
+   * not a chart.
+   *
+   * A chart added from the library carries inline bars and no series, so it has
+   * no market to resolve against and cannot be evaluated. The chart is given
+   * its market first, so a drawing works on any chart the creator picks.
+   */
+  resolveDrawingTarget: (clipId: string) => DrawingTarget | null;
   /** Creates a drawing on a chart, anchored to one of its panes. */
   addDrawing: (
     kind: DrawingKind,
@@ -865,6 +876,36 @@ export const useStore = create<EditorState>((set, get) => ({
     if (!s.project.chartGroups?.some((group) => group.id === groupId)) return;
     get().commit();
     set((state) => ({ project: relayoutChartGroup(state.project, groupId, layout) }));
+  },
+
+  resolveDrawingTarget: (clipId) => {
+    const clip = findClip(get().project, clipId);
+    if (!clip || clip.element !== 'candlestickChart') return null;
+
+    // The chart needs a market before it can be evaluated at all: without a
+    // series, a pane and a clock there is nothing to resolve an anchor
+    // against, and the chart reports no panes.
+    get().ensureChartMarket(clipId);
+
+    const state = get();
+    const chart = findClip(state.project, clipId);
+    if (!chart) return null;
+    const definition = getComponent(chart.element);
+    const evaluated = definition?.evaluate?.({
+      clip: chart,
+      props: chart.props,
+      sceneFrame: state.currentFrame,
+      project: state.project,
+    }) as ChartEvaluation | undefined;
+    const pane = evaluated?.panes?.[0];
+    if (!pane) return null;
+    const panes = (chart.props as { panes?: { id?: string }[] }).panes;
+    return {
+      chart,
+      pane,
+      paneId: String(panes?.[0]?.id ?? `${chart.id}-pane-0`),
+      props: chart.props as unknown as CandlestickChartProps,
+    };
   },
 
   addDrawing: (kind, chartClipId, paneId, anchors) => {

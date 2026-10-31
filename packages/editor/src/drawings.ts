@@ -4,7 +4,8 @@
  * A drawing names the market, never a pixel: the anchors here are prices,
  * bars and sides, and they resolve against the pane's scale at render time.
  */
-import type { DrawingKind, MarketAnchor, PaneSpec } from '@chart-studio/core';
+import type { ChartPaneEvaluation, CandlestickChartProps } from '@chart-studio/components';
+import type { Clip, DrawingKind, MarketAnchor, PaneSpec } from '@chart-studio/core';
 
 /** One of the drawing tools, and how many clicks it takes to place it. */
 export interface DrawingTool {
@@ -104,3 +105,17 @@ export const buildDrawingAnchors = (
       };
   }
 };
+
+/**
+ * The chart and the pane a drawing would land on.
+ */
+export interface DrawingTarget {
+  /** The chart clip, with the market it needs to resolve against. */
+  chart: Clip;
+  /** The pane the anchors resolve against. */
+  paneId: string;
+  /** That pane's state at the current frame. */
+  pane: ChartPaneEvaluation;
+  /** The chart's props, for the geometry the anchors are measured in. */
+  props: CandlestickChartProps;
+}

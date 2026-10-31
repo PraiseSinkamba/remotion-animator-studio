@@ -494,3 +494,50 @@ describe('store — holding the market', () => {
     expect(released).toHaveLength(0);
   });
 });
+
+describe('store — placing a drawing on a chart', () => {
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+    });
+  });
+
+  it('finds the chart and pane a drawing lands on, even for a chart that has no market yet', () => {
+    // This is what the library gives: inline bars, no series, no pane, no clock.
+    useStore.getState().addClip('candlestickChart', 't-empty', 0);
+    const before = useStore.getState().project.tracks[0].clips[0];
+    expect(before.props.panes).toBeUndefined();
+    expect(before.props.clock).toBeUndefined();
+
+    const target = useStore.getState().resolveDrawingTarget(before.id);
+
+    expect(target).not.toBeNull();
+    expect(target!.paneId).toBeTruthy();
+    expect(target!.pane.bars.length).toBeGreaterThan(0);
+  });
+
+  it('creates a drawing that the chart can resolve', () => {
+    useStore.getState().addClip('candlestickChart', 't-empty', 0);
+    const chart = useStore.getState().project.tracks[0].clips[0];
+
+    const target = useStore.getState().resolveDrawingTarget(chart.id)!;
+    const id = useStore
+      .getState()
+      .addDrawing('priceLine', chart.id, target.paneId, {
+        price: { kind: 'price', price: 100 },
+      });
+
+    expect(id).not.toBe('');
+    const drawing = useStore.getState().project.tracks[0].clips.find((c) => c.id === id);
+    expect(drawing?.element).toBe('priceLine');
+    expect(drawing?.props.chartClipId).toBe(chart.id);
+    expect(drawing?.props.paneId).toBe(target.paneId);
+  });
+});

@@ -1,5 +1,5 @@
 import { Player } from '@remotion/player';
-import { Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { ChevronsLeft, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   buildDrawingAnchors,
@@ -244,30 +244,16 @@ export const PreviewPanel: React.FC = () => {
    * The chart a drawing would land on, and the pane it would use.
    *
    * The chart under the pointer is the one the drawing belongs to; its first
-   * pane is the one the anchors resolve against.
+   * pane is the one the anchors resolve against. The store resolves it,
+   * because a chart that has no market yet has to be given one before it can
+   * be evaluated — without a series, a pane and a clock there is nothing for
+   * an anchor to resolve against.
    */
   const drawingTarget = () => {
     const state = useStore.getState();
-    const selected = findClip(state.project, state.selectedClipIds[0]);
-    if (selected && selected.element === 'candlestickChart') {
-      const definition = getComponent(selected.element);
-      const evaluated = definition?.evaluate?.({
-        clip: selected,
-        props: selected.props,
-        sceneFrame: state.currentFrame,
-        project: state.project,
-      }) as ChartEvaluation | undefined;
-      const pane = evaluated?.panes?.[0];
-      if (pane) {
-        return {
-          chart: selected,
-          paneId: String(selected.props.panes?.[0]?.id ?? `${selected.id}-pane-0`),
-          pane,
-          props: selected.props as unknown as CandlestickChartProps,
-        };
-      }
-    }
-    return null;
+    const clipId = state.selectedClipIds[0];
+    if (!clipId) return null;
+    return useStore.getState().resolveDrawingTarget(clipId);
   };
 
   /**
@@ -307,7 +293,6 @@ export const PreviewPanel: React.FC = () => {
           aggregation: { factor: 1 },
         } as PaneSpec);
 
-    state.ensureChartMarket(target.chart.id);
     const created = useStore.getState().addDrawing(tool, target.chart.id, target.paneId, anchors);
     drawingPicks.current = [];
     useStore.getState().setDrawingTool(null);
@@ -636,7 +621,8 @@ export const PreviewPanel: React.FC = () => {
           compositionWidth={project.width}
           compositionHeight={project.height}
           style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
-          loop
+          loop={false}
+          moveToBeginningWhenEnded={false}
           initiallyMuted={muted}
           acknowledgeRemotionLicense
         />
@@ -731,6 +717,16 @@ export const PreviewPanel: React.FC = () => {
             className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-card/90 px-3 py-1.5 shadow-lg backdrop-blur-md"
             onPointerDown={(e) => e.stopPropagation()}
           >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => seekTo(0)}
+              title="Back to start"
+              aria-label="Back to start"
+            >
+              <ChevronsLeft data-icon="inline-start" />
+            </Button>
             <Button
               variant="ghost"
               size="icon-sm"
