@@ -565,3 +565,31 @@ export const validateChartGroup = (raw: unknown): ValidationResult<ChartGroupSpe
 /** Validates a whole project document. */
 export const validateProjectDocument = (raw: unknown): ValidationResult<Project> =>
   toResult(projectSchema.safeParse(raw) as z.ZodSafeParseResult<Project>);
+
+/** The scalar facts a project document must state. */
+export interface ProjectScalars {
+  fps: number;
+  width: number;
+  height: number;
+  durationInFrames: number;
+  tracks: unknown[];
+}
+
+const projectScalarsSchema = z.object({
+  fps: z.number().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  durationInFrames: z.number().int().positive(),
+  tracks: z.array(z.unknown()),
+});
+
+/**
+ * Validates only the scalar facts of a project document.
+ *
+ * The migration needs these and nothing more: the shape checks live in Zod,
+ * while the checks that depend on the registry and on history — the version
+ * gate, the unknown-component rejection and the props-version comparison —
+ * stay hand-written (ADR-008, "The migration boundary").
+ */
+export const validateProjectScalars = (raw: unknown): ValidationResult<ProjectScalars> =>
+  toResult(projectScalarsSchema.safeParse(raw) as z.ZodSafeParseResult<ProjectScalars>);

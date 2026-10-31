@@ -35,14 +35,14 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **MD-006:** Reimport or modification MUST invalidate dependent MTF/SMT results and notify the user; no quiet rebinding of swing references.
 - **MD-007:** Datasets MUST support indexed time-range queries and only draw visible bars; source revisions/content hashes are stable references.
 - **MD-008:** Manual bar sequences without real timestamps MUST use authored logical alignment rather than fabricated UTC time; hypothetical branches MUST be flagged.
-- **MD-009:** The editor MUST expose a typed datasource seam carrying source identity, provenance/origin, a revision/content hash, ascending bar order and stable bar identifiers; no importer ships in this slice.
-- **MD-010:** A chart MUST consume its series by reference, so the same dataset can back several chart instances without duplication.
+- **MD-009:** The editor MUST expose a typed datasource seam carrying source identity, provenance/origin, a revision/content hash, ascending bar order and stable bar identifiers; a series' origin is one of `authored-path`, `manual`, `synthetic` or `imported`, and no importer ships in this slice.
+- **MD-010:** A chart MUST consume its series by reference, by id, so the same dataset can back several chart instances without duplication.
 
 ### AP — Authored swing paths and candle generation
 
 - **AP-001:** A swing-path tool MUST let the creator place swing anchors on the chart, and the generated candles MUST follow the drawn path, with the close of each anchor bar equal to the placed price exactly. The drawn path is the skeleton of the series, not a corridor: closes MAY overshoot the anchors between them.
 - **AP-002:** Candle generation MUST be a pure function of the path, a seed, an algorithm version and the generator settings; the same inputs MUST always produce the same bars. The anchor regime MUST determine the character of the segment that runs from that anchor to the next, and the generated series MUST remain scale-invariant.
-- **AP-003:** Moving an anchor MUST regenerate the series deterministically and re-render the affected elements without a reload.
+- **AP-003:** Moving an anchor MUST regenerate the series deterministically and re-render the affected elements without a reload; only the segments the moved anchor touches change.
 - **AP-004:** An authored path MUST remain distinguishable in the editor and in export metadata from synthetic and imported series.
 
 ## 3. Charts, tools and object lifecycle
@@ -57,9 +57,9 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **CH-006:** Same dataset MUST support multiple independent chart instances and scenes without source duplication.
 - **CH-007:** A chart object MUST be selectable with canvas handles and inspectable in object tree and timeline, while editing handles MUST never appear in export.
 - **CH-008:** Chart group operations MUST support selecting whole group or drilling down into member charts, preserving their own lifecycles.
-- **CH-009:** A chart object MUST be a collection of elements — panes and the drawings anchored to it — each individually controllable in position, size, lifecycle and curve, with the collection itself controllable as a whole.
-- **CH-010:** A chart MUST express the relation between its panes as a declared relation of exactly two kinds — a **rollup** (one asset at two timeframes, the coarser pane aggregating the same source as-of) or a **lockstep** (two assets on the same timeframe and the same number of candles, advancing together on the shared clock) — and the relation MUST be labelled and exported honestly, never claiming a market-time alignment that the data does not have.
-- **CH-011:** The split layouts MUST be delivered as a **grouped chart** holding one to three chart objects with a shared arrangement, a shared clock and declared relations; the group MUST NOT take ownership of the charts' data, lifecycles or prices, and each chart MUST keep its own series, price scale, viewport and lifecycle.
+- **CH-009:** A chart object MUST be a collection of elements — panes and the drawings anchored to it — with the collection itself controllable as a whole. A pane MUST carry its own place in the chart box, clock binding, viewport, pause points and curve; a drawing MUST carry its own market anchors, lifecycle and opacity, and MUST resolve against the pane's current scale rather than against pixels.
+- **CH-010:** A chart MUST express the relation between its panes as a declared relation of exactly two kinds — a **rollup** (one asset at two timeframes, the coarser pane aggregating the same source as-of) or a **lockstep** (two assets on the same timeframe and the same number of candles, advancing together on the shared clock) — and the relation MUST be labelled honestly, never claiming a market-time alignment that the data does not have: a link between two different series MUST be labelled as an authored link in the editor, and MUST NOT be described as market time.
+- **CH-011:** The split layouts MUST be delivered as a **grouped chart** holding one to three chart objects with a shared arrangement and a shared clock; the group MUST NOT take ownership of the charts' data, lifecycles or prices, and each chart MUST keep its own series, price scale, viewport and lifecycle. The relation between panes is declared on the chart that holds them, not on the group.
 
 ### OB — Drawing and media objects
 
@@ -72,7 +72,7 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **OB-007:** Text and image objects MUST accept in/out frames, transform, opacity and common entrance/exit presets; imported audio MUST be trim- and volume-adjustable at a basic level.
 - **OB-008:** Clip opacity, object transform and candle replay MAY animate concurrently but must have defined composition semantics; conflicting exclusive replay clips MUST be rejected or resolved explicitly.
 - **OB-009:** Text content, labels, fonts and graphics SHOULD be stored in a portable/project-aware way; missing/licensed fonts MUST show export diagnostics.
-- **OB-010:** Every element inside a chart MUST carry its own `[in,out)` lifecycle, opacity, transform and curve, evaluated relative to the chart clip.
+- **OB-010:** Every element inside a chart MUST carry its own `[in,out)` lifecycle and opacity, and a pane or chart MUST carry its own curve. A drawing's lifecycle and opacity are evaluated relative to the chart clip it is anchored to; a pane's own `out` bounds its contribution to the derived duration, and a pane's curve shapes the growth of the candles in its slot. No element carries a separate transform: a drawing's place comes from the market anchor it resolves against, and a pane's place comes from its rect in the chart box.
 
 ## 4. SMT and MTF workflows
 
@@ -99,7 +99,7 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **TF-005:** HTF and LTF MUST have individually controllable lifecycles, camera zoom, visibility and replay policies, while sharing market-time cursor when enabled.
 - **TF-006:** Timeframe focus transitions MUST be editable as object transform/lifecycle keyframes, not destructive transformations of candle datasets.
 - **TF-007:** Timestamp gaps, session holidays, closed markets, mismatched data sources, price bases and daylight-saving shifts MUST preserve truthful state and show diagnostics.
-- **TF-008:** The relation between a rollup's two timeframes MUST be derivable from the panes themselves, so the displayed ratio ("1D = 24 × 1H") always agrees with the data; a lockstep relation MUST state the shared timeframe and the shared candle count it requires.
+- **TF-008:** The relation between a rollup's two timeframes MUST be derivable from the panes themselves, so the displayed ratio ("1D = 24 × 1H") always agrees with the data; a lockstep relation MUST name the shared timeframe, and the shared candle count MUST come from the two panes and MUST agree between them.
 - **TF-009:** The timeframes the product offers MUST be drawn from a fixed ladder — `1m`, `3m`, `5m`, `15m`, `30m`, `1H`, `4H`, `6H`, `7H`, `2D`, `1W`, `1M` — and every timeframe MUST be defined against the base rung rather than against each other, so two rungs with no whole-number ratio to each other remain comparable through the base. A non-whole ratio MUST be displayed as the fraction it is, never rounded into a whole-number multiple.
 
 ## 5. Candle animation, scene and timeline
@@ -117,10 +117,10 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 
 ### CV — Curves and easing
 
-- **CV-001:** Element, pane and chart animations MUST accept an editable easing curve; the curve MUST apply per element and, where meaningful, per candle.
-- **CV-002:** Effects that are currently static or linear MUST accept an easing parameter, and effects that already expose one MUST accept a custom cubic-bezier through the same control.
+- **CV-001:** A chart and its panes MUST accept an editable easing curve; a pane's curve overrides the chart's, and the curve MUST apply per candle within the pane's slot.
+- **CV-002:** Effects that are currently static or linear MUST accept an easing parameter, and effects that already expose one MUST accept a custom cubic-bezier as well; the legacy easing names MUST keep their meaning, so no existing rendered frame changes.
 - **CV-003:** A curve MUST be stored as data, evaluated by a pure function, and MUST produce identical frames in preview and export.
-- **CV-004:** The inspector MUST provide a curve editor for every element, pane and effect that exposes a curve.
+- **CV-004:** The inspector MUST provide one curve editor for every surface that exposes a curve — the chart, a pane, a zoom segment and an effect's custom cubic-bezier.
 
 ### TL — Hierarchical timeline
 
@@ -181,7 +181,7 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 | Corrupt `.chartstudio` | Reject entire import without altering existing projects |
 | Two tabs try to write SQLite | Prevent concurrent writes; user receives read-only or takeover guidance |
 | Archive saved outside web-origin | Local Save is still separate; external file status stays accurate |
-| Two different instruments linked with no shared market time | Link by an author-supplied offset and label it "authored offset — not market time"; never claim UTC alignment |
+| Two different instruments linked with no shared market time | Link by an author-supplied offset and label it "authored link — not market time"; never claim UTC alignment |
 | A drawing anchors to a candle that has not been revealed | Hide the drawing until its bar is revealed; an annotation must not reveal a future price |
 | A chart is resized or moved | Resolve every anchor against the current pane scale; the anchored price does not change |
 | A partially aggregated coarser bar is displayed | Mark it as developing and aggregate only the constituents revealed so far |
@@ -190,7 +190,7 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 
 ## 8. Developer interface expectations
 
-Every requirement ID should have an automated test (unit, integration, browser or E2E) or a documented manual verification step. Major types and interfaces are specified in [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md). Feature-to-requirement mapping is in [Feature Catalogue](../features/FEATURE_CATALOG.md). The test fixtures intentionally include synthetic OHLC, mixed source revisions, DST/session gaps and three correlated-index aliases that are treated as distinct feeds. The requirement IDs added for the chart element model — MD-009, MD-010, AP-001 to AP-004, CH-009, OB-010, CV-001 to CV-004, TL-009 and TL-010 — are covered by the assertion sets the [Test Strategy](../quality/TEST_STRATEGY.md) §3.1 records for that slice.
+Every requirement ID should have an automated test (unit, integration, browser or E2E) or a documented manual verification step. Major types and interfaces are specified in [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md). Feature-to-requirement mapping is in [Feature Catalogue](../features/FEATURE_CATALOG.md). The test fixtures intentionally include synthetic OHLC, mixed source revisions, DST/session gaps and three correlated-index aliases that are treated as distinct feeds. The requirement IDs added for the chart element model — MD-009, MD-010, AP-001 to AP-004, CH-009, OB-010, CV-001 to CV-004, TL-009 and TL-010 — are covered by the assertion sets the [Test Strategy](../quality/TEST_STRATEGY.md) §3.1 records for that slice, which also names the surfaces that slice leaves unasserted (the transport-action contract).
 
 ## 9. Deferred behavior (not implementation tasks for v1)
 

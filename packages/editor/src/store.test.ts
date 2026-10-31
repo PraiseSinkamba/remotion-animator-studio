@@ -461,3 +461,36 @@ describe('store — the duration mode', () => {
     expect(useStore.getState().project.durationInFrames).toBe(300);
   });
 });
+
+describe('store — holding the market', () => {
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+    });
+  });
+
+  it('holds the pane on a bar and releases it again', () => {
+    useStore.getState().addClip('candlestickChart', 't-empty', 0);
+    const clip = useStore.getState().project.tracks[0].clips[0];
+    useStore.getState().ensureChartMarket(clip.id);
+    const market = useStore.getState().project.tracks[0].clips[0];
+    const pane = market.props.panes[0];
+
+    useStore.getState().togglePaneHold(market.id, pane.id, 'series-x:3');
+
+    const held = useStore.getState().project.tracks[0].clips[0].props.panes[0].holds;
+    expect(held).toHaveLength(1);
+    expect(held[0].barId).toBe('series-x:3');
+
+    useStore.getState().togglePaneHold(market.id, pane.id, 'series-x:3');
+    const released = useStore.getState().project.tracks[0].clips[0].props.panes[0].holds;
+    expect(released).toHaveLength(0);
+  });
+});

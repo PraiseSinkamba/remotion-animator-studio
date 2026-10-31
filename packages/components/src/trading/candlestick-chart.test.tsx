@@ -13,7 +13,7 @@ import { candlestickChartDefinition } from './definitions/candlestick-chart';
 import { generateSyntheticBars, type OhlcBar } from '@chart-studio/core';
 import { getComponent } from '@chart-studio/core';
 import { migrateProject } from '../project-migrate';
-import type { Clip, Project } from '@chart-studio/core';
+import type { Clip, Project, SeriesOrigin } from '@chart-studio/core';
 
 afterEach(() => cleanup());
 
@@ -631,6 +631,74 @@ describe('the chart driven by the project registry', () => {
     expect(container.querySelector('[data-testid="provenance"]')?.textContent).toContain(
       'AUTHORED PATH',
     );
+  });
+});
+
+describe('the transport actions the chart declares', () => {
+  it('declares a hold the shell can execute without knowing what a chart is', () => {
+    const actions = candlestickChartDefinition.transportActions ?? [];
+
+    expect(actions.length).toBeGreaterThan(0);
+    const hold = actions.find((action) => action.toggle === 'hold');
+    expect(hold).toBeDefined();
+    expect(hold!.kind).toBe('toggle');
+    expect(hold!.label.length).toBeGreaterThan(0);
+    expect(hold!.icon.length).toBeGreaterThan(0);
+  });
+});
+
+describe('the provenance labels', () => {
+  const bars: OhlcBar[] = [
+    { id: 'b0', t: 0, o: 100, h: 110, l: 95, c: 105 },
+    { id: 'b1', t: 1, o: 105, h: 115, l: 101, c: 112 },
+  ];
+
+  const labelFor = (origin: SeriesOrigin): string | null => {
+    const props = { ...BASE_PROPS, bars } as CandlestickChartProps;
+    const container = render(
+      <CandlestickChart
+        props={props}
+        frame={0}
+        evaluated={{
+          panes: [
+            {
+              bars: bars.map((bar) => ({
+                bar,
+                o: bar.o,
+                h: bar.h,
+                l: bar.l,
+                c: bar.c,
+                progress: 1,
+                complete: true,
+              })),
+              totalBars: bars.length,
+              developing: false,
+              rect: { x: 0, y: 0, width: 1, height: 1 },
+            },
+          ],
+          provenance: { origin, revision: 'r', label: 'Series' },
+        }}
+      />,
+    ).container;
+    return container.querySelector('[data-testid="provenance"]')?.textContent ?? null;
+  };
+
+  it('keeps the provenance labels of every origin distinct', () => {
+    const labels = {
+      'authored-path': labelFor('authored-path'),
+      synthetic: labelFor('synthetic'),
+      imported: labelFor('imported'),
+      manual: labelFor('manual'),
+    };
+
+    // Every origin but manual carries a label, and no two of them agree.
+    expect(labels['authored-path']).toBe('AUTHORED PATH');
+    expect(labels.synthetic).toBe('SYNTHETIC DATA');
+    expect(labels.imported).toBe('IMPORTED');
+    expect(labels.manual).toBeNull();
+
+    const shown = [labels['authored-path'], labels.synthetic, labels.imported];
+    expect(new Set(shown).size).toBe(shown.length);
   });
 });
 

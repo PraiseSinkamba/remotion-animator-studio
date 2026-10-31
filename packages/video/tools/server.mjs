@@ -5,6 +5,7 @@ import { renderMedia, renderStill, selectComposition } from '@remotion/renderer'
 import { createReadStream, mkdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { writeProvenanceSidecar } from '../src/provenance-sidecar.ts';
 
 const PORT = 3333;
 const OUT_DIR = path.resolve('out');
@@ -51,6 +52,12 @@ const startRender = async (id, project, options) => {
     job.progress = 1;
     job.file = file;
     console.log(`[render] done → ${file}`);
+    // The provenance travels with the file. Best-effort: a project that cannot
+    // be described must not fail the export.
+    writeProvenanceSidecar(file, project, {
+      fps: composition.fps,
+      frameCount: composition.durationInFrames,
+    });
   } catch (err) {
     job.status = 'error';
     job.error = String(err?.message ?? err);

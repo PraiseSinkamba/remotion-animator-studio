@@ -70,6 +70,15 @@ describe('migrateProject', () => {
     expect(() => migrateProject({ ...legacyProject(), fps: 0 })).toThrow();
   });
 
+  it('reports the path of the offending field for a malformed document', () => {
+    expect(() => migrateProject({ ...legacyProject(), fps: 0 })).toThrow(/fps/);
+    expect(() => migrateProject({ ...legacyProject(), width: -1 })).toThrow(/width/);
+    expect(() => migrateProject({ ...legacyProject(), height: 0 })).toThrow(/height/);
+    expect(() => migrateProject({ ...legacyProject(), durationInFrames: 0 })).toThrow(
+      /durationInFrames/,
+    );
+  });
+
   it('rejects an unknown component type', () => {
     const doc = legacyProject();
     doc.tracks[0].clips[0].element = 'not-a-real-element' as ElementType;

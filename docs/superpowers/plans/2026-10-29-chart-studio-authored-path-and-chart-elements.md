@@ -1641,7 +1641,20 @@ hardcoded in the studio.
   - `packages/core/src/provenance.ts` — `buildProvenance(project): ProvenanceRecord` — per series: `origin`, `algorithmVersion`, `seed`, `revision`, bar count, anchor count; plus the simulation flags.
   - `packages/video/tools/render.mjs` and `packages/video/tools/server.mjs` — a `<output>.provenance.json` sidecar beside the rendered MP4.
 
-- [ ] **Step 1: Build the provenance record**
+**The render gate now carries two fixtures.** The `Main` composition is the **migration**
+fixture: a version 1 document, and its stills and video are byte-identical to the pre-migration
+render, which is what proves the migration is render-neutral. The `AuthoredPath` composition is the
+**feature** fixture: two panes of one asset (the fine pane and the coarser rollup pane), a
+curve-shaped pane growth, a second chart, a crossfade on the boundary between them, a price line and
+a trendline. The two are kept apart on purpose — a single fixture could not prove both things.
+
+**The migration's scalar checks sit behind the validator, and the rest stay hand-written.** The
+version gate, the unknown-component rejection and the props-version comparison depend on the
+registry and on history, so they stay in the migration's own hands (ADR-008, "The migration
+boundary"). The scalar facts — fps, width, height, duration, tracks — are checked by Zod, and the
+failure names the field that is wrong.
+
+- [x] **Step 1: Build the provenance record**
 
 `buildProvenance(project)` returns the record the design's §5 table defines:
 
@@ -1656,11 +1669,11 @@ hardcoded in the studio.
 
 Independently of the origin, the record carries the simulation flags: a chart that reveals bars dynamically is a simulated intrabar path (AN-005, MD-001, QA-005).
 
-- [ ] **Step 2: Write the sidecar at export**
+- [x] **Step 2: Write the sidecar at export**
 
 `packages/video/tools/render.mjs` and `packages/video/tools/server.mjs` write `<output>.provenance.json` next to the MP4, containing the record and the project's schema version, the fps and the frame count. The export therefore carries its provenance with it, and a reopened document's labels survive (QA-005).
 
-- [ ] **Step 3: Write the per-element-type inspector panels**
+- [x] **Step 3: Write the per-element-type inspector panels**
 
 `apps/studio/src/components/Inspector.tsx` currently renders the definition's generic `params` list (`:254-300`) plus the custom panel (`:302-307`). Replace the generic list for the trading components with per-element-type panels:
 
@@ -1687,11 +1700,11 @@ catalogue (`1m`, `3m`, `5m`, `15m`, `30m`, `1H`, `4H`, `6H`, `7H`, `2D`, `1W`, `
 shows the relationship that selection implies — `1H = 60 × 1m` — rather than asking the creator to
 type a factor.
 
-- [ ] **Step 4: Move the migration's scalar checks behind the validator**
+- [x] **Step 4: Move the migration's scalar checks behind the validator**
 
 ADR-008 splits the migration: the shape checks live in Zod, the history-dependent checks stay hand-written. `packages/core/src/validation.ts`'s `validateProjectDocument` now covers the positive `fps`, `width`, `height` and `durationInFrames` and the `tracks` array shape (currently `packages/components/src/project-migrate.ts:96-101`), and reports the path of the offending field. The migration keeps its version gate, its unknown-component rejection and its `propsVersion` comparison.
 
-- [ ] **Step 5: Write the failing tests**
+- [x] **Step 5: Write the failing tests**
 
 `packages/core/src/provenance.test.ts` (new):
 
@@ -1707,11 +1720,11 @@ ADR-008 splits the migration: the shape checks live in Zod, the history-dependen
 
 - "reports the path of the offending field for a malformed document" — fails before Step 4; passes after.
 
-- [ ] **Step 6: Extend the render gate to the final fixture**
+- [x] **Step 6: Extend the render gate to the final fixture**
 
 `scripts/verify-r1.mjs` builds a project with two panes on one series, a second series with an authored path, a price line and a trendline, a curve-driven pane growth, a hold, a crossfade and a derived duration. The executor must report the byte size of all six stills (frames 0, 20, 45, 100, 140, 179) and the MP4 outcome.
 
-- [ ] **Step 7: Run the full sweep and report**
+- [x] **Step 7: Run the full sweep and report**
 
 ```bash
 pnpm typecheck
@@ -1722,14 +1735,14 @@ node scripts/verify-r1.mjs
 
 The executor must report: the observed test count and the file count (the suite was 154 tests over 12 files before this plan — `docs/quality/TEST_STRATEGY.md` §3), the typecheck result, the build result, all six still sizes, the MP4 outcome, and the provenance sidecar's contents.
 
-- [ ] **Step 8: Update the documents**
+- [x] **Step 8: Update the documents**
 
 - `docs/spec/FUNCTIONAL_SPEC.md` §2, §3, §5 — confirm the new IDs (MD-009, MD-010, AP-001 … AP-004, CH-009, OB-010, CV-001 … CV-004, TL-009, TL-010) read as implemented.
 - `docs/spec/COMPONENT_CONTRACT.md` §2, §3, §6 — the `evaluate` step, the transport actions and the two coexisting curve vocabularies, as implemented.
 - `docs/roadmap/ROADMAP.md` §2 (R2.5) — mark the stage's items against what actually shipped, and record the deferred list above.
 - `docs/quality/TEST_STRATEGY.md` §3 — replace "the new test surface is **not yet covered**" with the surfaces the suite now covers and the assertion set it pins.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A

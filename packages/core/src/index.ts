@@ -4,6 +4,7 @@ export * from './registry';
 export * from './market';
 export * from './sample-project';
 export * from './series';
+export * from './provenance';
 export * from './path';
 export * from './elements';
 export * from './curve';

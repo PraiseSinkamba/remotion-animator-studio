@@ -124,16 +124,30 @@ pane the component owns. No component name is hardcoded in `apps/studio`.
 
 Two vocabularies coexist, deliberately.
 
-- The **element curve** is a `Curve` value stored as data and evaluated by one pure function in
-  `packages/core`. It drives an element's, a pane's and the chart's own motion, and where
-  meaningful it applies per candle. The same value produces the same frame in preview and export.
+- The **core curve** is a `Curve` value stored as data and evaluated by one pure function in
+  `packages/core`. A chart carries one in `clip.props.curve`; a pane may override it with its own
+  `curve`. The curve shapes each candle's growth inside the pane's slot. The same value produces
+  the same frame in preview and export.
 - The **legacy effect easing** stays on Remotion's `Easing`, and the existing effect `easing`
   parameter keeps its current meaning, so no rendered frame of an existing project changes. That
-  vocabulary is extended rather than replaced: the shared easing control gains a `custom` option
-  with a matching bezier parameter, the effects that are currently static or linear gain an easing
+  vocabulary is extended rather than replaced: the easing control gains a `custom` option with a
+  matching `bez` parameter, the effects that are currently static or linear gain an easing
   parameter, and the effects that carry a hardcoded curve gain one in place of it.
 
-The inspector presents both through one widget, so a creator edits a curve in one place.
+The two vocabularies are separate: the core curve presets and the legacy effect easing names are
+not one merged list, and the legacy names keep their meaning.
+
+One `CurveEditor` widget serves every surface that exposes a curve — the chart curve, a pane's
+curve, a zoom segment's curve and an effect's custom cubic-bezier. The effect surface keeps its
+legacy easing select and shows the curve editor only for the custom bezier.
+
+### Export provenance
+
+`buildProvenance(project)` in `packages/core` builds the record that travels with an export: one
+entry per series carrying its origin and the fields that origin carries, plus the simulation flags
+— whether a chart reveals its bars dynamically — independently of where the data came from. The
+export tools write it beside the MP4 as `<output>.provenance.json`, best-effort: a project that
+cannot be described never fails the export.
 
 ## 4. Rules
 
@@ -184,22 +198,22 @@ a migrated document must render the same candles in the same place as the docume
 | CPT-004 | HTF/LTF chart instances keep independent lifespans (R2+; the R1 registry already supports multiple instances). |
 | CPT-005 | Editor handles never reach the render path; price-anchored drawings are unaffected by transform. |
 | CPT-006 | Project and props migrations reject unsupported future versions. |
-| MD-009 | The datasource seam carries identity, origin, revision, ordering and stable bar ids; no importer ships. |
-| MD-010 | A chart consumes its series by reference, so one dataset backs several chart instances. |
+| MD-009 | The datasource seam carries identity, origin, revision, ordering and stable bar ids; the origin is one of `authored-path`, `manual`, `synthetic` or `imported`; no importer ships. |
+| MD-010 | A chart consumes its series by reference, by id, so one dataset backs several chart instances. |
 | AP-001 | The swing-path tool places anchors and the generated candles follow the drawn path, the close of each anchor bar equal to the placed price exactly; the drawn path is the skeleton of the series, not a corridor, so closes may overshoot the anchors between them. |
 | AP-002 | Generation is a pure function of `(path, seed, algorithmVersion, generator settings)`; the same inputs produce the same bars, the anchor regime determines the character of the segment from that anchor to the next, and the generated series is scale-invariant. |
-| AP-003 | Moving an anchor regenerates the series deterministically and re-renders without a reload. |
+| AP-003 | Moving an anchor regenerates the series deterministically and re-renders without a reload; only the segments the moved anchor touches change. |
 | AP-004 | An authored path stays distinguishable from synthetic and imported series in the editor and in export metadata. |
 | CH-005 | Panes align through the chart clock and an explicit binding, never by row index; the relation between panes is declared as a rollup or a lockstep. |
-| CH-009 | A chart is a collection of elements, each individually controllable, with the collection controllable as a whole. |
-| CH-010 | A chart declares the relation between its panes as a rollup or a lockstep; a cross-asset link is labelled as authored, never as market time. |
-| OB-010 | Every element inside a chart carries its own `[in,out)` lifecycle, opacity, transform and curve, relative to the chart clip. |
-| CV-001 | Elements, panes and charts accept an editable easing curve, applied per element and where meaningful per candle. |
-| CV-002 | Static and linear effects accept an easing parameter; effects that already expose one accept a custom cubic-bezier. |
+| CH-009 | A chart is a collection of elements — panes and the drawings anchored to it — with the collection controllable as a whole: a pane carries its own place in the chart box, clock binding, viewport, pause points and curve, and a drawing carries market anchors, lifecycle and opacity and resolves against the pane's scale. |
+| CH-010 | A chart declares the relation between its panes as a rollup or a lockstep; a cross-asset link is labelled as an authored link in the editor, never as market time. |
+| OB-010 | Every element inside a chart carries its own `[in,out)` lifecycle and opacity, relative to the chart clip, and a pane or chart carries its own curve; no element carries a separate transform. |
+| CV-001 | A chart and its panes accept an editable easing curve; a pane's curve overrides the chart's and applies per candle within the pane's slot. |
+| CV-002 | Static and linear effects accept an easing parameter; effects that already expose one accept a custom cubic-bezier as well, and the legacy easing names keep their meaning. |
 | CV-003 | A curve is stored as data, evaluated by a pure function, and produces identical frames in preview and export. |
-| CV-004 | The inspector provides a curve editor for every element, pane and effect that exposes a curve. |
+| CV-004 | One curve editor serves every surface that exposes a curve — the chart, a pane, a zoom segment and an effect's custom cubic-bezier. |
 | TL-009 | Duration is derived from the elements or set by the author, and the fixed value is adjustable with a draggable slider. |
 | TL-010 | A component declares transport actions that the shell renders and executes generically. |
-| TF-008 | The timeframe ratio of a rollup is derived from the panes, so it always agrees with the data; a lockstep states its shared timeframe and candle count. |
-| CH-011 | The split layouts are a grouped chart of one to three chart objects sharing an arrangement, a clock and declared relations; each chart keeps its own data, scale, viewport and lifecycle. |
+| TF-008 | The timeframe ratio of a rollup is derived from the panes, so it always agrees with the data; a lockstep names its shared timeframe, and the shared candle count comes from the two panes and must agree. |
+| CH-011 | The split layouts are a grouped chart of one to three chart objects sharing an arrangement and a clock; each chart keeps its own data, scale, viewport and lifecycle, and pane relations are declared on the chart that holds the panes. |
 | TF-009 | The timeframes come from a fixed ladder defined against the base rung; a non-whole ratio is shown as the fraction it is, never rounded. |

@@ -35,12 +35,14 @@ the plan that executed it is `docs/superpowers/plans/2026-10-28-chart-studio-pla
 
 **R1 has landed** — the typed registry, the first-party candlestick chart, the project schema and
 migration, the storage port and its backends, and three adapted Remocn components. **R2 is half
-landed** — the persistence side is complete; the source-import side has not started. **R3 has not
-started**: there are no drawing objects, no keyframes and no chart viewport. **R2.5 has not started
-either**: the chart element model, project schema version 2 and the datasource seam are recorded in
-[ADR-007](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) and the design spec, but nothing of them is
-in the tree yet. The numbers below are the delivery stages; where a stage has a sub-stage it keeps
-the same number with a fractional suffix, and the fractional suffix does not renumber the stages
+landed** — the persistence side is complete; the source-import side has not started. **R2.5 has
+landed**: the chart element model, project schema version 2 and the datasource seam are in the
+tree, together with the path authoring tool, the eight drawing tools, the pane hold and zoom
+track, the boundary transitions and the export provenance record. **R3 has started** — the
+drawing objects exist as clips anchored to a chart — but it is not finished: the chart viewport,
+the manual candle builder, the selection and transform work and the keyframe lanes are still
+open. The numbers below are the delivery stages; where a stage has a sub-stage it keeps the
+same number with a fractional suffix, and the fractional suffix does not renumber the stages
 around it.
 
 **A numbering collision to be aware of.** `docs/architecture/UPSTREAM_AUDIT.md` uses R1 to R4 for the
@@ -82,7 +84,7 @@ sub-stage of R2 and does not renumber any stage after it.
 - [x] Implement pure `evaluatePartialCandle` and `evaluateSceneAtFrame` for discrete and simulated mode. — landed: `evaluateBarsAtFrame` with discrete and simulated reveal modes.
 - [x] Render SVG chart with object transform through Remotion Player. — landed: the chart renderer, the composition and the Player preview.
 - [ ] Add minimal editable inspector for O/H/L/C and frame in/out; test arbitrary seeking.
-- [ ] Export PNG and supported-browser MP4 via Remotion web-renderer; verify logical parity and audio+caption test. — partially landed: PNG stills and MP4 through the Node renderer, with the render gate proving preview/export parity frame for frame. The browser-side web-renderer and the audio+caption parity check are still open.
+- [ ] Export PNG and supported-browser MP4 via Remotion web-renderer; verify logical parity and audio+caption test. — partially landed: PNG stills and MP4 through the Node renderer; the render gate renders both and reports their sizes, but it does not compare them against the preview, so preview/export parity is not proved by it. The browser-side web-renderer and the audio+caption parity check are still open.
 - [ ] Record codec/support limitations, frames, memory and render behavior, not inferred guarantees.
 
 **Demo:** scene SC-01 simplified (at least one dynamic candle, horizontal line and text).  
@@ -119,39 +121,86 @@ explicit market clock, and a component contract that can resolve a market anchor
 `packages/components/src/trading/chart.tsx`, `packages/video/src/composition.tsx`,
 `apps/studio/src/components/PreviewPanel.tsx`.
 
-- [ ] Add the project-level series registry and the datasource seam: identity, origin, revision
+- [x] Add the project-level series registry and the datasource seam: identity, origin, revision
   hash, ascending bars, stable bar ids — with no importer, no file reading and no wizard.
-- [ ] Add the authored swing path and its deterministic generator; the close of each anchor bar
+  — landed: `SeriesSpec` (origin `authored-path` | `manual` | `synthetic` | `imported`),
+  `Datasource`, `materialiseSeries` and `seriesRevision` in `packages/core/src/series.ts`.
+- [x] Add the authored swing path and its deterministic generator; the close of each anchor bar
   equals the placed price exactly, the anchor regime sets the character of the segment from that
   anchor to the next, the drawn path is the skeleton rather than a corridor with the excursion
   bounded by the configured volatility, the same path, seed, algorithm version and generator
   settings always produce the same bars, and the generated series is scale-invariant.
-- [ ] Move `Project.schemaVersion` to 2 and migrate v1 documents non-destructively: the inline
+  — landed: `packages/core/src/path.ts`, a port of the reference implementation in
+  `docs/reference/data-generation/path-to-candles-advanced.ts`, with a parity test.
+- [x] Move `Project.schemaVersion` to 2 and migrate v1 documents non-destructively: the inline
   chart bars become a series entry, the chart props become panes plus clock plus style, every bar
   gains a deterministic id, and `durationMode: 'fixed'` keeps the saved length.
-- [ ] Add the `evaluate` step to the component contract and pass its result to the render adapter;
+  — landed: the v1→v2 migration in `packages/components/src/project-migrate.ts`; non-destructive,
+  idempotent, and the document keeps its length.
+- [x] Add the `evaluate` step to the component contract and pass its result to the render adapter;
   a definition without `evaluate` must behave exactly as it does today.
-- [ ] Add `transportActions` to the component contract and render the selected clip's actions in
+  — landed: the optional `evaluate` step in `packages/core/src/contract.ts`; the composition runs
+  it once per clip per frame with the absolute scene frame and hands the result to the adapter as
+  `evaluated`.
+- [x] Add `transportActions` to the component contract and render the selected clip's actions in
   the transport bar; no component name may be hardcoded in `apps/studio`.
-- [ ] Add the curve type and its pure evaluator, and extend the legacy effect easing control with
+  — landed: `transportActions` in the contract, the chart declaring a hold toggle, and
+  `apps/studio/src/components/PreviewPanel.tsx` rendering and executing whatever the selected
+  clip's definition declares.
+- [x] Add the curve type and its pure evaluator, and extend the legacy effect easing control with
   a custom cubic-bezier; no existing rendered frame may change.
-- [ ] Add the shared clock and its authored binding, and the derived-duration mode.
-- [ ] Declare the relation between panes in one of two kinds: one asset at two timeframes (rollup,
+  — landed: `packages/core/src/curve.ts` and the `custom` option with its `bez` parameter in
+  `packages/components/src/base/effects.ts`; the legacy easing names keep their meaning.
+- [x] Add the shared clock and its authored binding, and the derived-duration mode.
+  — landed: `MarketClock`/`ClockBinding` in `packages/core/src/elements.ts` and the derived/fixed
+  duration in `packages/core/src/duration.ts`.
+- [x] Declare the relation between panes in one of two kinds: one asset at two timeframes (rollup,
   with the timeframe ratio derived from the two rungs of the fixed ladder) or two assets on one
   timeframe moving together with the same number of candles (lockstep, authored and labelled as not
   market time until an importer provides a real clock).
-- [ ] Offer the timeframes from a fixed ladder defined against the base rung, with a fractional
+  — landed: `PaneRelation` in `packages/core/src/elements.ts`, the relation rules in
+  `packages/core/src/validation.ts`, and the editor label `authored link — not market time`.
+- [x] Offer the timeframes from a fixed ladder defined against the base rung, with a fractional
   ratio shown as the fraction it is rather than rounded into a whole-number multiple.
-- [ ] Deliver the split layouts as a grouped chart of one to three chart objects, with the group
+  — landed: the twelve-rung ladder in `packages/core/src/elements.ts`; eight of its 66 pairs have
+  no whole-number ratio and are shown through the base.
+- [x] Deliver the split layouts as a grouped chart of one to three chart objects, with the group
   owning only the arrangement, the clock and the relations.
-- [ ] Register every new element type and name it in the library tab mapping, so a registered type
+  — landed: `ChartGroupSpec`, `packages/editor/src/chartGroup.ts` and the group layout in
+  `apps/studio/src/components/Inspector.tsx`. The group owns the arrangement and the clock; the
+  relation between panes is declared on the chart that holds those panes.
+- [x] Register every new element type and name it in the library tab mapping, so a registered type
   that no tab names does not disappear from the library.
+  — landed: the eight drawing kinds are registered and named in the Chart tab of
+  `packages/ui/src/components/library/catalog.tsx`.
+
+The following also landed with this slice, beyond the items listed above: the path authoring
+tool and its eight drawing tools (`packages/editor/src/drawings.ts`,
+`packages/components/src/trading/drawings/`), the pane hold and zoom track
+(`packages/core/src/time.ts`), the boundary transition slot and its crossfade and wipe
+(`packages/core/src/schemas.ts`, `packages/components/src/base/transitions.ts`), and the export
+provenance record and its sidecar (`packages/core/src/provenance.ts`,
+`packages/video/src/provenance-sidecar.ts`).
 
 **Demo:** a chart clip with two panes on one series and one drawing anchored to a candle, edited
 and exported.  
 **Gate R2.5:** `pnpm typecheck` and `pnpm test` complete without error, `node scripts/verify-r1.mjs`
 renders its stills and MP4, and the migrated document renders the same candles in the same place
 as the v1 document it came from.
+
+#### Deferred from R2.5
+
+These are named, not forgotten. Each one is a piece of work the slice deliberately did not do.
+
+- **An importer.** Real CSV/OHLC data with UTC and session calendars. The datasource seam
+  (MD-009) is the landing place; the importer itself ships with the R2 source-import half.
+- **Real market-time alignment across two instruments.** A cross-asset lockstep is authored —
+  an offset, labelled as not market time — until an importer provides a real clock to align on.
+- **Unifying the two curve vocabularies.** The legacy effect easing names are kept, so the core
+  curve presets and the legacy effect names remain two vocabularies rather than one.
+- **A rendered volume series.** The data carries a volume activity proxy, but no pane renders it.
+- **Authentic tick replay.** Every intrabar path in the product is a simulation and is labelled
+  as one.
 
 ### R3 — Chart-object editing and core trading tools
 
@@ -164,10 +213,17 @@ R3 builds on the element model of R2.5: the drawing kinds listed below are clips
 chart clip, and the chart's panes and drawings are individually controllable as R2.5 defines.
 
 - [ ] Implement chart viewport/pan/zoom with market-to-scene coordinates and drawing anchor transforms.
+  — partly landed with R2.5: a pane carries a viewport and a zoom track that moves the viewport
+  across a frame range without changing a price; the chart-level pan and zoom is still open.
 - [ ] Create manual candle builder with precise numeric inspector and draggable wick/body handles.
-- [ ] Implement high/low and horizontal price line, trendline, zone, position, arrow and text tools as typed objects.
+- [x] Implement high/low and horizontal price line, trendline, zone, position, arrow and text tools as typed objects.
+  — landed with R2.5: eight tools, each a clip anchored to a chart clip and a pane, storing
+  market anchors rather than pixels.
 - [ ] Provide selection, object tree, snapping, duplicate/group/lock, grouped undo/redo and transform keyframes.
 - [ ] Implement chart object in/out and independent opacity/scale/move/hold while candles keep replaying.
+  — partly landed with R2.5: a pane holds on one candle for a frame range, and a drawing carries
+  its own `[in,out)` lifecycle and opacity relative to its chart; independent chart-object
+  opacity and scale are still open.
 - [ ] Test chart-anchor stability when resizing/moving/replaying chart.
 
 **Demo:** SC-01, SC-02 and SC-03 in a real interactive editor.  

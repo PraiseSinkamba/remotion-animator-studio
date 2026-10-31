@@ -17,7 +17,7 @@
 No claim of passing tests or performance is valid until actual runs produce inspected results.
 
 The repository contains a working editor and a runnable test suite. `pnpm test` runs Vitest across the
-workspace; as of 2026-10-28 it is 154 tests over 12 files. Section 3 records what those tests cover and,
+workspace; the suite is spread over 27 test files. Section 3 records what those tests cover and,
 just as importantly, what they do not.
 
 ## 2. Foundational fixtures
@@ -51,7 +51,14 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 
 ## 3. What the suite covers today
 
-As of 2026-10-28 the suite is 154 tests over 12 files. What it actually asserts:
+The suite is spread over 27 test files. Counted from the sources, the files declare 344 `it`/`test`
+cases, and two of them expand when they run: the reference-parity case in
+`packages/core/src/path.test.ts` runs once per entry of its six-case table, and the nine-case
+storage contract suite in `packages/editor/src/storage/contract-suite.ts` runs against each of the
+three repository backends (localStorage, in-memory and SQLite). Running the suite gives
+**378 executed cases over 27 files**, and the whole workspace type-checks and builds.
+
+What it actually asserts:
 
 - **The candle maths** — bar generation, frame evaluation, the price range and the conversion from a
   series to a frame count.
@@ -68,48 +75,58 @@ As of 2026-10-28 the suite is 154 tests over 12 files. What it actually asserts:
   writers conflicting, and the migration path.
 - **The candlestick chart** — including the rule that a bar which has not happened yet never moves the
   price scale.
+- **The chart element model** — the surfaces below, in §3.1.
 
 What it does **not** cover, and what must not be claimed:
 
 - No browser end-to-end test. The editor has been exercised by hand and by the render gate, not by an
   automated browser suite.
 - No fixture-driven market data. The suite runs on synthetic bars, never on a real price series.
-- No pixel comparison between the preview and the export. The render gate proves the exported video
-  matches the preview byte for byte for one fixed project, which is weaker than a tolerance-based
-  comparison across a range of compositions.
+- No pixel comparison between the preview and the export. `scripts/verify-r1.mjs` renders stills and
+  an MP4 through the real Remotion pipeline and reports their sizes; it does not compare them against
+  the preview, so preview/export parity for that one project is not proved by the script.
 - No performance measurement. The budgets in section 8 have no baseline behind them.
+- **No test of the transport-action contract.** The `transportActions` field and the shell that
+  renders and executes it are implemented, but no test file asserts them: `apps/studio` has no test
+  files at all. The claim that the shell executes a declared action generically rests on the code, not
+  on the suite.
 
-### 3.1 The new test surface: the chart element model
+### 3.1 The chart element model surface
 
 The chart element model slice — the project-level series registry and the datasource seam
 (MD-009, MD-010), the authored swing path and its deterministic generator (AP-001–AP-004), the
 chart as a collection of elements (CH-009, OB-010), the declared pane relations (CH-010, TF-008), the
 curve vocabulary (CV-001–CV-004) and the
-`evaluate` and `transportActions` contract extensions (TL-010) — is **not yet covered**: none of it
-is implemented. Its design is
+`evaluate` and `transportActions` contract extensions (TL-010) — is covered. Its design is
 [ADR-007](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) and
-[the design spec](../superpowers/specs/2026-10-29-chart-studio-authored-path-and-chart-elements-design.md);
-the assertion set it must satisfy is recorded here so the slice is written against it.
+[the design spec](../superpowers/specs/2026-10-29-chart-studio-authored-path-and-chart-elements-design.md).
 
-| New surface | What the suite must assert | Requirement |
-|---|---|---|
-| Series registry and datasource seam | A materialised series carries identity, origin, revision hash, ascending bars and stable bar ids; the same spec always yields the same revision | MD-009, MD-010 |
-| Authored swing path | The close of each anchor bar equals the placed price exactly; the anchor regime determines the character of the segment from that anchor to the next, both under `auto` classification and under an explicit override; the same `(path, seed, algorithmVersion, generator settings)` always produces the same bars; the generated series is scale-invariant, so the same relative path produces the same relative output at a different price level; the drawn path is the skeleton, not a corridor, so the excursion beyond the drawn band is bounded relative to the configured volatility rather than zero; a moved anchor regenerates without a reload | AP-001, AP-002, AP-003 |
-| Provenance | An authored path stays distinguishable from synthetic and imported series in the editor and in export metadata | AP-004, QA-005 |
-| Schema version 2 migration | A v1 document migrates to a v2 document whose single pane renders the same candles in the same place; the migration stays non-destructive and idempotent; a higher version is still rejected | CPT-006 |
-| Pane evaluation | The pane's bars never contain an index beyond the as-of index; with an automatic price range a future bar never moves the axis; a partially aggregated bucket holds no value from a later constituent | CH-003, TF-003, TF-004 |
-| Anchors and drawings | A price-anchored drawing keeps its price when the chart is resized or moved; a drawing anchored to an unrevealed candle is hidden | OB-003, CPT-005 |
-| Clock and binding | One series at two timeframes aligns by construction; two different series align by an author-supplied offset and never by row index | CH-005 |
-| Pane relations | A rollup's timeframe ratio is derived from the two panes' aggregation factors, so the displayed ratio always agrees with the data; a rollup whose factors do not divide into a whole ratio is rejected, and the message names the pane to change; a lockstep pair advances together on the shared clock, with the same number of candles at every frame; a lockstep whose two panes disagree on the candle count or the aggregation factor is rejected; a cross-asset link is labelled as authored rather than market time in the editor and in the export metadata | CH-010, TF-008 |
-| Timeframe ladder | Every offered timeframe is a rung of the fixed ladder, and a pane's aggregation factor is derived from its rung and the base rather than typed in; a pane's buckets fall on the rung's base-unit boundaries, so a `6H` pane buckets on 360, 720, 1080 and so on; a rollup's ratio is derived from the two rungs and always agrees with the data; a fractional ratio is displayed as the fraction it is, so `4H` over `6H` reads 1.5 and not 2, and the two rungs stay comparable through the base; a timeframe that is not a ladder rung is rejected | TF-008, TF-009 |
-| Grouped chart | A group holds one to three chart objects, and a group with more is rejected; the group owns the arrangement, the clock and the relations, and takes no ownership of the charts' data, lifecycles or prices; each chart in a group keeps its own series, price scale, viewport and in/out frames | CH-010, CH-011 |
-| Curves | The same curve evaluated at the same frame produces the same value in preview and export; the legacy effect easing vocabulary keeps its current meaning, so no existing rendered frame changes | CV-001, CV-002, CV-003 |
-| Curve editor and transport actions | Every element, pane and effect that exposes a curve has one inspector control; a component's declared transport action is rendered and executed by the shell with no component name hardcoded in `apps/studio` | CV-004, TL-010 |
-| Duration | A derived duration equals the maximum of every clip's end and every chart element's out, and the fixed value is adjustable with the slider | TL-009 |
+| New surface | What the suite asserts | Requirement | Where |
+|---|---|---|---|
+| Series registry and datasource seam | A materialised series carries identity, origin and stable bar ids, and its bars stay ascending by time; the same spec always yields the same revision, and a changed bar, seed or anchor changes it | MD-009, MD-010 | `packages/core/src/series.test.ts` |
+| Authored swing path | The generator reproduces the reference implementation bit for bit across six parity cases; the close of each anchor bar equals the placed price exactly; the anchor regime is classified automatically and an explicit override wins; the same `(path, seed, algorithmVersion, generator settings)` always produces the same bars; the generated series is scale-invariant; the drawn path is the skeleton, not a corridor, so the excursion beyond the drawn band is bounded relative to the configured volatility rather than zero; a moved anchor regenerates without a reload and changes only the segments it touches | AP-001, AP-002, AP-003 | `packages/core/src/path.test.ts` |
+| Authoring operations | `addSwingAnchor`, `moveSwingAnchor`, `removeSwingAnchor` and `normalizeSwingPath` are pure, keep the anchors ascending, reject a duplicate bar index and leave the path they were given untouched | AP-002, AP-003 | `packages/core/src/path.test.ts` |
+| Zero range and OHLC invariants | Every generated bar is OHLC-consistent and strictly positive, and every bar has a non-zero range, including at an anchor | AP-001 | `packages/core/src/path.test.ts` |
+| Provenance | The record carries the origin and the fields that origin carries — `authored-path` gives its algorithm version, seed and anchor count, `manual` gives its bar count — and the simulation flags independently of the origin; a series no chart draws is still listed; the sidecar is written beside the video and does not throw when the project cannot be read | AP-004, QA-005 | `packages/core/src/provenance.test.ts`, `packages/video/src/provenance-sidecar.test.ts` |
+| Schema version 2 migration | A v1 document migrates to a v2 document whose single pane renders the same candles in the same place; the migration stays non-destructive and idempotent; a higher version is still rejected; the offending field is named | CPT-006 | `packages/components/src/project-migrate.test.ts` |
+| Pane evaluation | The pane's bars never contain an index beyond the as-of index; with an automatic price range a future bar never moves the axis; a partially aggregated bucket holds no value from a later constituent | CH-003, TF-003, TF-004 | `packages/components/src/trading/candlestick-chart.test.tsx`, `packages/core/src/time.test.ts` |
+| Anchors and drawings | A price-anchored drawing keeps its price when the chart rect changes and moves with the chart clip it is anchored to; a drawing anchored to an unrevealed candle is hidden; the position tool shows entry, stop and target and no P&L | OB-003, CPT-005, OB-006 | `packages/components/src/trading/drawings/drawings.test.tsx` |
+| Pane holds and the zoom track | A hold keeps the last known values inside the held frame range, fabricates no bar to fill the gap and resumes the reveal at the held candle's successor; a zoom track moves the pane's aggregation and bar range across a frame range, keeps its own aggregation outside every segment and shapes the interpolation with the segment's curve | CH-009, OB-010 | `packages/core/src/time.test.ts` |
+| Clock and binding | One series at two timeframes aligns by construction; two different series align by an author-supplied offset and never by row index | CH-005 | `packages/core/src/time.test.ts` |
+| Pane relations | A rollup's timeframe ratio is derived from the two panes' aggregation factors, so the displayed ratio always agrees with the data; a lockstep's two panes must carry the same rung and the same number of candles, and a disagreement is rejected with the pane named; a cross-asset link is labelled `authored link — not market time` in the editor | CH-010, TF-008 | `packages/core/src/validation.test.ts`, `packages/core/src/time.test.ts`, `packages/components/src/trading/candlestick-chart.test.tsx` |
+| Timeframe ladder | Every offered timeframe is a rung of the fixed ladder, and a pane's aggregation factor is derived from its rung and the base rather than typed in; a pane's buckets fall on the rung's base-unit boundaries; a fractional ratio is stated as the fraction it is, so `6H` over `4H` reads 1.5 and not 2, and the two rungs stay comparable through the base; a timeframe that is not a ladder rung is rejected | TF-008, TF-009 | `packages/core/src/time.test.ts`, `packages/core/src/validation.test.ts` |
+| Grouped chart | A group holds one to three chart objects and a group with more is rejected; the group gives every chart the same clock, places the charts by its layout and takes no ownership of the charts' data, lifecycles or prices; each chart in a group keeps its own series, price scale, viewport and in/out frames | CH-011 | `packages/editor/src/chartGroup.test.ts`, `packages/core/src/validation.test.ts` |
+| Curves | Every preset maps onto the same endpoints and a custom bezier solves at its endpoints; the same curve evaluates to the same value at the same `t`; a curve is data, evaluated by a pure function | CV-001, CV-003 | `packages/core/src/curve.test.ts` |
+| The legacy effect easing vocabulary | The legacy easing names keep their current meaning, and the effects that were static or linear now take an easing parameter, so no existing rendered frame changes | CV-002 | `packages/components/src/base/effects.test.ts` |
+| The curve editor | One widget reads the curve it is given, produces the curve of the preset that was chosen and produces a cubic bezier when a handle is dragged | CV-004 | `packages/ui/src/components/inspector/curve-editor.test.tsx` |
+| Transitions | A transition is clamped to the shorter adjacent clip and never overlaps the outgoing clip; the planned duration is clamped to what the two clips can give | — | `packages/core/src/transition.test.ts` |
+| Duration | A derived duration equals the maximum of every clip's end and every chart element's out, and the fixed value is left alone | TL-009 | `packages/core/src/duration.test.ts` |
+| The evaluate step | `evaluateClip` runs the definition's evaluation once, hands it the absolute scene frame and the project snapshot, returns `undefined` for a definition without one, and gives the same value for the same frame whatever order the frames were visited in | TL-010 | `packages/video/src/evaluate.test.ts` |
+| Transport actions | **Not asserted.** No test file covers the `transportActions` field or the shell that renders and executes it | TL-010 | — |
 
-The slice must also extend the render gate: `node scripts/verify-r1.mjs` builds its fixture with a
-chart that has panes, a drawing and a curve, and the slice reports the still sizes and the MP4
-outcome. The render gate is the only proof that the change reached the video path.
+The render gate remains the only proof that these changes reached the video path:
+`node scripts/verify-r1.mjs` renders stills at frames `[0, 20, 45, 100, 140, 179]` and authored-path
+stills at `[45, 100, 179]`. Its outcome is reported by whoever runs it, not claimed here.
 
 ## 4. Critical unit assertions
 

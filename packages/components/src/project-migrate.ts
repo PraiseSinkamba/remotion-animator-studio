@@ -15,6 +15,7 @@
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
 import { getComponent } from './registry';
+import { validateProjectScalars } from '@chart-studio/core';
 import type { Clip, ElementType, OhlcBar, Project, SeriesSpec, Track } from '@chart-studio/core';
 
 /** Schema version this build writes and understands. */
@@ -203,18 +204,19 @@ export const migrateProject = (raw: unknown): Project => {
     fail(`Unsupported project schema version ${version} (current: ${CURRENT_PROJECT_SCHEMA_VERSION})`);
   }
 
-  if (!Array.isArray(doc.tracks)) fail('Invalid project file: "tracks" must be an array.');
-  if (typeof doc.fps !== 'number' || doc.fps <= 0) fail('Invalid project file: "fps" must be a positive number.');
-  if (typeof doc.width !== 'number' || doc.width <= 0) fail('Invalid project file: "width" must be a positive number.');
-  if (typeof doc.height !== 'number' || doc.height <= 0) fail('Invalid project file: "height" must be a positive number.');
-  if (typeof doc.durationInFrames !== 'number' || doc.durationInFrames <= 0) {
-    fail('Invalid project file: "durationInFrames" must be a positive number.');
+  // The scalar facts are checked by the validator, so the failure names the
+  // field that is wrong rather than restating the shape here.
+  const scalars = validateProjectScalars(doc);
+  if (!scalars.ok) {
+    const issue = scalars.issues[0];
+    fail(`Invalid project file: "${issue.path}" is wrong — ${issue.message}`);
   }
 
-  const fps = doc.fps;
-  const width = doc.width;
-  const height = doc.height;
-  const durationInFrames = doc.durationInFrames;
+  // The validator has already proved these are numbers.
+  const fps = scalars.value.fps;
+  const width = scalars.value.width;
+  const height = scalars.value.height;
+  const durationInFrames = scalars.value.durationInFrames;
   const name = typeof doc.name === 'string' ? doc.name : 'Untitled';
   const backgroundColor =
     typeof doc.backgroundColor === 'string' ? doc.backgroundColor : '#0d0d14';

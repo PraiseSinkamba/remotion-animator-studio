@@ -28,6 +28,7 @@ describe('the authored path verification fixture', () => {
     const clip = authoredPathProject.tracks[0].clips[0];
     expect(clip.element).toBe('candlestickChart');
     expect(clip.props.seriesId).toBe(AUTHORED_SERIES_ID);
-    expect(clip.props.panes).toHaveLength(1);
+    // The fixture carries the fine pane and the coarser rollup pane.
+    expect(clip.props.panes).toHaveLength(2);
   });
 });

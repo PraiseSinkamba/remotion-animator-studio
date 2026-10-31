@@ -5,6 +5,7 @@ import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { writeProvenanceSidecar } from '../src/provenance-sidecar.ts';
 
 const projectPath = process.argv[2] ?? 'project.json';
 const outPath = process.argv[3] ?? path.join('out', 'animation.mp4');
@@ -41,3 +42,10 @@ await renderMedia({
 });
 
 console.log(`\nDone → ${outPath}`);
+
+// The provenance travels with the file: the origin, the seed, the algorithm
+// version, the revision and the simulation flags.
+writeProvenanceSidecar(outPath, project, {
+  fps: composition.fps,
+  frameCount: composition.durationInFrames,
+});
