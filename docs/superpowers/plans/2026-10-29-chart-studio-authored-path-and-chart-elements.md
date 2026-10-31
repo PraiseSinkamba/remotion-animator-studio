@@ -1542,17 +1542,26 @@ market history.
   - `packages/editor/src/store.ts` — `setDurationMode(mode)`, `setFixedDuration(seconds)`.
   - `apps/studio/src/components/PreviewPanel.tsx` — renders the **selected clip's** definition's `transportActions` in the floating transport bar and executes them generically.
 
-- [ ] **Step 1: Implement the derived duration**
+**The shell names no component.** The transport bar renders whatever the **selected clip's**
+definition declares and executes it through the contract: a `seek` action returns the frame to seek
+to, and a `toggle` acts on the component's own state. The chart offers a hold; the shell asks the
+chart's own evaluation which candle it is at and asks the editor to hold that bar — so the shell
+learns nothing about charts.
+
+**There is no engine ceiling.** 240 frames / 8 s is the seeded sample project's value, not a
+maximum; the author's own limit stands.
+
+- [x] **Step 1: Implement the derived duration**
 
 `derivedDuration(project)` walks every track and clip and takes the maximum of `clip.from + clip.durationInFrames` and, for a chart clip, the maximum `out` of its panes and drawings. The result is clamped to at least one frame.
 
 The mode is `derived` or `fixed` (TL-009). There is **no engine ceiling**: 240 frames / 8 s is the seeded sample project's value (`packages/core/src/sample-project.ts:8`), the seconds field allows up to 3600 (`apps/studio/src/components/TopBar.tsx:404-414`) and the migration accepts any positive `durationInFrames` (`packages/components/src/project-migrate.ts:100-101`). This slice changes the *mode*, not the limit.
 
-- [ ] **Step 2: Make the composition honour the mode**
+- [x] **Step 2: Make the composition honour the mode**
 
 `packages/video/remotion/Root.tsx`'s `calculateMetadata` (`:17-28`) returns `durationInFrames: project.durationMode === 'derived' ? derivedDuration(project) : project.durationInFrames`. A fixed project keeps exactly its authored length.
 
-- [ ] **Step 3: Render and execute the transport actions generically**
+- [x] **Step 3: Render and execute the transport actions generically**
 
 `apps/studio/src/components/PreviewPanel.tsx` renders the transport bar (`:362-418`). Add, to the right of the mute button and before the time readout, the buttons declared by the **selected clip's** definition's `transportActions` (`packages/core/src/contract.ts`). Execution:
 
@@ -1561,11 +1570,11 @@ The mode is `derived` or `fixed` (TL-009). There is **no engine ceiling**: 240 f
 
 **No component name is hardcoded in `apps/studio`** (TL-010, CPT-003). The shell knows only the contract.
 
-- [ ] **Step 4: Add the duration slider**
+- [x] **Step 4: Add the duration slider**
 
 `apps/studio/src/components/TopBar.tsx` keeps the seconds field (`:404-414`) and adds a draggable slider bound to the same value, plus a mode toggle between `derived` and `fixed`. In `derived` mode the slider is disabled and the readout shows the derived length.
 
-- [ ] **Step 5: Write the failing tests**
+- [x] **Step 5: Write the failing tests**
 
 `packages/core/src/duration.test.ts` (new):
 
@@ -1578,7 +1587,7 @@ The mode is `derived` or `fixed` (TL-009). There is **no engine ceiling**: 240 f
 
 - "switches the duration mode and keeps the fixed length" — fails before Step 1; passes after.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 ```bash
 pnpm typecheck
@@ -1589,7 +1598,7 @@ node scripts/verify-r1.mjs
 
 The executor must report the render-gate stills for frames 0 and 179 and the composition length the gate prints for the derived fixture.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
