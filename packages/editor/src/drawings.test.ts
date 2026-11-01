@@ -60,18 +60,22 @@ describe('drawingDraftFromClicks', () => {
     expect(draft.points).toBeUndefined();
   });
 
-  it('bounds a two-click drawing by the rectangle between the clicks', () => {
+  it('bounds a two-click drawing by the rectangle between the clicks, padded', () => {
+    // The box is the rectangle between the clicks, padded by 16 on each side
+    // so the shape never touches its own edge.
     const draft = drawingDraftFromClicks('trendline', [
       { x: 100, y: 200 },
       { x: 300, y: 100 },
     ]);
     expect(draft.x).toBe(200);
     expect(draft.y).toBe(150);
-    expect(draft.width).toBe(200);
-    expect(draft.height).toBe(100);
+    expect(draft.width).toBe(232);
+    expect(draft.height).toBe(132);
+    // The clicks keep their own places inside the padded box: the box's left
+    // edge is 16 px before the first click and its top edge 16 px above it.
     expect(draft.points).toEqual({
-      start: { x: 0, y: 1 },
-      end: { x: 1, y: 0 },
+      start: { x: 16 / 232, y: 116 / 132 },
+      end: { x: 216 / 232, y: 16 / 132 },
     });
   });
 

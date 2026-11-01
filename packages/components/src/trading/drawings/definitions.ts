@@ -48,6 +48,11 @@ export const DEFAULT_DRAWING_POINTS: Record<DrawingKind, Record<string, DrawingP
 
 /** The parameters every drawing shares. They are flat, so the store writes them directly. */
 const COMMON_PARAMS = [
+  // The generic inspector's POSITION section carries x and y, and the
+  // PROPERTIES section carries the size: a drawing is an ordinary element
+  // and is placed like one.
+  { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },
+  { key: 'y', label: 'Y', kind: 'number' as const, min: -1000, max: 4000, step: 1 },
   { key: 'width', label: 'Width', kind: 'number' as const, min: 8, max: 1920, step: 1 },
   { key: 'height', label: 'Height', kind: 'number' as const, min: 8, max: 1080, step: 1 },
   { key: 'opacity', label: 'Opacity', kind: 'number' as const, min: 0, max: 1, step: 0.05 },

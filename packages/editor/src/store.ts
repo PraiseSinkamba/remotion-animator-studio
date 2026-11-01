@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
-import type { CandlestickChartProps, ChartEvaluation } from '@chart-studio/components';
-import type { DrawingDraft, DrawingTarget } from './drawings';
+import type { DrawingDraft } from './drawings';
 import { buildPresetClips, PRESETS } from './presets';
 import { buildChartGroup, relayoutChartGroup, withChartMarket } from './chartGroup';
 import { sampleProject } from '@chart-studio/core';
@@ -158,7 +157,6 @@ interface EditorState {
    * no market to resolve against and cannot be evaluated. The chart is given
    * its market first, so a drawing works on any chart the creator picks.
    */
-  resolveDrawingTarget: (clipId: string) => DrawingTarget | null;
   /** Creates a drawing: an independent clip with its own box and frame range. */
   addDrawing: (kind: DrawingKind, draft: DrawingDraft) => string;
   /** Changes a drawing's props. The caller commits at the start of a gesture. */
@@ -544,11 +542,28 @@ export const useStore = create<EditorState>((set, get) => ({
         // supports, so a clip has to say which schema it belongs to.
         propsVersion: def.propsVersion ?? 1,
       };
+      // A chart added from the library carries inline bars and no series, so
+      // it has no market: without a series, a pane and a clock it cannot be
+      // evaluated. The chart is given its market as it is created.
+      const project =
+        element === 'candlestickChart'
+          ? withChartMarket(
+              {
+                ...s.project,
+                tracks: s.project.tracks.map((t) =>
+                  t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t,
+                ),
+              },
+              clip.id,
+            )
+          : {
+              ...s.project,
+              tracks: s.project.tracks.map((t) =>
+                t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t,
+              ),
+            };
       return {
-        project: {
-          ...s.project,
-          tracks: s.project.tracks.map((t) => (t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t)),
-        },
+        project,
         selectedClipIds: [clip.id],
       };
     });
@@ -879,57 +894,45 @@ export const useStore = create<EditorState>((set, get) => ({
     set((state) => ({ project: relayoutChartGroup(state.project, groupId, layout) }));
   },
 
-  resolveDrawingTarget: (clipId) => {
-    const clip = findClip(get().project, clipId);
-    if (!clip || clip.element !== 'candlestickChart') return null;
-
-    // The chart needs a market before it can be evaluated at all: without a
-    // series, a pane and a clock there is nothing to resolve an anchor
-    // against, and the chart reports no panes.
-    get().ensureChartMarket(clipId);
-
-    const state = get();
-    const chart = findClip(state.project, clipId);
-    if (!chart) return null;
-    const definition = getComponent(chart.element);
-    const evaluated = definition?.evaluate?.({
-      clip: chart,
-      props: chart.props,
-      sceneFrame: state.currentFrame,
-      project: state.project,
-    }) as ChartEvaluation | undefined;
-    const pane = evaluated?.panes?.[0];
-    if (!pane) return null;
-    const panes = (chart.props as { panes?: { id?: string }[] }).panes;
-    return {
-      chart,
-      pane,
-      paneId: String(panes?.[0]?.id ?? `${chart.id}-pane-0`),
-      props: chart.props as unknown as CandlestickChartProps,
-    };
-  },
-
   addDrawing: (kind, draft) => {
     const s = get();
     const definition = getComponent(kind as ElementType);
     const defaults = definition?.defaults ?? {};
 
-    // The track the drawing lands on: the one the draft names, else the one
-    // the selected clip is on, else the first track.
+    // The track the drawing lands on.
+    //
+    // A drawing dropped over a chart lands one step above that chart's
+    // track, because `tracks[0]` is the top layer — the drawing draws over
+    // the chart it was dropped on rather than under it. A chart already on
+    // the topmost track shares that track, and the drawing is appended to it
+    // so it still draws above the chart. Without a chart, the drawing lands on
+    // the selected clip's track, or the first track.
+    const namedIndex = draft.trackId
+      ? s.project.tracks.findIndex((t) => t.id === draft.trackId)
+      : -1;
     const track =
-      (draft.trackId ? s.project.tracks.find((t) => t.id === draft.trackId) : null) ??
-      (s.selectedClipIds[0] ? findTrackOf(s.project, s.selectedClipIds[0]) : null) ??
-      s.project.tracks[0];
+      namedIndex >= 0
+        ? s.project.tracks[Math.max(0, namedIndex - 1)]
+        : s.selectedClipIds[0]
+          ? findTrackOf(s.project, s.selectedClipIds[0])
+          : s.project.tracks[0];
     if (!track) return '';
 
-    const { from, durationInFrames, trackId: _trackId, ...rest } = draft;
+    // The drawing's own frame range: it starts where the playhead is and
+    // runs for three seconds, or to the end of the project, whichever is
+    // shorter. It is timed by the timeline, not by a chart.
+    const from = draft.from ?? s.currentFrame;
+    const durationInFrames =
+      draft.durationInFrames ?? Math.max(1, Math.min(90, s.project.durationInFrames - from));
+
+    const { from: _from, durationInFrames: _duration, trackId: _trackId, ...rest } = draft;
     const id = uid('c');
     const clip: Clip = {
       id,
       name: definition?.label ?? kind,
       element: kind as ElementType,
-      from: from ?? 0,
-      durationInFrames: durationInFrames ?? 90,
+      from,
+      durationInFrames,
       props: {
         ...defaults,
         ...rest,

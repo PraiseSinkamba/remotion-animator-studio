@@ -88,26 +88,24 @@ export const ToolRail: React.FC = () => {
         </Tooltip>
       ) : null}
 
-      {isChart
-        ? DRAWING_TOOLS.map((tool) => (
-            <Tooltip key={tool.kind}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={tool.label}
-                  className={drawingTool === tool.kind ? 'bg-secondary text-secondary-foreground' : undefined}
-                  onClick={() => {
-                    useStore.getState().setDrawingTool(drawingTool === tool.kind ? null : tool.kind);
-                  }}
-                >
-                  <span className="text-sm leading-none">{tool.icon}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">{tool.label}</TooltipContent>
-            </Tooltip>
-          ))
-        : null}
+      {DRAWING_TOOLS.map((tool) => (
+        <Tooltip key={tool.kind}>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={tool.label}
+              className={drawingTool === tool.kind ? 'bg-secondary text-secondary-foreground' : undefined}
+              onClick={() => {
+                useStore.getState().setDrawingTool(drawingTool === tool.kind ? null : tool.kind);
+              }}
+            >
+              <span className="text-sm leading-none">{tool.icon}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{tool.label}</TooltipContent>
+        </Tooltip>
+      ))}
     </div>
   );
 };

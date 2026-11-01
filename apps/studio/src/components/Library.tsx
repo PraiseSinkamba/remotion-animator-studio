@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import { EFFECTS } from '@chart-studio/components';
 import { listComponents } from '@chart-studio/components';
 import { PRESETS } from '@chart-studio/editor';
-import { findClip, isDrawingKind, useStore } from '@chart-studio/editor';
+import { isDrawingKind, useStore } from '@chart-studio/editor';
 import type { EffectType } from '@chart-studio/core';
 import { EffectsSection } from './library/effects-section';
 import {
@@ -106,16 +106,10 @@ const TabBody: React.FC<{ tab: TabDef; view: LibraryView; query: string }> = ({
             chip: '',
             onAdd: () => {
               if (isDrawingKind(d.type)) {
-                // A drawing names a market, so it needs a chart to live on.
-                const selected = findClip(project, selectedClipIds[0]);
-                if (selected?.element === 'candlestickChart') {
-                  useStore.getState().setDrawingTool(d.type);
-                  useStore.getState().setNotice('Click the chart to place the drawing.');
-                } else {
-                  useStore
-                    .getState()
-                    .setNotice('A drawing needs a chart — select a chart first, then add the drawing.');
-                }
+                // A drawing is an ordinary element: adding one arms the tool
+                // and the creator places it on the canvas.
+                useStore.getState().setDrawingTool(d.type);
+                useStore.getState().setNotice('Click the canvas to place the drawing.');
                 return;
               }
               const track = project.tracks[0];

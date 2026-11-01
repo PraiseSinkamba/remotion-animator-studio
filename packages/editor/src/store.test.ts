@@ -544,20 +544,6 @@ describe('store — placing a drawing on a chart', () => {
     });
   });
 
-  it('finds the chart and pane a drawing lands on, even for a chart that has no market yet', () => {
-    // This is what the library gives: inline bars, no series, no pane, no clock.
-    useStore.getState().addClip('candlestickChart', 't-empty', 0);
-    const before = useStore.getState().project.tracks[0].clips[0];
-    expect(before.props.panes).toBeUndefined();
-    expect(before.props.clock).toBeUndefined();
-
-    const target = useStore.getState().resolveDrawingTarget(before.id);
-
-    expect(target).not.toBeNull();
-    expect(target!.paneId).toBeTruthy();
-    expect(target!.pane.bars.length).toBeGreaterThan(0);
-  });
-
   it('creates a drawing that needs no chart to resolve', () => {
     useStore.getState().addClip('candlestickChart', 't-empty', 0);
     const chart = useStore.getState().project.tracks[0].clips[0];
@@ -574,5 +560,99 @@ describe('store — placing a drawing on a chart', () => {
     expect(drawing?.element).toBe('horizontalLine');
     expect(drawing?.props.chartClipId).toBeUndefined();
     expect(drawing?.props.width).toBe(480);
+  });
+});
+
+describe('store — where a new drawing lands', () => {
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+      currentFrame: 0,
+    });
+  });
+
+  /** A project with two tracks, so the track rule can be told apart. */
+  const twoTracks = (): void => {
+    useStore.setState({
+      project: {
+        ...useStore.getState().project,
+        tracks: [
+          { id: 't-top', name: 'Top', clips: [] },
+          { id: 't-bottom', name: 'Bottom', clips: [] },
+        ],
+      },
+    });
+  };
+
+  const draft = (extra: Record<string, unknown> = {}) => ({
+    x: 960,
+    y: 540,
+    width: 480,
+    height: 24,
+    ...extra,
+  });
+
+  it('puts a new drawing on the track above the chart it was dropped on', () => {
+    twoTracks();
+    useStore.getState().addClip('candlestickChart', 't-bottom', 0);
+    const chart = useStore.getState().project.tracks[1].clips[0];
+
+    const id = useStore.getState().addDrawing('horizontalLine', draft({ trackId: 't-bottom' }));
+
+    const tracks = useStore.getState().project.tracks;
+    expect(tracks[1].clips.some((c) => c.id === id)).toBe(false);
+    expect(tracks[0].clips.some((c) => c.id === id)).toBe(true);
+    expect(chart.element).toBe('candlestickChart');
+  });
+
+  it("puts a new drawing on the chart's own track when the chart is already on the top layer", () => {
+    twoTracks();
+    useStore.getState().addClip('candlestickChart', 't-top', 0);
+
+    const id = useStore.getState().addDrawing('horizontalLine', draft({ trackId: 't-top' }));
+
+    const tracks = useStore.getState().project.tracks;
+    expect(tracks[0].clips.some((c) => c.id === id)).toBe(true);
+    // appended, so it draws above the chart already there
+    expect(tracks[0].clips[tracks[0].clips.length - 1].id).toBe(id);
+  });
+
+  it("falls back to the selected clip's track", () => {
+    twoTracks();
+    useStore.getState().addClip('text', 't-bottom', 0);
+    const text = useStore.getState().project.tracks[1].clips[0];
+    useStore.setState({ selectedClipIds: [text.id] });
+
+    const id = useStore.getState().addDrawing('horizontalLine', draft());
+
+    const tracks = useStore.getState().project.tracks;
+    expect(tracks[1].clips.some((c) => c.id === id)).toBe(true);
+    expect(tracks[0].clips.some((c) => c.id === id)).toBe(false);
+  });
+
+  it('falls back to the first track when nothing is selected', () => {
+    twoTracks();
+
+    const id = useStore.getState().addDrawing('horizontalLine', draft());
+
+    const tracks = useStore.getState().project.tracks;
+    expect(tracks[0].clips.some((c) => c.id === id)).toBe(true);
+  });
+
+  it('gives a new drawing its own frame range starting at the current frame', () => {
+    useStore.setState({ currentFrame: 40 });
+
+    const id = useStore.getState().addDrawing('horizontalLine', draft());
+
+    const drawing = useStore.getState().project.tracks[0].clips.find((c) => c.id === id);
+    expect(drawing?.from).toBe(40);
+    expect(drawing?.durationInFrames).toBe(90);
   });
 });

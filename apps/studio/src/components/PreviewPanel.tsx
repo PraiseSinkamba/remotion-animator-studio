@@ -58,6 +58,44 @@ const activePaneBarId = (
 const ANCHOR_GRAB_RADIUS = 10;
 
 /**
+ * A point on the canvas the creator can take hold of.
+ *
+ * The swing path's anchors and a drawing's points are the same thing: a
+ * place in the composition the creator can drag. One handle type, one hit
+ * test, one overlay — the canvas never grows a second one.
+ */
+interface CanvasHandle {
+  /** The point's key: which anchor, or which of the drawing's points. */
+  id: string;
+  /** Where it is, in composition pixels. */
+  x: number;
+  y: number;
+}
+
+/**
+ * The handle nearest the pointer, if the pointer is close enough to take it.
+ *
+ * The distance is in composition pixels, which is the same distance the
+ * creator sees.
+ */
+const nearestHandle = (
+  handles: readonly CanvasHandle[],
+  point: { x: number; y: number } | null,
+): CanvasHandle | null => {
+  if (!point) return null;
+  let nearest: CanvasHandle | null = null;
+  let nearestDistance = Infinity;
+  for (const handle of handles) {
+    const distance = Math.hypot(handle.x - point.x, handle.y - point.y);
+    if (distance <= ANCHOR_GRAB_RADIUS && distance < nearestDistance) {
+      nearest = handle;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+};
+
+/**
  * A composition point in the chart's own box coordinates.
  *
  * The composition centres a clip's content on its position — the chart's box
@@ -111,6 +149,23 @@ export const PreviewPanel: React.FC = () => {
   const wrapperRef = useRef<HTMLDivElement>(null);
   /** The clicks that place a drawing, until the tool has all it needs. */
   const drawingPicks = useRef<Array<{ x: number; y: number }>>([]);
+  /**
+   * The gesture in progress while a drawing's point is being dragged.
+   *
+   * The same gesture the swing path's anchors use: the canvas has one
+   * handle-drag interaction, and the two callers write their own props.
+   */
+  const pointDrag = useRef<
+    | {
+        kind: 'drawing';
+        clipId: string;
+        /** Which of the drawing's points is being taken hold of. */
+        pointKey: string;
+        /** The drawing's box, so the new fraction can be worked out. */
+        box: { x: number; y: number; width: number; height: number };
+      }
+    | null
+  >(null);
   /** The gesture in progress while a swing path is being authored. */
   const swingDrag = useRef<
     | { mode: 'anchor'; anchorId: string }
@@ -236,54 +291,29 @@ export const PreviewPanel: React.FC = () => {
   };
 
   /** The anchor within a few pixels of a point, if there is one. */
-  const swingAnchorNear = (local: { x: number; y: number }) => {
-    const context = swingContext();
-    if (!context) return null;
-    const series = useStore
-      .getState()
-      .project.series?.find((entry) => entry.id === context.props.seriesId);
-    if (!series || series.origin !== 'authored-path') return null;
-    let nearest: { id: string; distance: number } | null = null;
-    for (const anchor of series.path.anchors) {
-      const point = chartAnchorToPoint(context.props, context.pane, anchor);
-      const distance = Math.hypot(point.x - local.x, point.y - local.y);
-      if (distance <= ANCHOR_GRAB_RADIUS && (!nearest || distance < nearest.distance)) {
-        nearest = { id: anchor.id, distance };
-      }
-    }
-    return nearest;
-  };
-
   /**
-   * The chart a drawing would land on, and the pane it would use.
+   * The swing path's anchor nearest the pointer.
    *
-   * The chart under the pointer is the one the drawing belongs to; its first
-   * pane is the one the anchors resolve against. The store resolves it,
-   * because a chart that has no market yet has to be given one before it can
-   * be evaluated — without a series, a pane and a clock there is nothing for
-   * an anchor to resolve against.
+   * The canvas has one handle hit test: the swing path's anchors and a
+   * drawing's points are both handles, and both are picked with it.
    */
-  const drawingTarget = () => {
-    const state = useStore.getState();
-    const clipId = state.selectedClipIds[0];
-    if (!clipId) return null;
-    return useStore.getState().resolveDrawingTarget(clipId);
+  const swingAnchorNear = (clientX: number, clientY: number) => {
+    const handle = nearestHandle(swingHandles(), projectPoint(clientX, clientY));
+    return handle?.id ?? null;
   };
 
   /**
    * Places a drawing from a click.
    *
    * The click is a position in the composition: the drawing gets its own box
-   * around it, and the clicks accumulate until the tool has all it needs. The
-   * drawing takes its frame range from the chart it was drawn over — the
-   * editor gives a drawing its own range in the next slice.
+   * around it, and the clicks accumulate until the tool has all it needs. A
+   * drawing is an ordinary element, so it needs no chart — it takes its own
+   * frame range from the timeline.
    */
   const placeDrawing = (clientX: number, clientY: number) => {
     const state = useStore.getState();
     const tool = state.drawingTool;
     if (!tool) return null;
-    const target = drawingTarget();
-    if (!target) return null;
     const project = projectPoint(clientX, clientY);
     if (!project) return null;
 
@@ -299,11 +329,7 @@ export const PreviewPanel: React.FC = () => {
     }
 
     const draft = drawingDraftFromClicks(tool, picks);
-    const created = useStore.getState().addDrawing(tool, {
-      ...draft,
-      from: target.chart.from,
-      durationInFrames: target.chart.durationInFrames,
-    });
+    const created = useStore.getState().addDrawing(tool, draft);
     drawingPicks.current = [];
     useStore.getState().setDrawingTool(null);
     useStore.getState().setNotice(null);
@@ -331,10 +357,10 @@ export const PreviewPanel: React.FC = () => {
       // a press anywhere else starts a freehand stroke.
       const point = swingPoint(e.clientX, e.clientY);
       if (!point) return;
-      const near = swingAnchorNear(point.local);
+      const near = swingAnchorNear(e.clientX, e.clientY);
       if (near) {
         s.commit();
-        swingDrag.current = { mode: 'anchor', anchorId: near.id };
+        swingDrag.current = { mode: 'anchor', anchorId: near };
       } else {
         swingDrag.current = {
           mode: 'stroke',
@@ -342,6 +368,25 @@ export const PreviewPanel: React.FC = () => {
           anchor: point.anchor,
         };
       }
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
+    // A drawing's point is taken before the element itself: taking hold of a
+    // point moves the point, not the box.
+    const pointHandle = nearestHandle(drawingHandles(), projectPoint(e.clientX, e.clientY));
+    if (pointHandle && selected) {
+      commit(); // one undo entry per drag, taken before the first move
+      pointDrag.current = {
+        kind: 'drawing',
+        clipId: selected.id,
+        pointKey: pointHandle.id,
+        box: {
+          x: Number(selected.props.x ?? 0),
+          y: Number(selected.props.y ?? 0),
+          width: Number(selected.props.width ?? 0),
+          height: Number(selected.props.height ?? 0),
+        },
+      };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
@@ -382,6 +427,25 @@ export const PreviewPanel: React.FC = () => {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const pointGesture = pointDrag.current;
+    if (pointGesture) {
+      const point = projectPoint(e.clientX, e.clientY);
+      if (!point) return;
+      const clip = findClip(project, pointGesture.clipId);
+      if (!clip) return;
+      const { box } = pointGesture;
+      const points = { ...((clip.props.points ?? {}) as Record<string, { x: number; y: number }>) };
+      // The point stays inside the drawing's own box: a drawing's points are
+      // fractions of it, so they cannot leave it.
+      const clamp = (value: number) => Math.max(0, Math.min(1, value));
+      let fractionX = clamp((point.x - (box.x - box.width / 2)) / box.width);
+      const fractionY = clamp((point.y - (box.y - box.height / 2)) / box.height);
+      // A high and low line is a vertical segment: its ends stay on it.
+      if (clip.element === 'highLowLine') fractionX = 0.5;
+      points[pointGesture.pointKey] = { x: fractionX, y: fractionY };
+      updateClipProps(pointGesture.clipId, { points });
+      return;
+    }
     const gesture = swingDrag.current;
     if (gesture) {
       const point = swingPoint(e.clientX, e.clientY);
@@ -422,6 +486,7 @@ export const PreviewPanel: React.FC = () => {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    pointDrag.current = null;
     const gesture = swingDrag.current;
     swingDrag.current = null;
     if (gesture) {
@@ -527,39 +592,27 @@ export const PreviewPanel: React.FC = () => {
     const s = useStore.getState();
     const before = new Set(projectClips(s.project).map((c) => c.id));
     if (element && isDrawingKind(element)) {
-      // The tool rail still belongs to a chart, so a drawing dropped on the
-      // canvas lands on the chart under the pointer.
-      const chart = chartAt(point);
-      if (!chart) {
-        s.setNotice('A drawing needs a chart — drop it on one, or select a chart and use the tool rail.');
-        return;
-      }
-      const target = useStore.getState().resolveDrawingTarget(chart.id);
-      if (!target) {
-        s.setNotice('That chart has no market yet.');
-        return;
-      }
+      // A drawing is an ordinary element: the drop point is where it lands,
+      // and it needs no chart. It goes on the track above the chart under the
+      // pointer when there is one, so it draws over that chart.
       const kind: DrawingKind = element;
       const toolSpec = DRAWING_TOOLS.find((tool) => tool.kind === kind);
       const clicks = toolSpec?.clicks ?? 1;
+      const chart = chartAt(point);
+      const trackId = chart
+        ? s.project.tracks.find((track) => track.clips.some((clip) => clip.id === chart.id))?.id
+        : undefined;
+
       if (clicks > 1) {
         // The drop is the first point; the creator finishes with clicks.
-        // The chart is selected so the follow-up clicks land on this chart.
         drawingPicks.current = [{ x: point.x, y: point.y }];
-        s.selectClip(chart.id);
         s.setDrawingTool(kind);
         s.setNotice(drawingPendingNotice(kind, clicks - 1));
         return;
       }
       drawingPicks.current = []; // a one-click drawing leaves no clicks pending
       const draft = drawingDraftFromClicks(kind, [{ x: point.x, y: point.y }]);
-      useStore.getState().addDrawing(kind, {
-        ...draft,
-        from: target.chart.from,
-        durationInFrames: target.chart.durationInFrames,
-        trackId: s.project.tracks.find((track) => track.clips.some((clip) => clip.id === chart.id))
-          ?.id,
-      });
+      useStore.getState().addDrawing(kind, { ...draft, trackId });
       s.setNotice(null);
       return;
     }
@@ -621,6 +674,28 @@ export const PreviewPanel: React.FC = () => {
       const composed = chartCompositionPoint(props, point);
       return { id: anchor.id, x: composed.x, y: composed.y };
     });
+  };
+
+  /**
+   * The selected drawing's points, as handles the creator can take hold of.
+   *
+   * A drawing's points are fractions of its own box, so they are placed in
+   * the composition the same way the drawing is.
+   */
+  const drawingHandles = (): CanvasHandle[] => {
+    if (!selected || !isDrawingKind(selected.element)) return [];
+    const points = selected.props.points as Record<string, { x: number; y: number }> | undefined;
+    if (!points) return [];
+    const width = Number(selected.props.width ?? 0);
+    const height = Number(selected.props.height ?? 0);
+    const centreX = Number(selected.props.x ?? 0);
+    const centreY = Number(selected.props.y ?? 0);
+    if (width <= 0 || height <= 0) return [];
+    return Object.entries(points).map(([key, point]) => ({
+      id: key,
+      x: centreX - width / 2 + point.x * width,
+      y: centreY - height / 2 + point.y * height,
+    }));
   };
 
   /**
@@ -699,16 +774,16 @@ export const PreviewPanel: React.FC = () => {
           acknowledgeRemotionLicense
         />
         <SelectionOverlay />
-        {swingPath ? (
+        {swingHandles().length > 0 || drawingHandles().length > 0 ? (
           <div className="pointer-events-none absolute inset-0 z-20">
             <svg
               viewBox={`0 0 ${project.width} ${project.height}`}
               preserveAspectRatio="xMidYMid meet"
               className="h-full w-full"
             >
-              {swingHandles().map((handle) => (
+              {[...swingHandles(), ...drawingHandles()].map((handle) => (
                 <circle
-                  key={handle.id}
+                  key={`${handle.id}`}
                   cx={handle.x}
                   cy={handle.y}
                   r={7}

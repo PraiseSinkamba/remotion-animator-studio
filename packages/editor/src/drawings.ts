@@ -5,8 +5,7 @@
  * own points. It never names a market value, so it needs no chart, no pane
  * and no anchor resolution.
  */
-import type { ChartPaneEvaluation, CandlestickChartProps } from '@chart-studio/components';
-import type { Clip, DrawingKind, DrawingPoint, DrawingStyle } from '@chart-studio/core';
+import type { DrawingKind, DrawingPoint, DrawingStyle } from '@chart-studio/core';
 
 /** One of the drawing tools, and how many clicks it takes to place it. */
 export interface DrawingTool {
@@ -67,6 +66,54 @@ export interface DrawingDraft {
 export const isDrawingKind = (type: string): type is DrawingKind =>
   DRAWING_TOOLS.some((tool) => tool.kind === type);
 
+/** The box a drawing occupies: its centre and its size, in composition pixels. */
+export interface DrawingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The padding a two-click drawing's box carries on each side. */
+export const DRAWING_BOX_PADDING = 16;
+/** The smallest a drawing's box may be, in either axis. */
+export const DRAWING_BOX_MINIMUM = 32;
+
+/**
+ * The box a set of clicks makes.
+ *
+ * One click centres the tool's own box on the click. Two clicks bound the
+ * drawing: the box is the rectangle between them, padded so the shape never
+ * touches its own edge, and never smaller than the minimum in either axis.
+ *
+ * This is the one place a drawing's box is decided.
+ */
+export const defaultDrawingBox = (
+  kind: DrawingKind,
+  picks: readonly DrawingClick[],
+): DrawingBox => {
+  const tool = DRAWING_TOOLS.find((entry) => entry.kind === kind);
+  const width = tool?.width ?? 320;
+  const height = tool?.height ?? 180;
+
+  const first = picks[0];
+  if (!first) return { x: 0, y: 0, width, height };
+  if (picks.length < 2) return { x: first.x, y: first.y, width, height };
+
+  const second = picks[1];
+  const left = Math.min(first.x, second.x);
+  const right = Math.max(first.x, second.x);
+  const top = Math.min(first.y, second.y);
+  const bottom = Math.max(first.y, second.y);
+
+  return {
+    x: (left + right) / 2,
+    y: (top + bottom) / 2,
+    width: Math.max(DRAWING_BOX_MINIMUM, right - left + DRAWING_BOX_PADDING * 2),
+    height: Math.max(DRAWING_BOX_MINIMUM, bottom - top + DRAWING_BOX_PADDING * 2),
+  };
+};
+
 /**
  * The draft a set of clicks makes.
  *
@@ -92,23 +139,25 @@ export const drawingDraftFromClicks = (
     // two clicks set its top and bottom.
     const top = Math.min(first.y, second.y);
     const bottom = Math.max(first.y, second.y);
+    const height = Math.max(DRAWING_BOX_MINIMUM, bottom - top);
+    const boxTop = (top + bottom) / 2 - height / 2;
     return {
       x: first.x,
       y: (top + bottom) / 2,
-      width,
-      height: Math.max(1, bottom - top),
-      points: { top: { x: 0.5, y: 0 }, bottom: { x: 0.5, y: 1 } },
+      width: Math.max(DRAWING_BOX_MINIMUM, tool?.width ?? 24),
+      height,
+      points: {
+        top: { x: 0.5, y: (top - boxTop) / height },
+        bottom: { x: 0.5, y: (bottom - boxTop) / height },
+      },
     };
   }
 
-  const left = Math.min(first.x, second.x);
-  const right = Math.max(first.x, second.x);
-  const top = Math.min(first.y, second.y);
-  const bottom = Math.max(first.y, second.y);
-  const boxWidth = Math.max(1, right - left);
-  const boxHeight = Math.max(1, bottom - top);
-  const fx = (click: DrawingClick) => (click.x - left) / boxWidth;
-  const fy = (click: DrawingClick) => (click.y - top) / boxHeight;
+  const box = defaultDrawingBox(kind, clicks);
+  const boxLeft = box.x - box.width / 2;
+  const boxTop = box.y - box.height / 2;
+  const fx = (click: DrawingClick) => (click.x - boxLeft) / box.width;
+  const fy = (click: DrawingClick) => (click.y - boxTop) / box.height;
 
   const points: Record<string, DrawingPoint> =
     kind === 'trendline'
@@ -116,24 +165,12 @@ export const drawingDraftFromClicks = (
       : { from: { x: fx(first), y: fy(first) }, to: { x: fx(second), y: fy(second) } };
 
   return {
-    x: left + boxWidth / 2,
-    y: top + boxHeight / 2,
-    width: boxWidth,
-    height: boxHeight,
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height,
     points,
   };
 };
 
-/**
- * The chart and the pane a drawing would land on.
- */
-export interface DrawingTarget {
-  /** The chart clip, with the market it needs to resolve against. */
-  chart: Clip;
-  /** The pane the drawing would use. */
-  paneId: string;
-  /** That pane's state at the current frame. */
-  pane: ChartPaneEvaluation;
-  /** The chart's props, for the geometry the pane is measured in. */
-  props: CandlestickChartProps;
-}
+

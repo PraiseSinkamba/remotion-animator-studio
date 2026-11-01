@@ -4,7 +4,7 @@ import { Button } from '@chart-studio/ui';
 import { Badge } from '@chart-studio/ui';
 import { Separator } from '@chart-studio/ui';
 import { seekTo } from '@chart-studio/editor';
-import { findClip, isDrawingKind, useStore } from '@chart-studio/editor';
+import { isDrawingKind, useStore } from '@chart-studio/editor';
 import { TrackRow } from '@chart-studio/editor';
 import { TimelineRuler } from '@chart-studio/editor';
 import { accentForTrack, framesToLabel, LABEL_COLUMN_WIDTH, RULER_HEIGHT } from '@chart-studio/editor';
@@ -89,14 +89,11 @@ export const Timeline: React.FC = () => {
           const element = e.dataTransfer.getData(ELEMENT_MIME);
           if (!isDrawingKind(element)) return; // other elements are ignored here
           e.preventDefault();
+          // A drawing is an ordinary element: dropping one on the timeline
+          // arms the tool and the creator places it on the canvas.
           const state = useStore.getState();
-          const selected = findClip(state.project, state.selectedClipIds[0]);
-          if (selected?.element === 'candlestickChart') {
-            state.setDrawingTool(element);
-            state.setNotice('Click the chart to place the drawing.');
-          } else {
-            state.setNotice('A drawing needs a chart — select a chart first.');
-          }
+          state.setDrawingTool(element);
+          state.setNotice('Click the canvas to place the drawing.');
         }}
       >
         <div className="relative min-h-full min-w-full" style={{ width: contentWidth }}>

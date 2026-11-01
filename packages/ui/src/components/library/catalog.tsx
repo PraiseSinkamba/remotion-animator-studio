@@ -36,12 +36,19 @@ export const TABS: TabDef[] = [
   {
     id: 'chart',
     label: 'Chart',
+    types: ['candlestickChart'],
+  },
+  {
+    // The drawings are ordinary elements, not chart furniture: they have
+    // their own box, their own frame range and their own place in the layer
+    // order, and they need no chart.
+    id: 'drawings',
+    label: 'Drawings',
     types: [
-      'candlestickChart',
       'horizontalLine',
-      'highLowLine',
       'verticalLine',
       'trendline',
+      'highLowLine',
       'rectangle',
       'textLabel',
       'arrow',
