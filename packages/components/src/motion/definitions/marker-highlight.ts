@@ -8,12 +8,24 @@
  */
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
-import type { ComponentRenderContext, VideoComponentDefinition } from '@chart-studio/core';
+import type { ComponentRenderContext, ElementHandle, VideoComponentDefinition } from '@chart-studio/core';
 import { MarkerHighlight } from '../marker-highlight';
 
 const POSITION_PARAMS = [
   { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },
   { key: 'y', label: 'Y', kind: 'number' as const, min: -1000, max: 4000, step: 1 },
+];
+
+/** The corners and sides of a content element — the content is the truth. */
+const CONTENT_HANDLES: ElementHandle[] = [
+  { id: 'nw', effect: 'font', props: ['fontSize'] },
+  { id: 'ne', effect: 'font', props: ['fontSize'] },
+  { id: 'se', effect: 'font', props: ['fontSize'] },
+  { id: 'sw', effect: 'font', props: ['fontSize'] },
+  { id: 'n', effect: 'wrap', props: ['maxWidth'] },
+  { id: 'e', effect: 'wrap', props: ['maxWidth'] },
+  { id: 's', effect: 'wrap', props: ['maxWidth'] },
+  { id: 'w', effect: 'wrap', props: ['maxWidth'] },
 ];
 
 export const remocnMarkerHighlightDefinition: VideoComponentDefinition = {
@@ -56,6 +68,7 @@ export const remocnMarkerHighlightDefinition: VideoComponentDefinition = {
     notes:
       'Vendored from Remocn (MIT, Copyright (c) 2026 Remocn). Local changes: dropped the Next.js "use client" directive; the root is a content-sized centred box instead of position:absolute/inset:0 with a hardcoded white background (the Chart Studio compositor positions the component and the composition owns the background); the font stack uses the editor stack "Helvetica, Arial, sans-serif" instead of var(--font-geist-sans). Animation maths, props interface and marker markup are unchanged.',
   },
+  edit: { pick: 'box', handles: CONTENT_HANDLES },
   // `definition.ts` is a .ts file, so the adapter builds its element with
   // createElement instead of JSX.
   render: ({ props }: ComponentRenderContext) => {

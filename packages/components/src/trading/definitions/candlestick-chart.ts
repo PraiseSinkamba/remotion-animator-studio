@@ -9,7 +9,7 @@
  */
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
-import { componentBounds, type ComponentProps, type VideoComponentDefinition } from '@chart-studio/core';
+import { componentBounds, type ComponentProps, type ElementHandle, type VideoComponentDefinition } from '@chart-studio/core';
 import { CandlestickChart, readCurve, type ChartEvaluation, type CandlestickChartProps } from '../chart';
 import { CandlestickChartInspector } from '../inspectors/candlestick-chart';
 import {
@@ -218,6 +218,16 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
   ],
   // The chart renders at its own width/height around its anchor.
   bounds: componentBounds,
+  // The chart's corners resize its outer box. The plot inside it has no props
+  // of its own yet, so it is not a handle.
+  edit: {
+    pick: 'box',
+    handles: (['nw', 'ne', 'se', 'sw'] as const).map((id): ElementHandle => ({
+      id,
+      effect: 'scale',
+      props: ['width', 'height'],
+    })),
+  },
   // A new chart is long enough to show its whole series.
   defaultDuration: (props: ComponentProps) => barsToFrames(props.bars ?? [], props.framesPerBar),
 };

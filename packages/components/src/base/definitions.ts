@@ -32,7 +32,7 @@ import {
   WaveAdapter,
 } from '../base/adapters';
 import { registerComponent } from '@chart-studio/core';
-import { componentBounds, type VideoComponentDefinition } from '@chart-studio/core';
+import { componentBounds, type ElementHandle, type VideoComponentDefinition } from '@chart-studio/core';
 
 const FONTS = [
   'Helvetica, Arial, sans-serif',
@@ -46,6 +46,16 @@ const FONTS = [
 const POSITION: ParamDef[] = [
   { key: 'x', label: 'X', kind: 'number', min: -1000, max: 5000, step: 1 },
   { key: 'y', label: 'Y', kind: 'number', min: -1000, max: 4000, step: 1 },
+];
+
+/** The four corner handles of a box element — the box is the truth. */
+const scaleCorners = (props: string[]): ElementHandle[] =>
+  ['nw', 'ne', 'se', 'sw'].map((id): ElementHandle => ({ id, effect: 'scale', props }));
+
+/** The corners and sides of a content element — the content is the truth. */
+const contentHandles = (fontProps: string[], wrapProps: string[] = ['maxWidth']): ElementHandle[] => [
+  ...['nw', 'ne', 'se', 'sw'].map((id): ElementHandle => ({ id, effect: 'font', props: fontProps })),
+  ...['n', 'e', 's', 'w'].map((id): ElementHandle => ({ id, effect: 'wrap', props: wrapProps })),
 ];
 
 const definitions: VideoComponentDefinition[] = [
@@ -76,6 +86,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'textureSrc', label: 'Letter fill — image URL or CSS gradient(…)', kind: 'text' },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: contentHandles(['fontSize']) },
     render: TextAdapter,
   },
   {
@@ -110,6 +121,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'fontWeight', label: 'Weight', kind: 'select', options: ['300', '400', '500', '700', '900'] },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: contentHandles(['fontSize']) },
     render: CounterAdapter,
   },
   {
@@ -153,6 +165,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: ShapeAdapter,
   },
   {
@@ -181,6 +194,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: ImageAdapter,
   },
   {
@@ -217,6 +231,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: VideoAdapter,
   },
   {
@@ -265,6 +280,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: GifAdapter,
   },
   {
@@ -291,6 +307,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: HtmlAdapter,
   },
   {
@@ -306,6 +323,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'color', label: 'Fill', kind: 'color' },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['size']) },
     render: CursorAdapter,
   },
   {
@@ -338,6 +356,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: WaveAdapter,
   },
   {
@@ -368,6 +387,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['size']) },
     render: BlobAdapter,
   },
   {
@@ -411,6 +431,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: ParticlesAdapter,
   },
   {
@@ -443,6 +464,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: SynthGridAdapter,
   },
   {
@@ -471,6 +493,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['size']) },
     render: NeonSunAdapter,
   },
   {
@@ -503,6 +526,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['gridSize', 'tileSize']) },
     render: IsoCityAdapter,
   },
   {
@@ -521,6 +545,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: SkyCycleAdapter,
   },
   {
@@ -549,6 +574,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: SunMoonAdapter,
   },
   {
@@ -583,6 +609,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: RidgeAdapter,
   },
   {
@@ -613,6 +640,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: scaleCorners(['width', 'height']) },
     render: CommitGraphAdapter,
   },
   {
@@ -653,6 +681,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: contentHandles(['fontSize']) },
     render: NodeTrailAdapter,
   },
   {
@@ -668,6 +697,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'size', label: 'Size', kind: 'number', min: 16, max: 1200, step: 1 },
       ...POSITION,
     ],
+    edit: { pick: 'box', handles: contentHandles(['size'], ['size']) },
     render: EmojiAdapter,
   },
   {

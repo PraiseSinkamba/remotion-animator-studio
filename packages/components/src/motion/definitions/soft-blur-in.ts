@@ -8,12 +8,24 @@
  */
 import { createElement } from 'react';
 import { registerComponent } from '@chart-studio/core';
-import { componentBounds, type ComponentRenderContext, type VideoComponentDefinition } from '@chart-studio/core';
+import { componentBounds, type ComponentRenderContext, type ElementHandle, type VideoComponentDefinition } from '@chart-studio/core';
 import { SoftBlurIn } from '../soft-blur-in';
 
 const POSITION_PARAMS = [
   { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },
   { key: 'y', label: 'Y', kind: 'number' as const, min: -1000, max: 4000, step: 1 },
+];
+
+/** The corners and sides of a content element — the content is the truth. */
+const CONTENT_HANDLES: ElementHandle[] = [
+  { id: 'nw', effect: 'font', props: ['fontSize'] },
+  { id: 'ne', effect: 'font', props: ['fontSize'] },
+  { id: 'se', effect: 'font', props: ['fontSize'] },
+  { id: 'sw', effect: 'font', props: ['fontSize'] },
+  { id: 'n', effect: 'wrap', props: ['maxWidth'] },
+  { id: 'e', effect: 'wrap', props: ['maxWidth'] },
+  { id: 's', effect: 'wrap', props: ['maxWidth'] },
+  { id: 'w', effect: 'wrap', props: ['maxWidth'] },
 ];
 
 export const remocnSoftBlurInDefinition: VideoComponentDefinition = {
@@ -52,6 +64,7 @@ export const remocnSoftBlurInDefinition: VideoComponentDefinition = {
   },
   // The component has no size of its own, so the box falls back to 320×180.
   bounds: componentBounds,
+  edit: { pick: 'box', handles: CONTENT_HANDLES },
   // This module is a .ts file, so the adapter builds its element with
   // createElement instead of JSX.
   render: ({ props }: ComponentRenderContext) => {

@@ -3,6 +3,7 @@ export * from './chartGroup';
 export * from './playerRef';
 export * from './presets';
 export * from './drawings';
+export * from './geometry';
 export { ClipChip } from './timeline/ClipChip';
 export { TimelineRuler } from './timeline/TimelineRuler';
 export { TrackRow } from './timeline/TrackRow';

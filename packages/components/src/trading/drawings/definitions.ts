@@ -18,6 +18,7 @@ import {
   type ComponentRenderContext,
   type DrawingKind,
   type DrawingPoint,
+  type ElementEditModel,
   type ElementType,
   type VideoComponentDefinition,
 } from '@chart-studio/core';
@@ -76,6 +77,7 @@ const drawingDefinition = (
   description: string,
   defaults: ComponentProps,
   adapter: React.FC<DrawingAdapterProps>,
+  edit: ElementEditModel,
 ): VideoComponentDefinition => ({
   type: type as ElementType,
   label,
@@ -85,6 +87,7 @@ const drawingDefinition = (
   propsVersion: 2,
   defaults,
   params: COMMON_PARAMS,
+  edit,
   render: ({ clip, props }: ComponentRenderContext): React.ReactElement | null => {
     if (clip.hidden) return null;
     const width = typeof props.width === 'number' ? props.width : 320;
@@ -119,6 +122,8 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'A horizontal rule across its own box.',
     { ...baseDefaults(480, 24), points: DEFAULT_DRAWING_POINTS.horizontalLine },
     HorizontalLineAdapter,
+    // One anchor: the line is dragged by its own anchor.
+    { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
   ),
   drawingDefinition(
     'verticalLine',
@@ -127,6 +132,8 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'A vertical rule down its own box.',
     { ...baseDefaults(24, 320), points: DEFAULT_DRAWING_POINTS.verticalLine },
     VerticalLineAdapter,
+    // One anchor: the line is dragged by its own anchor.
+    { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
   ),
   drawingDefinition(
     'trendline',
@@ -139,6 +146,14 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
       trendline: { ray: 'none' },
     },
     TrendlineAdapter,
+    // Two endpoints: the line is dragged by them.
+    {
+      pick: 'segment',
+      handles: [
+        { id: 'start', effect: 'point' },
+        { id: 'end', effect: 'point' },
+      ],
+    },
   ),
   drawingDefinition(
     'highLowLine',
@@ -147,6 +162,14 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'A vertical segment between two points of its own box.',
     { ...baseDefaults(24, 320), points: DEFAULT_DRAWING_POINTS.highLowLine },
     HighLowLineAdapter,
+    // Two endpoints: the high and the low.
+    {
+      pick: 'segment',
+      handles: [
+        { id: 'top', effect: 'point' },
+        { id: 'bottom', effect: 'point' },
+      ],
+    },
   ),
   drawingDefinition(
     'rectangle',
@@ -155,6 +178,15 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'The element’s own box, outlined and optionally filled.',
     { ...baseDefaults(320, 180), points: DEFAULT_DRAWING_POINTS.rectangle },
     RectangleAdapter,
+    // The box is the truth.
+    {
+      pick: 'box',
+      handles: (['nw', 'ne', 'se', 'sw'] as const).map((id) => ({
+        id,
+        effect: 'scale' as const,
+        props: ['width', 'height'],
+      })),
+    },
   ),
   drawingDefinition(
     'textLabel',
@@ -163,6 +195,8 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'A text label at a point of its own box.',
     { ...baseDefaults(200, 40), points: DEFAULT_DRAWING_POINTS.textLabel, label: { text: 'Label' } },
     TextLabelAdapter,
+    // One anchor: the label is dragged by its own anchor.
+    { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
   ),
   drawingDefinition(
     'arrow',
@@ -171,6 +205,14 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'An arrow between two points of its own box.',
     { ...baseDefaults(320, 180), points: DEFAULT_DRAWING_POINTS.arrow },
     ArrowAdapter,
+    // Two endpoints: the arrow is dragged by them.
+    {
+      pick: 'segment',
+      handles: [
+        { id: 'from', effect: 'point' },
+        { id: 'to', effect: 'point' },
+      ],
+    },
   ),
   drawingDefinition(
     'position',
@@ -183,6 +225,15 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
       position: { direction: 'long', showRiskReward: true },
     },
     PositionAdapter,
+    // Three levels, each dragged on its own.
+    {
+      pick: 'box',
+      handles: [
+        { id: 'entry', effect: 'level' },
+        { id: 'stop', effect: 'level' },
+        { id: 'target', effect: 'level' },
+      ],
+    },
   ),
 ];
 

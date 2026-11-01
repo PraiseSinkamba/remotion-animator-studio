@@ -100,6 +100,55 @@ export const componentBounds = (props: Record<string, unknown>): ComponentBounds
   height: typeof props.height === 'number' ? props.height : FALLBACK_SIZE.height,
 });
 
+/**
+ * How an element is picked on the canvas.
+ *
+ * - `box` — the element is a rectangle; the pointer hits it inside the box.
+ * - `segment` — the element is a line between two points.
+ * - `point` — the element is a single point.
+ */
+export type ElementPickKind = 'box' | 'segment' | 'point';
+
+/**
+ * What dragging a handle does.
+ *
+ * - `scale` — resize the element from a fixed opposite corner.
+ * - `font` — change the size of the element's content (its font size).
+ * - `wrap` — change the width the element's content wraps at.
+ * - `point` — move one endpoint of a segment.
+ * - `level` — move one level of a multi-level element.
+ * - `move` — move the element itself.
+ */
+export type ElementHandleEffect = 'scale' | 'font' | 'wrap' | 'point' | 'level' | 'move';
+
+/**
+ * One draggable handle on a selected element.
+ *
+ * A handle does not say where it sits — the editor derives its position from
+ * the element's own geometry and the handle's `id` (a corner such as `nw`, a
+ * side such as `n`, or the name of the point it moves).
+ */
+export interface ElementHandle {
+  /** The handle's name: a corner (`nw`), a side (`n`) or a point (`start`). */
+  id: string;
+  /** What dragging the handle does. */
+  effect: ElementHandleEffect;
+  /** The props the handle writes, for the effects that write props. */
+  props?: string[];
+}
+
+/**
+ * How an element is picked and edited on the canvas.
+ *
+ * An element that declares no edit model keeps the plain box behaviour.
+ */
+export interface ElementEditModel {
+  /** How the element is picked. */
+  pick: ElementPickKind;
+  /** The handles the editor draws on the element while it is selected. */
+  handles: ElementHandle[];
+}
+
 export interface ComponentInspectorContext {
   clip: Clip;
   props: ComponentProps;
@@ -191,4 +240,10 @@ export interface VideoComponentDefinition {
    * never reaches the composition, so it cannot change a rendered pixel.
    */
   bounds?: (props: Record<string, unknown>) => ComponentBounds;
+  /**
+   * Optional edit model: how the element is picked and which handles the
+   * editor draws while it is selected. An element that declares none keeps
+   * the plain box behaviour.
+   */
+  edit?: ElementEditModel;
 }
