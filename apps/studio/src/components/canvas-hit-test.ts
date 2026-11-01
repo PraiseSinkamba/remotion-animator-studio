@@ -95,6 +95,9 @@ export interface PickableClip {
 export const pickableClips = (project: Project): PickableClip[] => {
   const out: PickableClip[] = [];
   for (const clip of clipsTopDown(project)) {
+    // A hidden clip is not there to be picked, and a locked one is not to be
+    // moved: the timeline still shows both.
+    if (clip.hidden || clip.locked) continue;
     const geometry = clipGeometry(clip);
     if (geometry) out.push({ clip, box: geometry.box });
   }

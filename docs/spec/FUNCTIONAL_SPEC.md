@@ -1,8 +1,8 @@
-# Chart Studio — Functional Specification (v1.3)
+# Chart Studio — Functional Specification (v1.4)
 
-**Status:** Draft for approval · **Date:** 2026-10-30  
+**Status:** Draft for approval · **Date:** 2026-11-01  
 **Normative terms:** **MUST** = required for creator-ready MVP; **SHOULD** = important but may be deferred with documented exception; **MAY** = optional.  
-**Companion documents:** [Design](../design/PRODUCT_DESIGN.md), [Architecture](../architecture/TECHNICAL_ARCHITECTURE.md), [Features](../features/FEATURE_CATALOG.md), [Scenarios](../scenarios/VIDEO_SCENARIOS.md), [Test Strategy](../quality/TEST_STRATEGY.md), [ADR-007 — Chart element model](../decisions/ADR-007-CHART-ELEMENT-MODEL.md).
+**Companion documents:** [Design](../design/PRODUCT_DESIGN.md), [Architecture](../architecture/TECHNICAL_ARCHITECTURE.md), [Features](../features/FEATURE_CATALOG.md), [Scenarios](../scenarios/VIDEO_SCENARIOS.md), [Test Strategy](../quality/TEST_STRATEGY.md), [ADR-007 — Chart element model](../decisions/ADR-007-CHART-ELEMENT-MODEL.md), [ADR-009 — Independent drawing elements](../decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md).
 
 ## 1. Product boundary and completion
 
@@ -11,6 +11,10 @@ The MVP is not complete until a creator can author and export a realistic, engag
 No v1 broker connection, automated trade recommendation, automatic all-market SMT search, authentic tick replay engine, native desktop shell, paid asset library, cloud login or compulsory server rendering.
 
 ## 2. Data and project behavior
+
+The current project schema version is **3**. A v1 document is lifted to v2 and then to v3 in one
+pass; the v2 → v3 conversion is **CV-005**, recorded in §3 with the other drawing requirements,
+because it is a requirement about drawings rather than about data.
 
 ### PR — Projects and portability
 
@@ -23,7 +27,7 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **PR-007:** `Save` MUST commit the internal project; MUST NOT silently overwrite an external archive or pretend SQLite bytes are the portable format.
 - **PR-008:** Import in a clean browser profile MUST reconstruct semantically equivalent scenes and all required dependencies without a network request.
 - **PR-009:** Users MUST see actionable storage-quota/OPFS/blocked-VFS warnings and have a portable-backup path where possible.
-- **PR-010:** Project and scene revisions MUST be schema versioned; migrations MUST support rollback by preserving pre-migration data when feasible.
+- **PR-010:** Project and scene revisions MUST be schema versioned; migrations MUST support rollback by preserving pre-migration data when feasible, and MUST be non-destructive and idempotent. The drawing migration is **CV-005**.
 
 ### MD — Market data, candles and provenance
 
@@ -57,22 +61,34 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **CH-006:** Same dataset MUST support multiple independent chart instances and scenes without source duplication.
 - **CH-007:** A chart object MUST be selectable with canvas handles and inspectable in object tree and timeline, while editing handles MUST never appear in export.
 - **CH-008:** Chart group operations MUST support selecting whole group or drilling down into member charts, preserving their own lifecycles.
-- **CH-009:** A chart object MUST be a collection of elements — panes and the drawings anchored to it — with the collection itself controllable as a whole. A pane MUST carry its own place in the chart box, clock binding, viewport, pause points and curve; a drawing MUST carry its own market anchors, lifecycle and opacity, and MUST resolve against the pane's current scale rather than against pixels.
+- **CH-009:** A chart object MUST be a collection of elements — its panes — with the collection itself controllable as a whole. A pane MUST carry its own place in the chart box, clock binding, viewport, pause points and curve. A drawing MUST NOT be an element of a chart: a drawing is an ordinary element with its own box, its own lifecycle and its own opacity, and it MUST NOT resolve against a pane's scale, because it reads no market at all.
 - **CH-010:** A chart MUST express the relation between its panes as a declared relation of exactly two kinds — a **rollup** (one asset at two timeframes, the coarser pane aggregating the same source as-of) or a **lockstep** (two assets on the same timeframe and the same number of candles, advancing together on the shared clock) — and the relation MUST be labelled honestly, never claiming a market-time alignment that the data does not have: a link between two different series MUST be labelled as an authored link in the editor, and MUST NOT be described as market time.
 - **CH-011:** The split layouts MUST be delivered as a **grouped chart** holding one to three chart objects with a shared arrangement and a shared clock; the group MUST NOT take ownership of the charts' data, lifecycles or prices, and each chart MUST keep its own series, price scale, viewport and lifecycle. The relation between panes is declared on the chart that holds them, not on the group.
 
 ### OB — Drawing and media objects
 
-- **OB-001:** Object types MUST include horizontal price line, candle high/low line, trendline, rectangle/price zone, long/short position, arrow, text/caption, image, chart and chart group.
+- **OB-001:** Object types MUST include horizontal line, vertical line, candle high/low line, trendline, rectangle, long/short position, arrow, text/caption, image, chart and chart group.
 - **OB-002:** All visible scene objects MUST have `[startFrame,endFrame)` active interval, ordered layer, opacity, placement and typed properties; relevant properties support keyframes.
-- **OB-003:** Trading drawings MUST anchor to `(chartId, candle/time, price)` when market linked; scene overlays MUST anchor to scene coordinates; transforms MUST preserve anchor semantics.
-- **OB-004:** Lines/zone/position tools MUST be created on canvas and editable using numeric inspector and handles. Deletion, duplication, lock, group, hide, undo/redo MUST work.
-- **OB-005:** A zone MUST support price high/low, horizontal interval, fill/stroke and optional extend-right behavior. A trendline MUST retain two chart-bound endpoints and optional ray.
+- **OB-003:** A drawing MUST be an ordinary scene element: it MUST carry its own box in composition space (centre `x`, `y`; `width`; `height`), its own `[startFrame,endFrame)` range, its own opacity and style, and its own points. A drawing MUST NOT read a chart, a pane, a series or any market value, and MUST NOT carry a chart-relative lifecycle.
+- **OB-004:** Lines/zone/position tools MUST be created on the canvas with no chart selected and edited using the inspector and draggable handles. The creator's own figure MUST be stated in the drawing's caption, never in a market-derived number. Deletion, duplication, lock, group, hide, undo/redo MUST work.
+- **OB-005:** A rectangle MUST be the element's own box and MUST support fill and stroke; it MUST carry no market-derived edge values. A trendline MUST retain two points inside its own box, at any angle, and no chart-bound endpoints.
 - **OB-006:** Position tool MUST show entry, stop, target, direction and optional distance/RR labels as geometry; MUST NOT imply a broker fill, real P&L or trading recommendation.
 - **OB-007:** Text and image objects MUST accept in/out frames, transform, opacity and common entrance/exit presets; imported audio MUST be trim- and volume-adjustable at a basic level.
 - **OB-008:** Clip opacity, object transform and candle replay MAY animate concurrently but must have defined composition semantics; conflicting exclusive replay clips MUST be rejected or resolved explicitly.
 - **OB-009:** Text content, labels, fonts and graphics SHOULD be stored in a portable/project-aware way; missing/licensed fonts MUST show export diagnostics.
-- **OB-010:** Every element inside a chart MUST carry its own `[in,out)` lifecycle and opacity, and a pane or chart MUST carry its own curve. A drawing's lifecycle and opacity are evaluated relative to the chart clip it is anchored to; a pane's own `out` bounds its contribution to the derived duration, and a pane's curve shapes the growth of the candles in its slot. No element carries a separate transform: a drawing's place comes from the market anchor it resolves against, and a pane's place comes from its rect in the chart box.
+- **OB-010:** Every element MUST carry its own `[in,out)` lifecycle, opacity and layer, and a pane or chart MUST carry its own curve. A drawing's lifecycle is its own clip's range on the timeline, not a range inside a chart clip; a pane's own `out` bounds its contribution to the derived duration, and a pane's curve shapes the growth of the candles in its slot. Elements MUST be groupable and MUST carry an order: the track is the layer, `tracks[0]` is the top layer, and within a track a later clip draws above an earlier one.
+
+- **OB-011:** A drawing MUST be placeable at a point in the composition and MUST render with no chart in the project. The drawing tools MUST be offered without a chart selected, and a click or a library drop MUST place the drawing with its own frame range and its own track: the track immediately above the chart it was dropped on where there is one, otherwise the selected clip's track, otherwise the first track.
+- **OB-012:** A drawing's geometry MUST be authored inside its own box and MUST scale with it. The points MUST be normalised as fractions of the box (origin top-left, y down) rather than in composition pixels, and a handle drag MUST rewrite the point in the clip's own props.
+- **OB-013:** A drawing MUST carry an optional caption that the creator types, and that caption MUST be recorded in the export as the creator's own figure. A caption MUST NOT be presented as a market value, a price or a broker fill.
+- **OB-014:** The canvas MUST offer a context menu on an element, offering group, ungroup, duplicate, copy, paste, delete, rename, bring to front, send to back, lock and hide. Rename MUST select the clip and focus the inspector's name field rather than prompt for a string.
+- **OB-015:** Lock and hide MUST apply to every clip, not only to drawings. A hidden clip MUST be skipped by the composition, and a locked clip MUST stay on the timeline — carrying a lock badge — while not being pickable on the canvas.
+
+### CV — Document conversion (CV-005)
+
+The curve vocabulary is CV-001 … CV-004, in §5. CV-005 is the conversion of a document that holds drawings.
+
+- **CV-005:** A document that holds chart-anchored drawings MUST be migrated to independent drawings, with the old element types mapped to the new ones and the price kept as a caption. The migration MUST be non-destructive and idempotent, and it MUST place a migrated drawing using the chart's plot area and the chart's full-series price range — an approximation taken at the last frame, because the old position depended on the price scale at a frame and a static migration cannot reproduce that.
 
 ## 4. SMT and MTF workflows
 
@@ -104,6 +120,12 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 
 ## 5. Candle animation, scene and timeline
 
+The scene timeline now carries the drawings as ordinary clips: a drawing has its own frame range
+and its own track, and the track is the layer — `tracks[0]` is the top layer, and within a track a
+later clip draws above an earlier one. Lock and hide apply to every clip on that timeline. The
+requirements that describe this are OB-010 to OB-015, in §3, and the conversion of a document that
+holds drawings is CV-005, in §3.
+
 ### AN — Animation/replay
 
 - **AN-001:** Discrete completed-candle reveal and simulated dynamic intrabar formation MUST both be first-class choices per chart replay clip.
@@ -121,6 +143,8 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 - **CV-002:** Effects that are currently static or linear MUST accept an easing parameter, and effects that already expose one MUST accept a custom cubic-bezier as well; the legacy easing names MUST keep their meaning, so no existing rendered frame changes.
 - **CV-003:** A curve MUST be stored as data, evaluated by a pure function, and MUST produce identical frames in preview and export.
 - **CV-004:** The inspector MUST provide one curve editor for every surface that exposes a curve — the chart, a pane, a zoom segment and an effect's custom cubic-bezier.
+
+CV-001 … CV-004 are the curve vocabulary. The conversion of a document that holds drawings is **CV-005**, in §3.
 
 ### TL — Hierarchical timeline
 
@@ -182,15 +206,16 @@ No v1 broker connection, automated trade recommendation, automatic all-market SM
 | Two tabs try to write SQLite | Prevent concurrent writes; user receives read-only or takeover guidance |
 | Archive saved outside web-origin | Local Save is still separate; external file status stays accurate |
 | Two different instruments linked with no shared market time | Link by an author-supplied offset and label it "authored link — not market time"; never claim UTC alignment |
-| A drawing anchors to a candle that has not been revealed | Hide the drawing until its bar is revealed; an annotation must not reveal a future price |
-| A chart is resized or moved | Resolve every anchor against the current pane scale; the anchored price does not change |
+| A drawing is placed with no chart in the project | Place it with its own box, its own frame range and its own track; it renders from its own geometry |
+| A chart is resized or moved | The chart's own panes follow the chart box; a drawing is unaffected, because it holds no chart anchor |
 | A partially aggregated coarser bar is displayed | Mark it as developing and aggregate only the constituents revealed so far |
 | A v1 project is opened after the schema moves to version 2 | Migrate to the same candles in the same place; the saved document keeps its length and its provenance |
+| A v2 project holding chart-anchored drawings is opened after the schema moves to version 3 | Map the old element types to the new ones, keep a price line's price as its caption, and place the drawing from the chart's plot area and full-series price range — an approximation at the last frame; the migration is non-destructive and idempotent |
 | An authored swing path is edited | Regenerate the series from the stored path, seed and algorithm version; the same path always yields the same bars |
 
 ## 8. Developer interface expectations
 
-Every requirement ID should have an automated test (unit, integration, browser or E2E) or a documented manual verification step. Major types and interfaces are specified in [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md). Feature-to-requirement mapping is in [Feature Catalogue](../features/FEATURE_CATALOG.md). The test fixtures intentionally include synthetic OHLC, mixed source revisions, DST/session gaps and three correlated-index aliases that are treated as distinct feeds. The requirement IDs added for the chart element model — MD-009, MD-010, AP-001 to AP-004, CH-009, OB-010, CV-001 to CV-004, TL-009 and TL-010 — are covered by the assertion sets the [Test Strategy](../quality/TEST_STRATEGY.md) §3.1 records for that slice, which also names the surfaces that slice leaves unasserted (the transport-action contract).
+Every requirement ID should have an automated test (unit, integration, browser or E2E) or a documented manual verification step. Major types and interfaces are specified in [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md). Feature-to-requirement mapping is in [Feature Catalogue](../features/FEATURE_CATALOG.md). The test fixtures intentionally include synthetic OHLC, mixed source revisions, DST/session gaps and three correlated-index aliases that are treated as distinct feeds. The requirement IDs added for the chart element model — MD-009, MD-010, AP-001 to AP-004, CH-009, OB-010, CV-001 to CV-004, TL-009 and TL-010 — are covered by the assertion sets the [Test Strategy](../quality/TEST_STRATEGY.md) §3.1 records for that slice, which also names the surfaces that slice leaves unasserted (the transport-action contract). The requirement IDs added for the independent drawing elements — OB-011 to OB-015 and CV-005, with CH-009, OB-003, OB-004, OB-005 and OB-010 rewritten to read as they now do — are covered by the assertion sets the [Test Strategy](../quality/TEST_STRATEGY.md) §3.2 records for that slice, which also names the surfaces that slice leaves unasserted (the canvas context menu and the drag of a drawing's point handles — `apps/studio` has no test files).
 
 ## 9. Deferred behavior (not implementation tasks for v1)
 

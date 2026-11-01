@@ -160,6 +160,18 @@ export const ClipChip: React.FC<{
           {clip.groupId ? '⛓ ' : ''}
           {getComponent(clip.element)?.icon ?? '❓'} {clip.name}
         </span>
+        {clip.locked ? (
+          // A locked clip cannot be picked on the canvas, so the badge is how
+          // the creator finds it again and unlocks it.
+          <span className="shrink-0 text-[10px] leading-none text-muted-foreground" title="Locked">
+            🔒
+          </span>
+        ) : null}
+        {clip.hidden ? (
+          <span className="shrink-0 text-[10px] leading-none text-muted-foreground" title="Hidden">
+            👁
+          </span>
+        ) : null}
         {clip.effects.length > 0 ? (
           <span className="shrink-0 rounded-[3px] bg-primary/80 px-1 text-[9px] font-semibold text-primary-foreground">
             {clip.effects.length}fx

@@ -1,9 +1,13 @@
 import * as React from "react"
 import { cn } from "../../lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+// The ref is forwarded so a field can take the focus when the shell asks it
+// to — the canvas menu's rename does exactly that.
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  function Input({ className, type, ...props }, ref) {
   return (
     <input
+      ref={ref}
       type={type}
       data-slot="input"
       className={cn(
@@ -13,6 +17,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       {...props}
     />
   )
-}
+  },
+)
 
 export { Input }

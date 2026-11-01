@@ -8,6 +8,8 @@ Governing decisions: [ADR-003-COMPONENT-SYSTEM](../decisions/ADR-003-COMPONENT-S
 (object protocol), [ADR-001-VIDEO-STACK](../decisions/ADR-001-VIDEO-STACK.md) (Remotion-first),
 [ADR-007-CHART-ELEMENT-MODEL](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) (chart element
 model, schema version 2 and the datasource seam),
+[ADR-009-INDEPENDENT-DRAWING-ELEMENTS](../decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md)
+(drawings as independent elements, schema version 3),
 [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md) (scene graph boundaries).
 
 Machine-readable form: `packages/core/src/contract.ts`. The registry implementation lives in
@@ -16,7 +18,10 @@ Machine-readable form: `packages/core/src/contract.ts`. The registry implementat
 ## 1. Identity
 
 - `ElementType` (`packages/core/src/schemas.ts`) is the closed union of component IDs. The ID is what a
-  project file persists. **IDs are never renumbered, renamed or reused.**
+  project file persists. **IDs are never renumbered, renamed or reused.** The one recorded exception
+  is the two drawing kinds renamed in schema version 3: `priceLine` became `horizontalLine` and
+  `priceZone` became `rectangle`. A line that keeps the name `priceLine` while holding no price is a
+  false label, and the migration carries the mapping.
 - Every registered component has exactly one `VideoComponentDefinition`.
 - Component IDs are grouped by `category`: `base` (inherited editor elements),
   `trading` (Chart Studio first-party), `motion` (adapted Remocn source).
@@ -43,6 +48,19 @@ Machine-readable form: `packages/core/src/contract.ts`. The registry implementat
 at `(x, y)` and receives the clip's effects; `audio` and `background` are full-frame layers
 and are not wrapped in the positioned box.
 
+### The clip flags
+
+`hidden` and `locked` are clip flags, not component behaviour, and the **shell** honours them
+for every clip — a chart, a drawing, an image, an audio bed:
+
+- A hidden clip is skipped by the composition. The composition returns nothing for it, so the
+  renderer is never asked to draw it.
+- A locked clip is not pickable on the canvas. It stays on the timeline, where it carries a lock
+  badge, so the creator can still find it and unlock it.
+
+A component definition therefore neither reads nor sets these flags, and the shell never asks a
+definition whether it wants to be hidden.
+
 ## 3. Lifecycle
 
 ```
@@ -67,9 +85,9 @@ frame access keep working unchanged.
 
 ### The evaluate step
 
-A market-anchored drawing cannot resolve its own geometry: it needs the chart clip's pane state
-at the current frame, and `render` receives only `(clip, props, frame, fps)`. The definition may
-therefore declare a pure evaluation step:
+A component that cannot resolve its own geometry from `(clip, props, frame, fps)` — because it
+needs project state at the current frame, such as a chart's pane state — declares a pure
+evaluation step:
 
 ```ts
 evaluate?: (input: {
@@ -98,6 +116,32 @@ before the registry still renders.
 Because the evaluation is pure and the composition runs it for the preview and the export alike,
 the same frame always evaluates to the same thing — whatever order the frames were visited in.
 
+**The drawings no longer evaluate.** A drawing is pure geometry: its own box, its own points, its
+own style and its own caption. It reads no chart, no pane, no series and no market value, so it
+needs no evaluation step and the eight drawing definitions declare none. Their props *are* the
+independent shape, and the adapter draws straight from them:
+
+| Field | Meaning |
+|---|---|
+| `x`, `y` | The centre of the drawing's own box in composition space. |
+| `width`, `height` | The size of the drawing's own box. |
+| `opacity` | The drawing's own opacity. |
+| `style` | `color`, `lineWidth`, `fillOpacity`, `fontSize`. |
+| `caption` | The creator's own figure, drawn beside the shape. Never a market value. |
+| `points` | Per-kind points as 0..1 fractions of the box (origin top-left, y down). |
+| `position` | The position tool's direction and its ratio toggle. |
+| `label` | The text label's text. |
+| `trendline` | The trendline's ray setting. |
+
+The drawing kinds are `horizontalLine`, `verticalLine`, `trendline`, `highLowLine`, `rectangle`,
+`textLabel`, `arrow` and `position`. `priceLine` became `horizontalLine` and `priceZone` became
+`rectangle` — a recorded exception to the rule that a component type is never renamed, because a
+line that keeps the name `priceLine` while holding no price is a false label. The migration
+carries the mapping; see §5.
+
+A drawing's lifecycle is its own clip's `from` and `durationInFrames`. The drawing carries no
+chart clip, no pane, no anchors and no chart-relative range.
+
 ### The inspector context
 
 A custom inspector panel (`definition.inspector`) receives a `ComponentInspectorContext`: the
@@ -105,6 +149,10 @@ clip, its props, `onChange`, `updateClip` and `commit`, plus two optional fields
 (the absolute frame the playhead is on) and `evaluated` (the component's own `evaluate` result at
 that frame). The shell runs the evaluation and hands it to the panel, so a panel that edits the
 market acts on the state the renderer draws instead of evaluating the market a second time.
+
+A drawing's inspector panel receives the same context. Because a drawing declares no `evaluate`
+step, its `evaluated` is absent, and the panel edits the geometry — the points and the levels —
+and the caption directly.
 
 ### Element-declared transport actions
 
@@ -157,6 +205,10 @@ entry per series carrying its origin and the fields that origin carries, plus th
 export tools write it beside the MP4 as `<output>.provenance.json`, best-effort: a project that
 cannot be described never fails the export.
 
+The record also carries an `annotations` section: one entry per drawing clip, naming the
+drawing's kind and, when the creator typed one, its caption. The caption is the creator's own
+figure, and it travels as such — never as a market value.
+
 ## 4. Rules
 
 1. **Adapters are pure.** `render` receives `(clip, props, frame, fps)` and nothing else. It must
@@ -180,6 +232,12 @@ cannot be described never fails the export.
    from the registry. No component name is hardcoded in `apps/studio`.
 8. **A curve is data.** A curve is stored in the project, evaluated by a pure function, and
    produces the same frame in preview and export.
+9. **A drawing is independent geometry.** A drawing definition declares no `evaluate` step, reads
+   no chart, no pane, no series and no market value, and carries no chart-relative lifecycle. Its
+   props are its box, its points, its style and its caption, and nothing else.
+10. **The shell honours the clip flags.** `hidden` and `locked` belong to the clip, not to the
+    component: the composition skips a hidden clip, and the canvas does not pick a hidden or a
+    locked clip. A locked clip stays on the timeline with its badge.
 
 ## 5. Schema versioning
 
@@ -196,6 +254,15 @@ registry, chart props carrying panes, a clock and a style, stable bar ids, a `du
 the transition slot on the track boundary. The migration stays non-destructive and idempotent, and
 a migrated document must render the same candles in the same place as the document it came from.
 
+Schema version 3 is the version the independent drawing elements introduce: a drawing is an
+ordinary clip with its own box, its own points, its own style and an optional caption, and it
+carries no chart clip, no pane and no market anchor. The migration maps the old element types to
+the new ones — `priceLine` to `horizontalLine` and `priceZone` to `rectangle` — and keeps a v2
+price line's price **as its caption**. The placement of a migrated drawing uses the chart's plot
+area and the chart's full-series price range, which is an approximation at the last frame: the old
+position depended on the price scale at a frame, and a static migration cannot reproduce that. The
+migration stays non-destructive and idempotent.
+
 ## 6. Acceptance mapping
 
 | ID | Covered by |
@@ -204,7 +271,7 @@ a migrated document must render the same candles in the same place as the docume
 | CPT-002 | An adapted Remocn component is registered with the same lifecycle and records licence/provenance. |
 | CPT-003 | Independent components keep their own frame intervals and transitions; the registry-driven `evaluate` step extends it. |
 | CPT-004 | HTF/LTF chart instances keep independent lifespans (R2+; the R1 registry already supports multiple instances). |
-| CPT-005 | Editor handles never reach the render path; price-anchored drawings are unaffected by transform. |
+| CPT-005 | Editor handles never reach the render path; a drawing's placement is its own box, so it is unaffected by a chart resize. |
 | CPT-006 | Project and props migrations reject unsupported future versions. |
 | MD-009 | The datasource seam carries identity, origin, revision, ordering and stable bar ids; the origin is one of `authored-path`, `manual`, `synthetic` or `imported`; no importer ships. |
 | MD-010 | A chart consumes its series by reference, by id, so one dataset backs several chart instances. |
@@ -213,13 +280,19 @@ a migrated document must render the same candles in the same place as the docume
 | AP-003 | Moving an anchor regenerates the series deterministically and re-renders without a reload; only the segments the moved anchor touches change. |
 | AP-004 | An authored path stays distinguishable from synthetic and imported series in the editor and in export metadata. |
 | CH-005 | Panes align through the chart clock and an explicit binding, never by row index; the relation between panes is declared as a rollup or a lockstep. |
-| CH-009 | A chart is a collection of elements — panes and the drawings anchored to it — with the collection controllable as a whole: a pane carries its own place in the chart box, clock binding, viewport, pause points and curve, and a drawing carries market anchors, lifecycle and opacity and resolves against the pane's scale. |
+| CH-009 | A chart is a collection of elements — its panes — with the collection controllable as a whole: a pane carries its own place in the chart box, clock binding, viewport, pause points and curve. A drawing is not an element of a chart; it is an ordinary element with its own box, lifecycle and opacity, resolving against no pane's scale. |
 | CH-010 | A chart declares the relation between its panes as a rollup or a lockstep; a cross-asset link is labelled as an authored link in the editor, never as market time. |
-| OB-010 | Every element inside a chart carries its own `[in,out)` lifecycle and opacity, relative to the chart clip, and a pane or chart carries its own curve; no element carries a separate transform. |
+| OB-010 | Every element carries its own `[in,out)` lifecycle, opacity and layer; a drawing's lifecycle is its own clip's range, not a range inside a chart clip; a pane or chart carries its own curve; elements are groupable and the track is the layer, `tracks[0]` being the top layer. |
+| OB-011 | The drawing tools are offered without a chart selected; a click or a library drop places the drawing with its own frame range and its own track — the track immediately above the chart it was dropped on where there is one, otherwise the selected clip's track, otherwise the first track — and the drawing renders with no chart in the project. |
+| OB-012 | A drawing's points are 0..1 fractions of its own box and scale with it; a handle drag rewrites the point in the clip's own props, reusing the swing path's handle machinery. |
+| OB-013 | A drawing carries an optional caption the creator types, and the export records it as the creator's own figure, never as a market value. |
+| OB-014 | The canvas context menu offers group, ungroup, duplicate, copy, paste, delete, rename, bring to front, send to back, lock and hide; rename selects the clip and focuses the inspector's name field. |
+| OB-015 | Lock and hide apply to every clip: the composition skips a hidden clip, and `pickableClips` skips hidden and locked clips while the timeline still shows a locked clip with its badge. |
 | CV-001 | A chart and its panes accept an editable easing curve; a pane's curve overrides the chart's and applies per candle within the pane's slot. |
 | CV-002 | Static and linear effects accept an easing parameter; effects that already expose one accept a custom cubic-bezier as well, and the legacy easing names keep their meaning. |
 | CV-003 | A curve is stored as data, evaluated by a pure function, and produces identical frames in preview and export. |
 | CV-004 | One curve editor serves every surface that exposes a curve — the chart, a pane, a zoom segment and an effect's custom cubic-bezier. |
+| CV-005 | The v2 → v3 migration maps `priceLine` to `horizontalLine` and `priceZone` to `rectangle`, keeps a price line's price as its caption, places the drawing from the chart's plot area and full-series price range — an approximation at the last frame — and is non-destructive and idempotent. |
 | TL-009 | Duration is derived from the elements or set by the author, and the fixed value is adjustable with a draggable slider. |
 | TL-010 | A component declares transport actions that the shell renders and executes generically. |
 | TF-008 | The timeframe ratio of a rollup is derived from the panes, so it always agrees with the data; a lockstep names its shared timeframe, and the shared candle count comes from the two panes and must agree. |

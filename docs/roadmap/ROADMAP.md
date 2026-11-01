@@ -1,7 +1,7 @@
 # Chart Studio — Creator-Ready MVP Roadmap and Agent Workstreams
 
 **Status:** Proposed sequencing, not an authorized implementation plan.  
-**Design edition:** 1.3 draft · **Date:** 2026-10-30  
+**Design edition:** 1.4 draft · **Date:** 2026-11-01  
 **Depends on:** [Functional Specification](../spec/FUNCTIONAL_SPEC.md), [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md), [Test Strategy](../quality/TEST_STRATEGY.md), [Video Scenarios](../scenarios/VIDEO_SCENARIOS.md).
 
 ## 1. Delivery strategy
@@ -38,12 +38,13 @@ migration, the storage port and its backends, and three adapted Remocn component
 landed** — the persistence side is complete; the source-import side has not started. **R2.5 has
 landed**: the chart element model, project schema version 2 and the datasource seam are in the
 tree, together with the path authoring tool, the eight drawing tools, the pane hold and zoom
-track, the boundary transitions and the export provenance record. **R3 has started** — the
-drawing objects exist as clips anchored to a chart — but it is not finished: the chart viewport,
-the manual candle builder, the selection and transform work and the keyframe lanes are still
-open. The numbers below are the delivery stages; where a stage has a sub-stage it keeps the
-same number with a fractional suffix, and the fractional suffix does not renumber the stages
-around it.
+track, the boundary transitions and the export provenance record. **R3 has started** — the drawing
+objects now exist as independent clips: a drawing carries its own box, its own frame range, its
+own track and its own caption, and it reads no chart, no pane and no market value — but R3 is not
+finished: the chart viewport, the manual candle builder, the selection and transform work and the
+keyframe lanes are still open. The numbers below are the delivery stages; where a stage has a
+sub-stage it keeps the same number with a fractional suffix, and the fractional suffix does not
+renumber the stages around it.
 
 **A numbering collision to be aware of.** `docs/architecture/UPSTREAM_AUDIT.md` uses R1 to R4 for the
 *implementation slices* that were taken (component system; shadcn and the editor shell; the cinema
@@ -171,8 +172,9 @@ explicit market clock, and a component contract that can resolve a market anchor
   relation between panes is declared on the chart that holds those panes.
 - [x] Register every new element type and name it in the library tab mapping, so a registered type
   that no tab names does not disappear from the library.
-  — landed: the eight drawing kinds are registered and named in the Chart tab of
-  `packages/ui/src/components/library/catalog.tsx`.
+  — landed: the eight drawing kinds are registered and named in the library tab mapping of
+  `packages/ui/src/components/library/catalog.tsx`; the Drawings group was later split out of
+  Chart into a group of its own.
 
 The following also landed with this slice, beyond the items listed above: the path authoring
 tool and its eight drawing tools (`packages/editor/src/drawings.ts`,
@@ -182,8 +184,8 @@ tool and its eight drawing tools (`packages/editor/src/drawings.ts`,
 provenance record and its sidecar (`packages/core/src/provenance.ts`,
 `packages/video/src/provenance-sidecar.ts`).
 
-**Demo:** a chart clip with two panes on one series and one drawing anchored to a candle, edited
-and exported.  
+**Demo:** a chart clip with two panes on one series and one drawing beside it, edited and exported.
+(The drawing was chart-anchored at this stage; R3 made it independent.)  
 **Gate R2.5:** `pnpm typecheck` and `pnpm test` complete without error, `node scripts/verify-r1.mjs`
 renders its stills and MP4, and the migrated document renders the same candles in the same place
 as the v1 document it came from.
@@ -206,28 +208,78 @@ These are named, not forgotten. Each one is a piece of work the slice deliberate
 
 **Goal:** creator can make a polished manually authored or imported chart clip without video screenshots.  
 **Owners:** W1/W2/W3.  
-**Requirements:** CH-001/004/006–008, CH-009, OB-001–010, SC-003, AN-001–006, AP-001–004, CV-001–004.  
+**Requirements:** CH-001/004/006–008, CH-009, OB-001–015, CV-005, SC-003, AN-001–006, AP-001–004, CV-001–CV-004.  
 **Candidate files:** `packages/components/src/trading/chart.tsx`, `src/trading/drawings/`, `packages/editor/src/commands/`, `apps/studio/src/components/Inspector.tsx`, `apps/studio/src/components/ToolRail.tsx`.
 
-R3 builds on the element model of R2.5: the drawing kinds listed below are clips anchored to a
-chart clip, and the chart's panes and drawings are individually controllable as R2.5 defines.
+R3 builds on the element model of R2.5. The drawing kinds listed below are now independent
+clips: they carry their own box, their own frame range on the timeline, their own track and their
+own style, and they read no chart, no pane and no market value.
 
 - [ ] Implement chart viewport/pan/zoom with market-to-scene coordinates and drawing anchor transforms.
   — partly landed with R2.5: a pane carries a viewport and a zoom track that moves the viewport
   across a frame range without changing a price; the chart-level pan and zoom is still open.
+  A drawing no longer has an anchor to transform: its placement is its own box.
 - [ ] Create manual candle builder with precise numeric inspector and draggable wick/body handles.
-- [x] Implement high/low and horizontal price line, trendline, zone, position, arrow and text tools as typed objects.
-  — landed with R2.5: eight tools, each a clip anchored to a chart clip and a pane, storing
-  market anchors rather than pixels.
+- [x] Implement high/low and horizontal line, vertical line, trendline, rectangle, position, arrow and text tools as typed objects.
+  — landed: eight independent tools, each an ordinary clip with its own box, points, style and
+  caption. The vocabulary is TradingView's — `horizontalLine`, `verticalLine`, `trendline`,
+  `highLowLine`, `rectangle`, `textLabel`, `arrow`, `position` — and the drawing holds no market
+  value at all.
+- [x] Place a drawing with no chart selected: a click or a library drop gives it its own frame
+  range and its own track, and it renders with no chart in the project.
+  — landed: the drawing tools are offered without a chart selected; a drop lands the drawing on
+  the track immediately above the chart it was dropped on where there is one, otherwise the
+  selected clip's track, otherwise the first track. The Library carries a **Drawings** group of
+  its own, separate from Chart.
+- [x] Edit a drawing's geometry by dragging its points.
+  — landed: a handle is drawn over each point of the selected drawing and a drag rewrites the
+  point in the clip's props. The swing path's handle machinery is reused — one handle type, one
+  hit test, one overlay — rather than a second implementation.
+- [x] Surface grouping, duplication, copy, paste, delete, rename, layer order, lock and hide on
+  the canvas, where they were hard to find.
+  — landed: a right-click context menu on an element, offering group, ungroup, duplicate, copy,
+  paste, delete, rename, bring to front, send to back, lock and hide. Rename selects the clip and
+  focuses the inspector's name field. Bring to front moves the clip to the top layer and appends
+  it there; send to back moves it to the last track and prepends it.
+- [x] Apply lock and hide to every clip, not only to drawings.
+  — landed: `setClipLocked` and `setClipHidden`. The composition skips a hidden clip, and the
+  canvas does not pick a hidden or a locked clip; a locked clip stays on the timeline with a lock
+  badge.
+- [x] Migrate a document that holds chart-anchored drawings to independent drawings.
+  — landed: project schema version 3. The old element types map to the new ones — `priceLine` to
+  `horizontalLine`, `priceZone` to `rectangle` — and a price line's price is preserved as its
+  caption. The placement uses the chart's plot area and the chart's full-series price range, which
+  is an approximation at the last frame: the old position depended on the price scale at a frame,
+  and a static migration cannot reproduce that. The migration is non-destructive and idempotent.
 - [ ] Provide selection, object tree, snapping, duplicate/group/lock, grouped undo/redo and transform keyframes.
 - [ ] Implement chart object in/out and independent opacity/scale/move/hold while candles keep replaying.
   — partly landed with R2.5: a pane holds on one candle for a frame range, and a drawing carries
-  its own `[in,out)` lifecycle and opacity relative to its chart; independent chart-object
+  its own `[in,out)` lifecycle and opacity as its own clip; independent chart-object
   opacity and scale are still open.
 - [ ] Test chart-anchor stability when resizing/moving/replaying chart.
+  — a drawing holds no chart anchor, so it has nothing to destabilise; the chart's own panes
+  still follow the chart box.
 
 **Demo:** SC-01, SC-02 and SC-03 in a real interactive editor.  
 **Gate R3:** a manual candle **develops naturally as partial OHLC**, not just popping in; basic trading tools render correctly in MP4 and remain editable after reload.
+
+#### Deferred from the independent drawing elements
+
+These are named, not forgotten. Each one is a piece of work the slice deliberately did not do.
+
+- **Snapping of any kind.** A drawing never reads a chart, not even for one moment at placement
+  time. The high/low line's bar snapping is gone with the rest of the anchor model.
+- **A market-linked drawing.** There is no "price line at the close" and no "zone from 1.2040 to
+  1.2120". A drawing that must sit at a market level is drawn by hand and captioned by hand.
+- **TradingView's price-scale-dependent "% distance".** The position tool shows the geometric
+  ratio `|target.y − entry.y| / |entry.y − stop.y|` — a fact about the drawn shape, never a P&L
+  figure and never a broker fill.
+- **Snapping and guides for the new geometry.** The points are free 0..1 fractions of the box.
+
+The deferrals carried from R2.5 still stand and are not repeated here: an importer, real
+market-time alignment across two instruments, unifying the two curve vocabularies, a rendered
+volume series, and authentic tick replay. Each is listed under "Deferred from R2.5" above, with the
+stage that will land it.
 
 ### R4 — Multi-chart and honest MTF
 
@@ -337,7 +389,7 @@ This is the integration order, not a rule against parallel work. Within R3, W2 c
 | R1 | SVG chart renderer, Remotion composition proof, synthetic path unit tests | Common `OHLCBar`, `Frame`, `ChartObject`, `Eval` signatures |
 | R2 | DB worker/VFS spike, importer row validator, dashboard shell | Schema migration ID and repository RPC defined |
 | R2.5 | Series seam and path generator, curve evaluator, pane evaluation, transport bar rendering | `SeriesSpec`, `PaneSpec`, `Curve` and the `evaluate`/`transportActions` contract fields frozen |
-| R3 | Tool geometry, inspector widgets, selection overlay | Typed object union and transform/market anchor API |
+| R3 | Tool geometry, inspector widgets, selection overlay | Typed object union and the independent drawing shape — box, points, caption |
 | R4 | MTF aggregation, layout presets, chart-to-time map | Source time/session conventions and frame evaluator |
 | R5 | SMT pivot ranking, inspector wizard, linked drawing layer | SMTObservation/SwingPair contract and as-of validation |
 | R6 | Project strip, scene detail track controls, media asset loader | Global/local frame-mapping and frozen composition schema |
@@ -359,7 +411,7 @@ Each plan (generated only after approval) should use exact file paths, producer/
 
 ## 6. Release criteria and prohibited shortcuts
 
-**Must ship:** independent HTF/LTF objects and side-by-side presentation, basic trading tools, exact price anchors, realistically evolving simulated candles, 2–3 asset assisted user-confirmed SMT, no-lookahead MTF, Remotion local MP4 on supported browser, editable multi-scene videos, SQLite autosave, portable archive and audio/captions.
+**Must ship:** independent HTF/LTF objects and side-by-side presentation, basic trading tools as independent geometry with the creator's own captioned figures, realistically evolving simulated candles, 2–3 asset assisted user-confirmed SMT, no-lookahead MTF, Remotion local MP4 on supported browser, editable multi-scene videos, SQLite autosave, portable archive and audio/captions.
 
 **Cannot substitute:** screen recordings instead of editable chart objects; screenshots instead of live dynamic candles; final HTF candle data leaked into earlier replay; SMT annotations automatically asserted as signals; cloud-only rendering replacing local output; local SQLite DB byte dump mislabeled as portable project.
 

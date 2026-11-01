@@ -136,6 +136,10 @@ interface EditorState {
   notice: string | null;
   /** Shows a message, or clears it with null. */
   setNotice: (message: string | null) => void;
+  /** The clip the shell is asked to rename; null when there is none. */
+  renameClipId: string | null;
+  /** Clears the rename request once the name field has taken it. */
+  clearRenameRequest: () => void;
   /**
    * Gives a chart the market it needs to host drawings: a series, a pane and a
    * clock. A chart added from the library carries inline bars and no series,
@@ -161,8 +165,16 @@ interface EditorState {
   addDrawing: (kind: DrawingKind, draft: DrawingDraft) => string;
   /** Changes a drawing's props. The caller commits at the start of a gesture. */
   updateDrawing: (clipId: string, patch: Record<string, any>) => void;
-  setDrawingLocked: (clipId: string, locked: boolean) => void;
-  setDrawingHidden: (clipId: string, hidden: boolean) => void;
+  /** Locks or unlocks any clip: a locked clip is not pickable on the canvas. */
+  setClipLocked: (clipId: string, locked: boolean) => void;
+  /** Hides or shows any clip: a hidden clip is not rendered. */
+  setClipHidden: (clipId: string, hidden: boolean) => void;
+  /** Moves a clip to the top of the top layer, so it draws above everything. */
+  bringToFront: (clipId: string) => void;
+  /** Moves a clip behind every other clip. */
+  sendToBack: (clipId: string) => void;
+  /** Asks the shell to rename the clip: it selects it and focuses its name. */
+  requestRename: (clipId: string) => void;
 
   /** Adds a transition on the boundary between two adjacent clips of a track. */
   addTransition: (trackId: string, fromClipId: string, toClipId: string, element: ElementType) => void;
@@ -317,6 +329,7 @@ export const useStore = create<EditorState>((set, get) => ({
   swingPath: null,
   drawingTool: null,
   notice: null,
+  renameClipId: null,
   pixelsPerFrame: 4,
   history: [],
   future: [],
@@ -962,19 +975,80 @@ export const useStore = create<EditorState>((set, get) => ({
       })),
     })),
 
-  setDrawingLocked: (clipId, locked) => {
+  setClipLocked: (clipId, locked) => {
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({ ...c, locked })),
     }));
   },
 
-  setDrawingHidden: (clipId, hidden) => {
+  setClipHidden: (clipId, hidden) => {
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({ ...c, hidden })),
     }));
   },
+
+  bringToFront: (clipId) => {
+    const s = get();
+    const clip = findClip(s.project, clipId);
+    const top = s.project.tracks[0];
+    if (!clip || !top) return;
+    get().commit();
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((track) => ({
+          ...track,
+          // The clip leaves every track and joins the top one, where it draws
+          // above everything already there.
+          clips: track.clips.filter((c) => c.id !== clipId),
+        })),
+      },
+    }));
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((track, index) =>
+          index === 0 ? { ...track, clips: [...track.clips, clip] } : track,
+        ),
+      },
+    }));
+  },
+
+  sendToBack: (clipId) => {
+    const s = get();
+    const clip = findClip(s.project, clipId);
+    const last = s.project.tracks[s.project.tracks.length - 1];
+    if (!clip || !last) return;
+    get().commit();
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((track) => ({
+          ...track,
+          clips: track.clips.filter((c) => c.id !== clipId),
+        })),
+      },
+    }));
+    set((state) => ({
+      project: {
+        ...state.project,
+        tracks: state.project.tracks.map((track, index, all) =>
+          index === all.length - 1 ? { ...track, clips: [clip, ...track.clips] } : track,
+        ),
+      },
+    }));
+  },
+
+  requestRename: (clipId) => {
+    const s = get();
+    if (!findClip(s.project, clipId)) return;
+    s.selectClip(clipId);
+    set({ renameClipId: clipId });
+  },
+
+  clearRenameRequest: () => set({ renameClipId: null }),
 
   addTransition: (trackId, fromClipId, toClipId, element) => {
     const s = get();

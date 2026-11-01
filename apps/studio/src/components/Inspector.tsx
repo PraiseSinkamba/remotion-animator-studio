@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Copy, FolderOpen, Link2, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, FolderOpen, Link2, Lock, LockOpen, Pencil, Trash2, Unlink, Wand2 } from 'lucide-react';
 import { getComponent, TRANSITION_TYPES } from '@chart-studio/components';
 import { CHART_GROUP_LAYOUTS, CHART_GROUP_LAYOUT_LABELS, findClip, useStore } from '@chart-studio/editor';
 import { clampTransitionDuration, type Clip, type ElementType, type VideoComponentDefinition } from '@chart-studio/core';
@@ -126,6 +126,26 @@ export const Inspector: React.FC = () => {
   const project = useStore((s) => s.project);
   const selectedClipIds = useStore((s) => s.selectedClipIds);
   const [tab, setTab] = useState('properties');
+  const setClipLocked = useStore((s) => s.setClipLocked);
+  const setClipHidden = useStore((s) => s.setClipHidden);
+  const renameClipId = useStore((s) => s.renameClipId);
+  const clearRenameRequest = useStore((s) => s.clearRenameRequest);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  // The canvas menu asks for a rename: the name field takes the focus so the
+  // creator can type straight away. The focus waits for the menu to finish
+  // closing, because the menu gives the focus back to the canvas when it
+  // does.
+  React.useEffect(() => {
+    if (!renameClipId) return;
+    // The timer is not cancelled: clearing the request re-runs this effect,
+    // and the focus must still happen.
+    setTimeout(() => {
+      nameRef.current?.focus();
+      nameRef.current?.select();
+    }, 0);
+    clearRenameRequest();
+  }, [renameClipId, clearRenameRequest]);
 
   if (selectedClipIds.length > 1) {
     const clips = selectedClipIds.map((id) => findClip(project, id)).filter(Boolean);
@@ -254,6 +274,7 @@ export const Inspector: React.FC = () => {
             <Row label="Name" htmlFor={`${clip.id}-name`}>
               <Input
                 id={`${clip.id}-name`}
+                ref={nameRef}
                 type="text"
                 className="h-6 min-w-0 flex-1 text-xs md:text-xs"
                 value={clip.name}
@@ -287,6 +308,28 @@ export const Inspector: React.FC = () => {
                 onFocus={commit}
                 onChange={(e) => updateClip(clip.id, { durationInFrames: Math.max(2, Number(e.target.value)) })}
               />
+            </Row>
+            <Row label="Locked">
+              <button
+                type="button"
+                aria-label={clip.locked ? 'Unlock clip' : 'Lock clip'}
+                title={clip.locked ? 'Unlock clip' : 'Lock clip'}
+                className={clip.locked ? 'text-primary' : 'text-muted-foreground'}
+                onClick={() => setClipLocked(clip.id, !clip.locked)}
+              >
+                {clip.locked ? <Lock size={14} /> : <LockOpen size={14} />}
+              </button>
+            </Row>
+            <Row label="Hidden">
+              <button
+                type="button"
+                aria-label={clip.hidden ? 'Show clip' : 'Hide clip'}
+                title={clip.hidden ? 'Show clip' : 'Hide clip'}
+                className={clip.hidden ? 'text-primary' : 'text-muted-foreground'}
+                onClick={() => setClipHidden(clip.id, !clip.hidden)}
+              >
+                {clip.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
             </Row>
           </Section>
 

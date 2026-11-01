@@ -288,8 +288,8 @@ describe('store — the drawing tools', () => {
       height: 24,
     });
 
-    useStore.getState().setDrawingLocked(id, true);
-    useStore.getState().setDrawingHidden(id, true);
+    useStore.getState().setClipLocked(id, true);
+    useStore.getState().setClipHidden(id, true);
 
     const clip = useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id);
     expect(clip?.locked).toBe(true);
@@ -654,5 +654,110 @@ describe('store — where a new drawing lands', () => {
     const drawing = useStore.getState().project.tracks[0].clips.find((c) => c.id === id);
     expect(drawing?.from).toBe(40);
     expect(drawing?.durationInFrames).toBe(90);
+  });
+});
+
+describe('store — the layer order, the lock and the rename', () => {
+  beforeEach(() => {
+    useStore.setState({
+      project: emptyProject(),
+      selectedClipIds: [],
+      history: [],
+      future: [],
+      workspaceId: null,
+      workspaceRevision: null,
+      swingPath: null,
+      drawingTool: null,
+      renameClipId: null,
+    });
+  });
+
+  /** A project with two tracks, so the layer order can be told apart. */
+  const twoTracks = (): void => {
+    useStore.setState({
+      project: {
+        ...useStore.getState().project,
+        tracks: [
+          { id: 't-top', name: 'Top', clips: [] },
+          { id: 't-bottom', name: 'Bottom', clips: [] },
+        ],
+      },
+    });
+  };
+
+  const addText = (trackId: string): string => {
+    useStore.getState().addClip('text', trackId, 0);
+    const clip = useStore
+      .getState()
+      .project.tracks.find((t) => t.id === trackId)?.clips.slice(-1)[0];
+    if (!clip) throw new Error('the clip was not created');
+    return clip.id;
+  };
+
+  it('brings a clip to the front of the top layer', () => {
+    twoTracks();
+    const id = addText('t-bottom');
+
+    useStore.getState().bringToFront(id);
+
+    const tracks = useStore.getState().project.tracks;
+    expect(tracks[0].clips.map((c) => c.id)).toContain(id);
+    expect(tracks[1].clips.map((c) => c.id)).not.toContain(id);
+    // the top layer draws last, so it is on top of everything
+    expect(tracks[0].clips[tracks[0].clips.length - 1].id).toBe(id);
+  });
+
+  it('sends a clip behind every other clip', () => {
+    twoTracks();
+    const id = addText('t-top');
+    const other = addText('t-top');
+
+    useStore.getState().sendToBack(id);
+
+    const tracks = useStore.getState().project.tracks;
+    expect(tracks[1].clips.map((c) => c.id)).toContain(id);
+    expect(tracks[0].clips.map((c) => c.id)).not.toContain(id);
+    // the bottom track draws first, so the first clip there is behind
+    expect(tracks[1].clips[0].id).toBe(id);
+    // the other clip keeps its own track, and that track draws above the
+    // bottom one, so it still draws over the clip that was sent back
+    expect(tracks[0].clips.map((c) => c.id)).toContain(other);
+  });
+
+  it('keeps a locked clip selectable on the timeline but not on the canvas', () => {
+    const id = addText('t-empty');
+
+    useStore.getState().setClipLocked(id, true);
+
+    const clip = useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id);
+    expect(clip?.locked).toBe(true);
+    // the clip is still in the project, so the timeline still shows it
+    expect(useStore.getState().project.tracks.flatMap((t) => t.clips).length).toBe(1);
+  });
+
+  it('keeps a hidden clip in the project until it is unhidden', () => {
+    const id = addText('t-empty');
+
+    useStore.getState().setClipHidden(id, true);
+    expect(
+      useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id)?.hidden,
+    ).toBe(true);
+
+    useStore.getState().setClipHidden(id, false);
+    const clip = useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id);
+    expect(clip?.hidden).toBe(false);
+    expect(clip).toBeTruthy();
+  });
+
+  it('requests a rename for the selected clip', () => {
+    const id = addText('t-empty');
+
+    useStore.getState().requestRename(id);
+
+    expect(useStore.getState().renameClipId).toBe(id);
+    expect(useStore.getState().selectedClipIds).toEqual([id]);
+
+    useStore.getState().clearRenameRequest();
+    expect(useStore.getState().renameClipId).toBeNull();
   });
 });

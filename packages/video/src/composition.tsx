@@ -61,6 +61,9 @@ const ClipRenderer: React.FC<{
   const fx = computeEffectStyle(frame, clip.durationInFrames, fps, clip.effects);
   const definition = getComponent(clip.element);
   if (!definition) return null;
+  // A hidden clip is not rendered. The shell honours the flag for every
+  // clip, so hiding an element hides it in the preview and in the export.
+  if (clip.hidden) return null;
 
   const props = clip.props;
   // Inside the Sequence the frame is clip-relative; the evaluation wants the

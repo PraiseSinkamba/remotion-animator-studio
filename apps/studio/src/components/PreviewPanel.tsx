@@ -31,6 +31,13 @@ import { clipGeometry, hitTest, pickableClips, projectClips } from './canvas-hit
 import type { PickableClip } from './canvas-hit-test';
 import { SelectionOverlay } from './selection-overlay';
 import { Button, ELEMENT_MIME, PRESET_MIME } from '@chart-studio/ui';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@chart-studio/ui';
 
 /**
  * The bar a clip's first pane is showing at a frame.
@@ -137,6 +144,7 @@ export const PreviewPanel: React.FC = () => {
   const playing = useStore((s) => s.playing);
   const currentFrame = useStore((s) => s.currentFrame);
   const selectedClipId = useStore((s) => s.selectedClipIds[0] ?? null);
+  const selectedClipIds = useStore((s) => s.selectedClipIds);
   const notice = useStore((s) => s.notice);
   const setCurrentFrame = useStore((s) => s.setCurrentFrame);
   const setPlaying = useStore((s) => s.setPlaying);
@@ -149,6 +157,14 @@ export const PreviewPanel: React.FC = () => {
   const wrapperRef = useRef<HTMLDivElement>(null);
   /** The clicks that place a drawing, until the tool has all it needs. */
   const drawingPicks = useRef<Array<{ x: number; y: number }>>([]);
+  /**
+   * A rename is pending.
+   *
+   * The menu gives the focus back to the canvas when it closes, which would
+   * take it out of the name field the rename just focused. The request itself
+   * is cleared as soon as the field has it, so the menu remembers it here.
+   */
+  const renamePending = useRef(false);
   /**
    * The gesture in progress while a drawing's point is being dragged.
    *
@@ -736,6 +752,17 @@ export const PreviewPanel: React.FC = () => {
     else playerRef.current?.unmute();
   };
 
+  /**
+   * The element under the pointer, selected when the creator right-clicks it.
+   *
+   * The menu acts on the selection, so a right-click picks what it is over
+   * first. A locked clip is not pickable, so the selection stays where it was.
+   */
+  const selectUnderPointer = (clientX: number, clientY: number) => {
+    const hit = pickAt(clientX, clientY);
+    if (hit) useStore.getState().selectClip(hit.id);
+  };
+
   /** Step one frame back/forward, clamped to the composition. */
   const stepFrame = (delta: number) => {
     const frame = playerRef.current?.getCurrentFrame() ?? currentFrame;
@@ -744,9 +771,14 @@ export const PreviewPanel: React.FC = () => {
 
   return (
     <div className="preview-panel">
-      <div
-        className="preview-stage relative"
-        ref={wrapperRef}
+      <ContextMenu>
+        <ContextMenuTrigger
+          asChild
+          onContextMenu={(e) => selectUnderPointer(e.clientX, e.clientY)}
+        >
+        <div
+          className="preview-stage relative"
+          ref={wrapperRef}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -939,7 +971,87 @@ export const PreviewPanel: React.FC = () => {
             <span className="font-mono text-[11px] tabular-nums text-muted-foreground/70">f{currentFrame}</span>
           </div>
         )}
-      </div>
+        </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent
+          // A rename takes the focus into the name field; the menu must not
+          // take it back when it closes.
+          onCloseAutoFocus={(e: Event) => {
+            if (!renamePending.current) return;
+            renamePending.current = false;
+            e.preventDefault();
+          }}
+        >
+          <ContextMenuItem
+            disabled={selectedClipIds.length < 2}
+            onSelect={() => useStore.getState().groupSelection()}
+          >
+            Group
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!selectedClipIds.some((id) => findClip(project, id)?.groupId)}
+            onSelect={() => useStore.getState().ungroupSelection()}
+          >
+            Ungroup
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => useStore.getState().duplicateSelection()}
+          >
+            Duplicate
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => useStore.getState().copySelection()}
+          >
+            Copy
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => useStore.getState().paste(currentFrame)}>Paste</ContextMenuItem>
+          <ContextMenuItem
+            disabled={!selected}
+            variant="destructive"
+            onSelect={() => useStore.getState().removeClips(selectedClipIds)}
+          >
+            Delete
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => {
+              renamePending.current = true;
+              if (selected) useStore.getState().requestRename(selected.id);
+            }}
+          >
+            Rename
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => selected && useStore.getState().bringToFront(selected.id)}
+          >
+            Bring to front
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => selected && useStore.getState().sendToBack(selected.id)}
+          >
+            Send to back
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => selected && useStore.getState().setClipLocked(selected.id, !selected.locked)}
+          >
+            {selected?.locked ? 'Unlock' : 'Lock'}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!selected}
+            onSelect={() => selected && useStore.getState().setClipHidden(selected.id, !selected.hidden)}
+          >
+            {selected?.hidden ? 'Show' : 'Hide'}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
       {!drawingPath ? (
         <div className="preview-hint">
           {notice
