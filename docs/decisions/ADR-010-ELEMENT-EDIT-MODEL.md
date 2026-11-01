@@ -84,7 +84,7 @@ around it.
    both. The high/low line's ends stay on one vertical.
 
 8. **The elements that genuinely are boxes keep their box**: the corners scale them from a fixed
-   opposite corner, and the chart's corners drive its **plot**, not its padded outer box.
+   opposite corner, and the chart's corners scale its **outer box**; the plot has no props of its own yet, so driving the plot is deferred.
 
 9. **Rotation is not part of this.** It is a new prop on every element, a new transform in every
    renderer and a new rule in the hit test — roughly double the size of this work, and meaningless for a

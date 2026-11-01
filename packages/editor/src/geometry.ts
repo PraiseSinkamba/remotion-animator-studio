@@ -52,8 +52,6 @@ export interface Region {
 
 /** Tolerance for a line's body, in screen pixels. */
 export const LINE_TOLERANCE_PX = 6;
-/** Tolerance for a line's endpoints, in screen pixels. */
-export const ENDPOINT_TOLERANCE_PX = 10;
 /** Tolerance for a point element, in screen pixels. */
 export const POINT_TOLERANCE_PX = 8;
 /**

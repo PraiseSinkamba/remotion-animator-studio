@@ -1,8 +1,8 @@
 # Chart Studio — Creator-Ready MVP Roadmap and Agent Workstreams
 
 **Status:** Proposed sequencing, not an authorized implementation plan.  
-**Design edition:** 1.4 draft · **Date:** 2026-11-01  
-**Depends on:** [Functional Specification](../spec/FUNCTIONAL_SPEC.md), [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md), [Test Strategy](../quality/TEST_STRATEGY.md), [Video Scenarios](../scenarios/VIDEO_SCENARIOS.md).
+**Design edition:** 1.5 draft · **Date:** 2026-11-01  
+**Depends on:** [Functional Specification](../spec/FUNCTIONAL_SPEC.md), [Technical Architecture](../architecture/TECHNICAL_ARCHITECTURE.md), [Test Strategy](../quality/TEST_STRATEGY.md), [Video Scenarios](../scenarios/VIDEO_SCENARIOS.md), [ADR-010 — Element edit model](../decisions/ADR-010-ELEMENT-EDIT-MODEL.md).
 
 ## 1. Delivery strategy
 
@@ -39,10 +39,13 @@ landed** — the persistence side is complete; the source-import side has not st
 landed**: the chart element model, project schema version 2 and the datasource seam are in the
 tree, together with the path authoring tool, the eight drawing tools, the pane hold and zoom
 track, the boundary transitions and the export provenance record. **R3 has started** — the drawing
-objects now exist as independent clips: a drawing carries its own box, its own frame range, its
-own track and its own caption, and it reads no chart, no pane and no market value — but R3 is not
-finished: the chart viewport, the manual candle builder, the selection and transform work and the
-keyframe lanes are still open. The numbers below are the delivery stages; where a stage has a
+objects now exist as independent clips: a drawing carries its own geometry, its own frame range, its
+own track and its own caption, and it reads no chart, no pane and no market value — and the element
+edit model has landed on top of it: every element now declares how it is picked and what the
+creator can drag, the canvas picks an element by that shape rather than by a rectangle around it,
+and the project schema is at version 4. R3 is not finished: the chart viewport, the manual candle
+builder, the object tree, snapping, the transform keyframes and the grouped undo/redo are still
+open. The numbers below are the delivery stages; where a stage has a
 sub-stage it keeps the same number with a fractional suffix, and the fractional suffix does not
 renumber the stages around it.
 
@@ -208,20 +211,20 @@ These are named, not forgotten. Each one is a piece of work the slice deliberate
 
 **Goal:** creator can make a polished manually authored or imported chart clip without video screenshots.  
 **Owners:** W1/W2/W3.  
-**Requirements:** CH-001/004/006–008, CH-009, OB-001–015, CV-005, SC-003, AN-001–006, AP-001–004, CV-001–CV-004.  
+**Requirements:** CH-001/004/006–008, CH-009, OB-001–015, EM-001–009, CV-005, CV-006, SC-003, AN-001–006, AP-001–004, CV-001–CV-004.  
 **Candidate files:** `packages/components/src/trading/chart.tsx`, `src/trading/drawings/`, `packages/editor/src/commands/`, `apps/studio/src/components/Inspector.tsx`, `apps/studio/src/components/ToolRail.tsx`.
 
 R3 builds on the element model of R2.5. The drawing kinds listed below are now independent
-clips: they carry their own box, their own frame range on the timeline, their own track and their
+clips: they carry their own geometry, their own frame range on the timeline, their own track and their
 own style, and they read no chart, no pane and no market value.
 
 - [ ] Implement chart viewport/pan/zoom with market-to-scene coordinates and drawing anchor transforms.
   — partly landed with R2.5: a pane carries a viewport and a zoom track that moves the viewport
   across a frame range without changing a price; the chart-level pan and zoom is still open.
-  A drawing no longer has an anchor to transform: its placement is its own box.
+  A drawing no longer has an anchor to transform: its placement is its own geometry.
 - [ ] Create manual candle builder with precise numeric inspector and draggable wick/body handles.
 - [x] Implement high/low and horizontal line, vertical line, trendline, rectangle, position, arrow and text tools as typed objects.
-  — landed: eight independent tools, each an ordinary clip with its own box, points, style and
+  — landed: eight independent tools, each an ordinary clip with its own geometry, points, style and
   caption. The vocabulary is TradingView's — `horizontalLine`, `verticalLine`, `trendline`,
   `highLowLine`, `rectangle`, `textLabel`, `arrow`, `position` — and the drawing holds no market
   value at all.
@@ -234,7 +237,9 @@ own style, and they read no chart, no pane and no market value.
 - [x] Edit a drawing's geometry by dragging its points.
   — landed: a handle is drawn over each point of the selected drawing and a drag rewrites the
   point in the clip's props. The swing path's handle machinery is reused — one handle type, one
-  hit test, one overlay — rather than a second implementation.
+  hit test, one overlay — rather than a second implementation. The element edit model later
+  replaced this with the declared handles: the overlay now draws what the element declares, and a
+  line's handles are its two endpoints rather than a point overlay of its own.
 - [x] Surface grouping, duplication, copy, paste, delete, rename, layer order, lock and hide on
   the canvas, where they were hard to find.
   — landed: a right-click context menu on an element, offering group, ungroup, duplicate, copy,
@@ -245,6 +250,31 @@ own style, and they read no chart, no pane and no market value.
   — landed: `setClipLocked` and `setClipHidden`. The composition skips a hidden clip, and the
   canvas does not pick a hidden or a locked clip; a locked clip stays on the timeline with a lock
   badge.
+- [x] Give every element a declaration of how it is picked and what the creator can drag.
+  — landed: the optional `edit` field on the component contract — a pick kind (`box`, `segment` or
+  `point`) and the handles the editor draws — with the shell reading the declaration instead of
+  branching on the element's kind. All 34 elements declare a model — 32 of them are on the canvas,
+  and the audio and the background elements declare none, because they are not on the canvas.
+- [x] Pick an element by the shape it declares, and not by a rectangle around it.
+  — landed: a box element is picked anywhere inside it, a segment within 6 screen pixels of the
+  stroke and a point within 8 screen pixels, with the tolerance in screen pixels so the same
+  pointer hits the same element at every zoom. The layer order is unchanged and the selected
+  element's own control points take precedence over its body.
+- [x] Draw one selection overlay that shows what the element declares.
+  — landed: one overlay in one style, replacing the drawings' separate point overlay. A line is
+  drawn with no rectangle — its region is the bounding box of its two ends, but drawing that
+  rectangle is exactly what the change removes.
+- [x] Measure a text's box from the rendered text, and make the font size the master.
+  — landed: the composition stamps each clip's id onto its rendered root and the editor measures
+  it, so the renderer stays pure. A corner handle scales the font size, a side handle sets the
+  wrap width, and the inspector shows the font size and the wrap width instead of width and
+  height.
+- [x] Store each drawing as the shape it actually is.
+  — landed: project schema version 4. A trend line, an arrow and a high/low line store two
+  absolute points and no box; a horizontal line stores `{x, y, width}` and a vertical line
+  `{x, y, height}`; a text label stores `{x, y, points: {at}}` and no box; the rectangle keeps its
+  box; the position tool keeps its box and stores its three levels as absolute points; the trend
+  line's ray option is retired. The migration is non-destructive and idempotent.
 - [x] Migrate a document that holds chart-anchored drawings to independent drawings.
   — landed: project schema version 3. The old element types map to the new ones — `priceLine` to
   `horizontalLine`, `priceZone` to `rectangle` — and a price line's price is preserved as its
@@ -252,6 +282,9 @@ own style, and they read no chart, no pane and no market value.
   is an approximation at the last frame: the old position depended on the price scale at a frame,
   and a static migration cannot reproduce that. The migration is non-destructive and idempotent.
 - [ ] Provide selection, object tree, snapping, duplicate/group/lock, grouped undo/redo and transform keyframes.
+  — partly landed: selection and the duplicate/group/lock work are in (the context menu, the
+  overlay, the element edit model). The object tree, snapping, the grouped undo/redo and the
+  transform keyframes are still open.
 - [ ] Implement chart object in/out and independent opacity/scale/move/hold while candles keep replaying.
   — partly landed with R2.5: a pane holds on one candle for a frame range, and a drawing carries
   its own `[in,out)` lifecycle and opacity as its own clip; independent chart-object
@@ -274,12 +307,29 @@ These are named, not forgotten. Each one is a piece of work the slice deliberate
 - **TradingView's price-scale-dependent "% distance".** The position tool shows the geometric
   ratio `|target.y − entry.y| / |entry.y − stop.y|` — a fact about the drawn shape, never a P&L
   figure and never a broker fill.
-- **Snapping and guides for the new geometry.** The points are free 0..1 fractions of the box.
+- **Snapping and guides for the new geometry.** The points are free places in the composition.
 
 The deferrals carried from R2.5 still stand and are not repeated here: an importer, real
 market-time alignment across two instruments, unifying the two curve vocabularies, a rendered
 volume series, and authentic tick replay. Each is listed under "Deferred from R2.5" above, with the
 stage that will land it.
+
+#### Deferred from the element edit model
+
+These are named, not forgotten. Each one is a piece of work the slice deliberately did not do.
+
+- **Rotation.** An element carries no angle. Rotation would be a new prop on every element, a new
+  transform in every renderer, a new rule in the pick test and a new handle on every overlay, and
+  it is meaningless for a chart. It is recorded as a deferred item and nothing in the shipped model
+  claims it.
+- **Driving the chart's plot.** The chart's corner handles scale the chart's outer box, because the
+  plot has no props of its own yet. Moving the plot's own area is deferred until the chart carries
+  plot props.
+- **A rewrap that the renderer honours.** The wrap width is written by the side handle and shown in
+  the inspector, but no renderer consumes it yet, so a text does not visibly rewrap. The prop, the
+  handle and the inspector field are in place for the renderer to pick up.
+- **Handles for every selected element at once.** Only the first selected clip carries its own
+  control points today. A multi-selection shows the selection, not a handle set per element.
 
 ### R4 — Multi-chart and honest MTF
 

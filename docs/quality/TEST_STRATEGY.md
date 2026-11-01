@@ -1,6 +1,6 @@
 # Chart Studio — Quality, Fixtures and Release Verification
 
-**Version:** 1.3 draft · **Primary source:** [Functional Spec](../spec/FUNCTIONAL_SPEC.md).  
+**Version:** 1.4 draft · **Primary source:** [Functional Spec](../spec/FUNCTIONAL_SPEC.md).  
 **Principle:** domain correctness and save/export parity are more important than an attractive screenshot. Every new feature gets an explicit test against its normative acceptance ID.
 
 ## 1. Quality model
@@ -17,7 +17,7 @@
 No claim of passing tests or performance is valid until actual runs produce inspected results.
 
 The repository contains a working editor and a runnable test suite. `pnpm test` runs Vitest across the
-workspace; the suite is spread over 29 test files. Section 3 records what those tests cover and,
+workspace; the suite is spread over 30 test files. Section 3 records what those tests cover and,
 just as importantly, what they do not.
 
 ## 2. Foundational fixtures
@@ -51,8 +51,8 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 
 ## 3. What the suite covers today
 
-The suite is spread over 29 test files. Collected with `npx vitest list`, the suite holds
-**443 cases over 29 files**, and the whole workspace type-checks — 6 packages of 6 — and builds.
+The suite is spread over 30 test files. Collected with `pnpm exec vitest list`, the suite holds
+**486 cases over 30 files**, and the whole workspace type-checks — 6 packages of 6 — and builds.
 Counted from the sources, the declared `it`/`test` cases are fewer than the collected total
 because two of them expand when they run: the reference-parity case in
 `packages/core/src/path.test.ts` runs once per entry of its six-case table, and the nine-case
@@ -78,8 +78,8 @@ What it actually asserts:
   writers conflicting, and the migration path.
 - **The candlestick chart** — including the rule that a bar which has not happened yet never moves the
   price scale.
-- **The chart element model** and **the independent drawing elements** — the surfaces below, in
-  §3.1 and §3.2.
+- **The chart element model**, **the independent drawing elements** and **the element edit model** —
+  the surfaces below, in §3.1, §3.2 and §3.3.
 
 What it does **not** cover, and what must not be claimed:
 
@@ -142,7 +142,7 @@ is [ADR-009](../decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md) and
 
 | New surface | What the suite asserts | Requirement | Where |
 |---|---|---|---|
-| Independent drawing geometry | A drawing's props are accepted as a box of its own, a caption and normalised points; a point outside its own box is rejected and the offending key is named; a kind that carries no points rejects them; the retired market numbers — a `price` and a `position` level — are rejected and named; an opacity outside 0..1 is rejected | OB-011, OB-012 | `packages/core/src/validation.test.ts` |
+| Independent drawing geometry | A drawing's props are accepted as a box of its own, a caption and points that are **places in the composition**; a point that is not a place is rejected and the offending key is named; a kind that carries no points rejects them; the retired market numbers — a `price` and a `position` level — are rejected and named; an opacity outside 0..1 is rejected | OB-011, OB-012 | `packages/core/src/validation.test.ts` |
 | Provenance annotations | The record carries one entry per drawing, naming the drawing's kind and the caption the creator typed as their own figure; a drawing with no caption carries its kind alone | OB-013 | `packages/core/src/provenance.test.ts` |
 | The drawing renderers | Every kind renders with no chart in the project: a horizontal line runs across its own box at the vertical centre, a trendline joins its two points at any angle, a rectangle is the element's own box, a high/low line is a vertical segment and a text label sits at its point; the caption is drawn beside the shape and claims no market value; the position tool draws no P&L figure and implies no broker fill, and its ratio is computed from the drawn geometry; a hidden drawing renders as nothing | OB-003, OB-005, CPT-005, OB-006 | `packages/components/src/trading/drawings/drawings.test.tsx` |
 | The drawing tools and their boxes | The eight independent kinds are offered, each with its click count and a default box; one click centres the kind's own box, two clicks bound it by the rectangle between them, padded, and the high/low line's box is a vertical segment | OB-011, OB-012 | `packages/editor/src/drawings.test.ts` |
@@ -162,6 +162,59 @@ The last observed run of the gate, after the independent drawing elements landed
   a no-op for that document.
 - The **AuthoredPath** fixture's still sizes are unchanged by the editor work: `frame-0045` `50679`,
   `frame-0100` `51954`, `frame-0179` `52811`.
+
+### 3.3 The element edit model surface
+
+The element edit model slice — every element declaring how it is picked and what the creator can
+drag (EM-001, EM-002, EM-003), the shape-based pick and its tolerances (EM-004, EM-005), the one
+overlay (EM-006), the measured text box (EM-007), the retired ray (EM-008), the chart's outer box
+(EM-009) and the v3 → v4 document conversion (CV-006) — is covered by the pure geometry and the
+migration suites. Its design is
+[ADR-010](../decisions/ADR-010-ELEMENT-EDIT-MODEL.md) and
+[the design spec](../superpowers/specs/2026-11-01-chart-studio-element-edit-model-design.md).
+
+| New surface | What the suite asserts | Requirement | Where |
+|---|---|---|---|
+| The edit declarations | Every pickable element declares an edit model; a box element declares four `scale` corners named `nw`, `ne`, `se` and `sw`; an element that scales one number declares the `size` prop; the city element declares its `gridSize` and `tileSize`; a content element declares four `font` corners and four `wrap` sides; the emoji element writes `size` for both; a one-anchor element declares one `move` handle; a segment element declares two `point` handles; the position tool declares three `level` handles; an element that is not on the canvas declares no model at all | EM-001, EM-003 | `packages/editor/src/geometry.test.ts` |
+| The element region | A box element's region is its own box and anchor; a trend line's region is the bounding box of its two endpoints; an element that is not picked on the canvas has no region | EM-002 | `packages/editor/src/geometry.test.ts` |
+| The pick geometry | A box element is hit inside its box and missed outside it; a segment is hit near the line and missed by a pointer inside its own bounding box; a point element is hit within its tolerance; the tolerance stays in screen pixels, so the same pointer hits at every zoom; a zero-length segment is hit as a point | EM-004 | `packages/editor/src/geometry.test.ts` |
+| The handle places | A corner handle sits on the corner of the box; an endpoint handle sits on its own point | EM-002 | `packages/editor/src/geometry.test.ts` |
+| The transform maths | A corner drag scales a box and leaves the opposite corner where it was; a corner drag on a text writes the font size; a side drag on a text writes the wrap width; dragging one endpoint leaves the other where it was; a high/low line stays on one vertical; dragging one level moves only that level | EM-002, EM-007 | `packages/editor/src/geometry.test.ts` |
+| Moving an element | A box element moves by its anchor; a line moves by its points and is given no anchor | EM-002 | `packages/editor/src/geometry.test.ts` |
+| The measured box | A measured box is used for an element instead of the estimate | EM-007 | `packages/editor/src/geometry.test.ts` |
+| The retired ray | A trend line that carries the retired `trendline.ray` is rejected and the offending path is named | EM-008, OB-005 | `packages/core/src/validation.test.ts` |
+| Schema version 4 migration | A v3 document migrates to v4: a trend line's points become places in the composition; a horizontal rule keeps its centre and its length and drops its band; a vertical rule keeps its own x, its span and its length; a label keeps its point and drops its box; the position tool keeps its box and its levels become places; the rectangle's box is left alone; the keys it does not know are kept; a drawing without its points is left exactly as it was; nothing else in the document changes; the migration is idempotent | CV-006, OB-003, OB-012 | `packages/components/src/project-migrate.test.ts` |
+
+The render gate remains the only proof that these changes reached the video path, and it was run
+again after the element edit model landed:
+
+- The **Main** fixture — a v1 document with no drawings — is **byte-identical**: `frame-0000`
+  `6a078939e3262ea891e618d0`, `frame-0045` `3993e9e8b9699ab0ad2e6a48`, `frame-0179`
+  `d123229cfc6258c2a13e247f`, and the MP4 `c96d117279856fcae39daf46`. The v1 → v2 → v3 → v4
+  migration is a no-op for that document.
+- The **AuthoredPath** fixture's still sizes **changed**, and this is expected: its drawings became
+  endpoint-based elements, so the frames differ by a few bytes. `frame-0045` `50716` (was `50679`),
+  `frame-0100` `51985` (was `51954`), `frame-0179` `52845` (was `52811`).
+
+The suite was also run over the whole workspace after the slice: **486 tests over 30 files, all
+passing**; `pnpm typecheck` reports **6 successful of 6**; and `pnpm build` succeeds, with only
+Rollup's chunk-size warnings.
+
+What this slice leaves unasserted, and what must not be claimed:
+
+- **The overlay's rendering.** The overlay draws the declared handles in one style and no longer
+  draws the separate drawing point overlay, but `apps/studio` has no test files, so the claim rests
+  on the code and on the render gate, not on the suite.
+- **The pointer wiring.** That a control point takes precedence over its element's body, and that
+  a drag rewrites the clip's props through the store, is implemented in `apps/studio` and is not
+  asserted by the suite.
+- **The text measurement.** The measurement of a rendered text box — the `data-clip-id` stamp and
+  the `getBoundingClientRect()` read — lives in `apps/studio` and in the composition, and is not
+  asserted by the suite. The geometry that consumes the measured box is.
+- **The wrap width's effect.** The `maxWidth` prop is written and shown in the inspector, but no
+  renderer consumes it yet, so a text does not visibly rewrap. The suite does not claim it does.
+- **Handles for a multi-selection.** Only the first selected clip carries its own control points
+  today. The suite does not claim a handle set per selected element.
 
 ## 4. Critical unit assertions
 
@@ -222,7 +275,9 @@ installed and none of these cases run today.
 
 - Adding a chart via data browser creates an object with editable in/out; adding same dataset twice creates distinct chart object IDs but same source hash.
 - Selecting a drawn high/low line highlights layer row, drawing inspector and relevant timeline clip.
-- Dragging a drawing's handles rewrites that point in the clip's props; the drawing's own box scales with it, and no chart resize moves it.
+- Dragging an element's control points rewrites its geometry in the clip's props: a corner drag on a box element scales it, a corner drag on a text writes its font size, a side drag writes its wrap width, and a drag on a line's endpoint moves that endpoint alone. No chart resize moves any of it.
+- Clicking a control point selects the element and starts the drag, rather than selecting the element and dragging its body.
+- A text's box follows its rendered text: growing the font size grows the box, and no stored width or height is edited by hand.
 - Two/three chart group can switch horizontal/vertical/grid/focus layouts; each member can be independently selected and animated.
 - Scene breadcrumb enters/exits local editor preserving unrelated scene playheads, zoom and selected objects.
 - Timeline trim/drag snaps to exact frames and undo restores the entire drag as one command.

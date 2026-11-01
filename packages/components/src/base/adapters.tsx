@@ -79,13 +79,17 @@ export const TextAdapter: React.FC<ComponentRenderContext> = ({ clip, props, fra
   const p = props;
   const full = String(p.text ?? '');
 
+  // A wrap width is the width the text wraps at. Without one the text runs
+  // on as far as it goes, which is what it always did.
+  const wrapWidth = Number(p.maxWidth) > 0 ? Number(p.maxWidth) : undefined;
   const baseStyle: React.CSSProperties = {
     fontSize: p.fontSize,
     color: p.color,
     fontFamily: p.fontFamily,
     fontWeight: Number(p.fontWeight),
     letterSpacing: p.letterSpacing,
-    whiteSpace: 'pre',
+    maxWidth: wrapWidth,
+    whiteSpace: wrapWidth ? 'pre-wrap' : 'pre',
     textAlign: 'center',
   };
   // texture-masked typography: an image fills the letters (background-clip: text)

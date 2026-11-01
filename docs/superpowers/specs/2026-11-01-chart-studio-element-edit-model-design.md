@@ -103,9 +103,8 @@ with them.
 `skyCycle` `rectangle` `blob` `cursor` `neonSun` `isoCity` `candlestickChart`
 
 The element is a rectangle and the content fills it. The corners scale it; the opposite corner stays put,
-so the box grows from a fixed point. For the **chart**, the corners drive the **plot**, not the padded
-outer box — the chart's own padding, label row and price axis are fixed, and dragging the corner should
-change the plot the creator is looking at.
+so the box grows from a fixed point. For the **chart**, the corners scale its **outer box**; the plot has no
+props of its own yet, so driving the plot itself is deferred.
 
 `blob`, `cursor` and `neonSun` carry a `size` rather than a width and a height, so their corner handles
 scale that parameter. `isoCity` scales `gridSize` and `tileSize`.
