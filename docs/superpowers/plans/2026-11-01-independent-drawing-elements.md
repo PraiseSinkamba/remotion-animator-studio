@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the eight drawing tools ordinary elements. A price line, high/low line, vertical line, trendline, price zone, text label, arrow and position tool each own a box in composition space, own their frame range on the timeline, and render whether or not a chart exists anywhere in the project. A drawing never reads a chart's scale, bars or pane — not even for one moment at placement time. The numbers a drawing carries are the creator's own.
+**Goal:** Make the eight drawing tools ordinary elements, in **TradingView's vocabulary**. A horizontal line, vertical line, trend line, high and low line, rectangle, text label, arrow and long/short position tool each own a box in composition space, own their frame range on the timeline, and render whether or not a chart exists anywhere in the project. A drawing never reads a chart's scale, bars or pane — not even for one moment at placement time. Every kind is pure geometry: there are no market values anywhere in the set, and the creator's own figure is a caption.
 
-**Architecture:** Four vertical slices over one object model. Project schema version 3 replaces the market-anchor drawing props (`chartClipId`, `paneId`, `anchors`, chart-relative `in`/`out`) with an independent geometry: a box (`x`, `y`, `width`, `height`), `opacity`, `style`, and per-kind content — normalised `points` inside the box for the six shape kinds, a single authored `price` for the price line, and three authored numbers (`entry`, `stop`, `target`) for the position tool, whose levels are derived affinely inside the box. The eight adapters draw in their own box instead of the chart's; the drawing definitions lose their chart lookup and their `evaluate` step; `anchors.ts` and the `MarketAnchor` type go. A v2 → v3 migration converts existing documents, keeping the authored numbers exactly and placing elements using the chart's plot area and full-series price range — an approximation at the last frame, stated in the migration's own comment. The editor gains a canvas context menu over the actions that already exist (group, ungroup, duplicate, copy, paste, delete) plus new layer-order and rename actions, and lock/hide generalise from drawings-only to every clip.
+**Architecture:** Four vertical slices over one object model. Project schema version 3 replaces the market-anchor drawing props (`chartClipId`, `paneId`, `anchors`, chart-relative `in`/`out`) with an independent geometry: a box (`x`, `y`, `width`, `height`), `opacity`, `style`, an optional `caption`, and per-kind content — normalised `points` inside the box for the kinds that have them, and three draggable levels inside the box for the position tool. Two kinds are renamed in the same cutover: `priceLine` becomes `horizontalLine` and `priceZone` becomes `rectangle`, because a line that keeps the name `priceLine` while holding no price is a false label. The eight adapters draw in their own box instead of the chart's; the drawing definitions lose their chart lookup and their `evaluate` step; `anchors.ts` and the `MarketAnchor` type go. A v2 → v3 migration converts existing documents, mapping the old element types to the new ones, keeping a price line's price as its caption, and placing elements using the chart's plot area and full-series price range — an approximation at the last frame, stated in the migration's own comment. The editor gains draggable point handles (reusing the swing path's machinery) and a canvas context menu over the actions that already exist (group, ungroup, duplicate, copy, paste, delete) plus new layer-order and rename actions, and lock/hide generalise from drawings-only to every clip.
 
 **Tech Stack:** pnpm 10.28.2, Turborepo 2.11.10, Node 24.20.0, TypeScript 5.6.3, Vite 5.4.11, React 18.3.1, Remotion 4.0.538, Zustand 5.0.3, Tailwind CSS 4.3.3, Vitest 3.2.7, Zod 4.5.4 (`packages/core` only), radix-ui 1.8.1 (already a `packages/ui` dependency — the context menu needs no new package)
 
-**Design spec:** `docs/superpowers/specs/2026-11-01-independent-drawing-elements-design.md` (edition 1.0). Decisions: `docs/decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md`.
+**Design spec:** `docs/superpowers/specs/2026-11-01-independent-drawing-elements-design.md` (edition 1.1). Decisions: `docs/decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md`.
 
 **Companion docs this plan updates as it goes:** `docs/spec/FUNCTIONAL_SPEC.md` (§2, §3, §5), `docs/spec/COMPONENT_CONTRACT.md`, `docs/roadmap/ROADMAP.md` (R3), `docs/quality/TEST_STRATEGY.md` (§3).
 
@@ -21,15 +21,15 @@
 - `VideoComponentDefinition` has no `propsSchema` field. The new drawing props are validated by a new exported validator, `validateDrawingProps(kind, props)` in `packages/core/src/validation.ts`, returning the plain `{ok, value}` / `{ok, issues}` shape.
 - Cross-package imports use the package name and `workspace:*`. No TypeScript path alias crosses a package boundary. A package's relative imports stay extensionless; one tsconfig per package; typecheck only, no `dist`.
 - The migration stays non-destructive and idempotent: `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`, and unknown keys survive. The migration keeps its history-dependent rejections (higher `schemaVersion`, unknown component type, newer clip `propsVersion` — `packages/components/src/project-migrate.ts:28-90`).
-- No component `type` is renamed, renumbered or reused. The eight `DrawingKind` values keep their ids (`packages/core/src/elements.ts:182`).
-- Clean cutover. There is no shim, alias or legacy read path for `MarketAnchor`, `DrawingSpec`, `anchors.ts`, `REQUIRED_ANCHORS`, `resolveAnchors`, `buildDrawingAnchors`, `drawingBarId`, `resolveDrawingTarget`, `setDrawingLocked` or `setDrawingHidden`. The chart API `chartPointToAnchor` / `chartAnchorToPoint` stays — it is chart API and is heavily tested.
+- No component `type` is renumbered or reused. **One exception, and it is stated in ADR-009 decision 9:** `priceLine` is renamed `horizontalLine` and `priceZone` is renamed `rectangle`, and the v2 → v3 migration maps the old element types to the new ones. The reason is the same rule the product applies to every name: a line that keeps the name `priceLine` while holding no price is a false label. The other six `DrawingKind` values keep their ids (`packages/core/src/elements.ts:182`).
+- Clean cutover. There is no shim, alias or legacy read path for `MarketAnchor`, `DrawingSpec`, `anchors.ts`, `REQUIRED_ANCHORS`, `resolveAnchors`, `buildDrawingAnchors`, `drawingBarId`, `resolveDrawingTarget`, `setDrawingLocked` or `setDrawingHidden`, nor for the retired element types `priceLine` and `priceZone` or the authored-number props `price`, `position.entry`, `position.stop` and `position.target`. The chart API `chartPointToAnchor` / `chartAnchorToPoint` stays — it is chart API and is heavily tested.
 - Local-first holds: no network call, login or server is needed to edit, save, preview or export.
 - Remotion packages stay pinned to `4.0.538`. React stays on `18.3.1`.
 - Determinism is structural: the same project snapshot and frame index produce the same frame. A drawing's rendered frame depends only on its own props and its own frame range.
 - Components declare, the shell executes. No component name is hardcoded in `apps/studio` for tools, inspector panels or menu items.
 - The render gate `node scripts/verify-r1.mjs` is required after every slice that touches rendering (S1, S2, S3). The suite alone is not proof that a change reached the video path.
 - **The `Main` render-gate fixture must stay byte-identical.** It is a schema-v1 document with no drawings, so the v1 → v2 → v3 migration is a no-op for it; its stills and its MP4 must not change by one byte. Its provenance sidecar's `schemaVersion` field will read `3` — expected, and not a frame change.
-- **The `AuthoredPath` render-gate fixture will change.** It carries a price line and a trendline, and those drawings become free elements. The change is the honest record of the cutover, not a regression. The executor reports the new still sizes rather than asserting they match.
+- **The `AuthoredPath` render-gate fixture will change.** It carries a price line and a trendline, and those drawings become free elements — the price line as a horizontal line. The change is the honest record of the cutover, not a regression. The executor reports the new still sizes rather than asserting they match.
 - Every task ends with a commit. Every task names the files it touches and the interfaces it consumes and produces.
 - **Honesty rule for this plan and for every executor of it:** planned work is phrased as "the slice asserts" and "the executor must report". No slice may claim a test passed or a build succeeded on the strength of this document. Anything not exercised is reported as unverified.
 - Do not touch `apps/studio/src/App.tsx`, `apps/studio/src/components/TopBar.tsx`, `apps/studio/src/components/HelpModal.tsx`, `docs/superpowers/plans/2026-10-31-topbar.md` or `docs/superpowers/specs/2026-10-31-topbar-design.md`. They are the owner's own uncommitted work.
@@ -40,17 +40,18 @@
 
 | # | Default implemented | If overridden |
 |---|---|---|
-| Q1 | **The drawing's shape.** Every drawing is a box in composition space (`x`, `y` = centre, `width`, `height`), plus `opacity` and `style`. Geometry is normalised inside the box: `DrawingPoint = { x, y }` as 0..1 fractions, origin top-left, y down. Per kind: `priceLine` — one authored `price`, rule at the box's vertical centre, price as a caption at the rule's right end, no points; `highLowLine` — `points.top` / `points.bottom`, vertical segment at the box's horizontal centre; `verticalLine` — `points.at`, vertical rule at `at.x`, full box height; `trendline` — `points.start` / `points.end`, `trendline.ray` kept; `priceZone` — `points.top` / `points.bottom`, filled band across the full box width; `textLabel` — `points.at`, `label.text` kept; `arrow` — `points.from` / `points.to`; `position` — no points, authored `entry` / `stop` / `target` with `position.direction` and `position.showRiskReward`. The dropped props are `chartClipId`, `paneId`, `anchors`, the chart-relative `in` / `out`, and `zone.extendRight` (the render context carries no composition size). | If the price line keeps a point, it becomes a second source of truth for where the rule sits and the authored number stops being the one thing it carries. If `extendRight` is kept, the zone needs a composition size it does not have (`packages/core/src/contract.ts:22-34`). |
-| Q2 | **The migration's placement.** The authored number is preserved exactly (`price`, `entry`, `stop`, `target`, `label.text`, `trendline.ray`, `style`, `opacity`). The element's placement uses the chart's plot area and the chart's **full-series** price range (`materialiseSeries` + `computePriceRange` over all bars, not the revealed subset). That is an approximation at the last frame, and the migration's comment says so in those words. | If the old renderer is kept alive behind a flag for migrated documents, the pixels are exact and the product carries two drawing models forever. |
+| Q1 | **The drawing's shape.** Every drawing is a box in composition space (`x`, `y` = centre, `width`, `height`), plus `opacity`, `style` and an optional `caption`. Geometry is normalised inside the box: `DrawingPoint = { x, y }` as 0..1 fractions, origin top-left, y down. Per kind: `horizontalLine` — no points, a rule at the box's vertical centre across the box's width; `verticalLine` — `points.at`, a vertical rule at `at.x` down the box's full height; `trendline` — `points.start` / `points.end`, **any angle**, `trendline.ray` kept; `highLowLine` — `points.top` / `points.bottom`, a vertical segment between the two points, **no bar snapping**; `rectangle` — no points, the element's own box outlined and optionally filled; `textLabel` — `points.at`, `label.text` kept; `arrow` — `points.from` / `points.to`, a segment with a head; `position` — `points.entry` / `points.stop` / `points.target`, three draggable levels in the box, with `position.direction` and `position.showRiskReward`. The dropped props are `chartClipId`, `paneId`, `anchors`, the chart-relative `in` / `out`, `zone.extendRight` (the render context carries no composition size), and every authored number (`price`, `position.entry` / `position.stop` / `position.target`). | If a kind keeps a market number, it is a second source of truth that the product cannot place. If `extendRight` is kept, the rectangle needs a composition size it does not have (`packages/core/src/contract.ts:22-34`). |
+| Q2 | **The migration's placement and type mapping.** The migration maps the old element types to the new ones: `priceLine` → `horizontalLine`, `priceZone` → `rectangle`, the other six unchanged. A price line's price is preserved exactly **as the caption**; `label.text`, `trendline.ray`, `position.direction`, `position.showRiskReward`, `style` and `opacity` are preserved. The element's placement uses the chart's plot area and the chart's **full-series** price range (`materialiseSeries` + `computePriceRange` over all bars, not the revealed subset). That is an approximation at the last frame, and the migration's comment says so in those words. | If the old renderer is kept alive behind a flag for migrated documents, the pixels are exact and the product carries two drawing models forever. If the old type names are kept, the registry keeps two kinds whose names claim a market the element does not have. |
 | Q3 | **The default track for a new drawing.** The track immediately above the chart it was dropped on when there is one — one step towards the top layer, because `tracks[0]` is the top layer (`packages/video/src/composition.tsx:172`); a chart already on the topmost track shares that track and the drawing is appended to it, so it renders above the chart. Otherwise the track of the selected clip. Otherwise the first track. | If a new drawing always lands on the first track, it jumps away from the chart it was dropped on. |
-| Q4 | **The drawing inspector.** Box (`x`, `y`, `width`, `height`), the authored number or numbers, the style, and the clip's own frame range. The chart-relative `in` / `out` disappear, including from the shared drawing parameters (`packages/components/src/trading/drawings/definitions.ts:227`). The generic inspector's CLIP section already shows the clip's own start and length. | If the inspector also shows the market context the drawing used to be anchored to, that context no longer exists. |
+| Q4 | **The drawing inspector.** Box (`x`, `y`, `width`, `height`), the geometry (the points, the levels, the direction), the **caption**, the style, and the clip's own frame range. There are no number fields, because there are no numbers. The chart-relative `in` / `out` disappear, including from the shared drawing parameters (`packages/components/src/trading/drawings/definitions.ts:227`). The generic inspector's CLIP section already shows the clip's own start and length. | If the inspector also shows the market context the drawing used to be anchored to, that context no longer exists. |
 | Q5 | **The canvas context menu.** Group, Ungroup, Duplicate, Copy, Paste, Delete, Rename, Bring to front, Send to back, Lock, Hide. Re-surfacing existing actions: `groupSelection`, `ungroupSelection`, `duplicateSelection`, `copySelection`, `paste`, `removeClips`. **New store work:** `requestRename`, `bringToFront`, `sendToBack`, and the generalised `setClipLocked` / `setClipHidden`. `moveClipToTrack` cannot express "send to back" — it always appends to the target track (`packages/editor/src/store.ts:594`) — so `sendToBack` needs its own code. | A timeline context menu is the alternative; the canvas is where the creator's pointer already is. |
 | Q6 | **Lock and hide generalise to every clip.** `setDrawingLocked` / `setDrawingHidden` become `setClipLocked` / `setClipHidden`. A hidden clip is skipped by the composition; a locked clip is not canvas-pickable but stays timeline-selectable, with a lock badge on the clip chip. | Keeping them drawing-only means a context menu that offers "Hide" for some elements and not others. |
-| Q7 | **The position tool's numbers.** Three authored numbers, three levels, one truth. Inside the box the numbers map affinely over their own min/max — highest at the top, lowest at the bottom, the remaining one interpolated by value — which for a canonical long puts entry at `risk / (risk + reward)` up from the bottom, so the drawn geometry preserves the risk/reward ratio. When all three are equal the levels are spaced evenly by role (long: stop 0.25, entry 0.5, target 0.75; a short mirrors that). The ratio label is `|target − entry| / |entry − stop|`. Never a P&L figure, never a broker fill (OB-006 stands). | If the levels are derived from the box alone, the numbers stop being the source of truth and the ratio label contradicts the picture. |
-| Q8 | **The price line's honesty limit.** With no chart scale an authored price cannot position itself against a market. The number is a creator-authored caption; the box places the geometry. The interface says so rather than implying a market anchor it does not have. | If a price line must sit on a market price, the market-anchored model returns and nothing else in this plan survives. |
-| Q9 | **The zone loses its authored edge prices.** The zone's edges were market-derived clicks; a market-derived number has no meaning in an independent element. The zone is geometry plus a style. | If the zone keeps its edge numbers as authored values, they are figures the product cannot place and cannot verify. |
-| Q10 | **The position tool takes one click** and its three numbers are typed in the inspector; two-click kinds place their two points; the other five take one click. Three clicks *and* three typed numbers would be two sources of truth for the same three levels. | If the position tool takes three clicks, the click must set the level and the inspector must not edit it — one source of truth, but the creator cannot adjust a level without redrawing. |
+| Q7 | **The position tool's levels are positions, not prices.** The three levels — `points.entry`, `points.stop`, `points.target` — are fractions of the box's height that the creator drags. The ratio the tool shows is computed from the drawn geometry: `|target.y − entry.y| / |entry.y − stop.y|`. It is a true fact about the shape on screen. It is never a P&L figure and never a broker fill (OB-006 stands). TradingView's "% distance" is **not** shown — it needs a price scale this product does not have. `position.direction` tells the adapter how to read the roles; `position.showRiskReward` toggles the ratio label. **This supersedes the earlier default, which gave the tool three authored numbers.** | If the ratio were computed from prices, the picture and the label could disagree; a geometric ratio cannot. |
+| Q8 | **No drawing states a market value.** The horizontal line carries no price, the rectangle carries no edge prices, the position tool carries no prices. The creator's own figure is the **caption** — a short string the creator types, drawn beside the shape, the way TradingView labels its lines. **This supersedes the earlier default, which gave the price line an authored price and stated an honesty limit about it.** | If a drawing must sit on a market price, the market-anchored model returns and nothing else in this plan survives. |
+| Q9 | **The zone becomes a rectangle with no edge prices.** The zone's edges were market-derived clicks; a market-derived number has no meaning in an independent element. The rectangle is the element's own box, outlined and optionally filled, and it loses `extendRight` too. **This supersedes the earlier default, which kept the zone as a band of two points.** | If the rectangle keeps its edge numbers as authored values, they are figures the product cannot place and cannot verify. |
+| Q10 | **The position tool takes one click and its levels are dragged afterwards**; two-click kinds place their two points; the other kinds take one click. The trend line takes any angle; the high and low line's two handles stay on a vertical segment. The handles are the swing path's machinery, reused. **This supersedes the earlier default, which typed the position tool's three numbers in the inspector.** | If the position tool took three clicks, the creator could not adjust a level without redrawing the whole shape. |
 | Q11 | **`ensureChartMarket` is re-homed into `addClip` for `candlestickChart`,** so a chart added from the library still receives a series, a pane and a clock. It is currently reached only through `resolveDrawingTarget` (`packages/editor/src/store.ts:895`), which the cutover removes. | If it is deleted outright, library-added charts fall back to their inline `bars` — a behaviour change the owner did not ask for. |
+| Q12 | **Two kinds are renamed, and the migration carries the rename.** `priceLine` → `horizontalLine`, `priceZone` → `rectangle`. The standing rule that a component type is never renamed **does not apply to these two** — ADR-009 decision 9 states the exception and the reason: a line that keeps the name `priceLine` while holding no price is a false label. The other six kinds keep their names. The registry, the library catalogue, the definitions and the migration all change together in S1. | If the names stay, the product keeps two kinds whose names promise a market the element does not have. |
 
 ---
 
@@ -63,7 +64,7 @@ The slices are ordered by dependency, not by appeal. The order is fixed: **S0 �
 Why S2 and not S1:
 
 - **S1 changes rendering but not capability.** After S1 the eight kinds draw in their own boxes, but the tool rail still shows the drawing tools only when a chart is selected (`apps/studio/src/components/ToolRail.tsx:22`) and the drop path still refuses without a chart (`apps/studio/src/components/PreviewPanel.tsx:541`). The creator cannot yet place an independent drawing, so the slice cannot be judged as the feature.
-- **S2 is where the model can be falsified.** If a drawing placed with no chart in the project does not behave like an ordinary element — wrong layer, wrong range, wrong inspector, a number that does not place its level — every one of those failures is a failure of S0's model or S1's renderer, and S2 is where it becomes visible. Shipping S0–S1 first and calling the model proven would be the "compiling scaffold" failure the slice rules forbid.
+- **S2 is where the model can be falsified.** If a drawing placed with no chart in the project does not behave like an ordinary element — wrong layer, wrong range, wrong inspector, points that do not follow the drag — every one of those failures is a failure of S0's model or S1's renderer, and S2 is where it becomes visible. Shipping S0–S1 first and calling the model proven would be the "compiling scaffold" failure the slice rules forbid.
 - **S0 and S1 must land together anyway.** See the atomicity note below: the migration, the definitions' `propsVersion` bump, the renderers, the store producer and the call sites are one release unit. S0 is therefore *additive* groundwork that can be landed and reviewed on its own, and S1 is the cutover.
 
 Why not S3 as the pilot: S3 is a surface over actions that already exist. It is valuable and it is the right last slice, but piloting it would prove that a menu opens.
@@ -117,19 +118,19 @@ Slices that do not strictly depend on the previous one: S0's provenance groundwo
 |---|---|
 | `packages/core/src/elements.ts` | `DrawingPoint`, `DrawingStyle`, the per-kind props types, and the retirement of `MarketAnchor` / `DrawingSpec` |
 | `packages/core/src/validation.ts` | `validateDrawingProps(kind, props)` — the only place a Zod symbol may be named for the new props |
-| `packages/core/src/provenance.ts` | The `annotations` section of `ProvenanceRecord`, recording each drawing's kind and authored numbers as authored |
+| `packages/core/src/provenance.ts` | The `annotations` section of `ProvenanceRecord`, recording each drawing's kind and its caption as the creator's own |
 | `packages/components/src/trading/drawings/definitions.ts` | The eight drawing definitions: independent props, `propsVersion: 2`, no `evaluate`, the params the inspector and the selection overlay need |
 | `packages/components/src/trading/drawings/adapters.tsx` | The eight adapters, each drawing inside its own element box |
 | `packages/components/src/trading/drawings/anchors.ts` | **Deleted** in S1 |
-| `packages/components/src/trading/inspectors/drawing.tsx` | The drawing inspector panel: the authored number(s), the style, the per-kind extras |
+| `packages/components/src/trading/inspectors/drawing.tsx` | The drawing inspector panel: the caption, the style, the per-kind extras |
 | `packages/components/src/project-migrate.ts` | `CURRENT_PROJECT_SCHEMA_VERSION = 3` and the v2 → v3 migration |
 | `packages/components/src/trading/chart.tsx` | Unchanged — `chartGeometry`, `priceToY`, `chartPriceRange`, `chartPointToAnchor`, `chartAnchorToPoint` all stay |
-| `packages/editor/src/drawings.ts` | The drawing tools' metadata: the click counts and the default box sizes |
+| `packages/editor/src/drawings.ts` | The drawing tools' metadata: the kinds, the click counts and the default box sizes; `buildDrawingAnchors` and `drawingBarId` go |
 | `packages/editor/src/store.ts` | `addDrawing` (independent), `setClipLocked` / `setClipHidden`, `bringToFront` / `sendToBack`, `requestRename` |
 | `packages/ui/src/components/ui/context-menu.tsx` | **Created** in S3 — a Radix `ContextMenu` wrapper, the `dropdown-menu.tsx` pattern |
 | `packages/ui/src/index.ts` | Exports the new context-menu wrapper |
 | `packages/ui/src/components/library/catalog.tsx` | A separate **Drawings** group for the eight drawing kinds |
-| `apps/studio/src/components/PreviewPanel.tsx` | Placement without a chart; the canvas context menu; the drop path |
+| `apps/studio/src/components/PreviewPanel.tsx` | Placement without a chart; the drop path; the drawing's point handles and their drag; the canvas context menu |
 | `apps/studio/src/components/ToolRail.tsx` | The drawing tools offered without a chart selected |
 | `apps/studio/src/components/canvas-hit-test.ts` | Filters hidden and locked clips out of the canvas pick list |
 | `apps/studio/src/components/Inspector.tsx` | Lock / hide for every clip |
@@ -143,12 +144,12 @@ Slices that do not strictly depend on the previous one: S0's provenance groundwo
 
 | # | Risk | Mitigating slice | Proving test |
 |---|---|---|---|
-| R1 | A migrated document renders differently: the old drawing sat at a price on a live scale, the new one sits at a migrated box position. | S1 | `packages/components/src/project-migrate.test.ts` — "keeps a migrated price line's authored price exactly" and "places a migrated drawing using the chart's plot area and the full-series price range" |
+| R1 | A migrated document renders differently: the old drawing sat at a price on a live scale, the new one sits at a migrated box position. | S1 | `packages/components/src/project-migrate.test.ts` — "keeps a migrated price line's price as its caption" and "places a migrated drawing using the chart's plot area and the full-series price range" |
 | R2 | The `Main` fixture's bytes change: any change to the composition or the migration path can move a pixel in an unrelated fixture. | S1, S2, S3 | `node scripts/verify-r1.mjs` — the six `Main` still sizes and the MP4 must be byte-identical to the pre-change render |
 | R3 | The cutover lands in two pieces and migrated drawings render as nothing. | S1 | The migration, the `propsVersion` bump, the renderers, the producer and the call sites are one slice. `packages/components/src/project-migrate.test.ts` — "rejects a clip whose props version is newer than its component's" (existing behaviour, kept) |
 | R4 | A hidden clip starts rendering: the `hidden` check lives inside the drawing renderer today (`packages/components/src/trading/drawings/definitions.ts:191`). | S1, S3 | `packages/video/src/evaluate.test.ts` or a new composition test — "does not render a hidden clip"; `apps/studio/src/components/canvas-hit-test.ts` behaviour — "does not pick a hidden clip" |
 | R5 | A locked clip cannot be unlocked. | S3 | `packages/editor/src/store.test.ts` — "keeps a locked clip selectable on the timeline but not on the canvas" |
-| R6 | The price line reads as a lie: a number that says 4200 next to a rule nowhere near 4200 invites distrust. | S1, S2 | `packages/components/src/trading/drawings/drawings.test.tsx` — "labels the price line's number as an authored value"; the interface states the limit in the inspector |
+| R6 | A caption reads as a market claim: a caption that says 4200 next to a rule nowhere near 4200 invites distrust. | S1, S2 | `packages/components/src/trading/drawings/drawings.test.tsx` — "draws the caption beside the shape and claims no market value"; the interface states the limit in the inspector |
 | R7 | The position tool's levels look like a market setup. | S1 | `packages/components/src/trading/drawings/drawings.test.tsx` — "draws no profit-and-loss figure and implies no broker fill" |
 | R8 | Copy/paste shares state: a pasted drawing shares its `points` object with the original. | S1 | `packages/editor/src/store.test.ts` — "duplicates a drawing without sharing its points" |
 | R9 | A drawing lands on the wrong track. | S2 | `packages/editor/src/store.test.ts` — "puts a new drawing on the track above the chart it was dropped on" and "falls back to the selected clip's track" |
@@ -157,6 +158,8 @@ Slices that do not strictly depend on the previous one: S0's provenance groundwo
 | R12 | The `AuthoredPath` fixture changes and the change is read as a regression. | S1 | The design states the change is expected; the executor reports the new still sizes rather than asserting equality |
 | R13 | A context menu item silently does nothing for a locked or hidden clip. | S3 | `packages/editor/src/store.test.ts` — "does not let a hidden clip be deleted from the menu path" is not required; instead "keeps a hidden clip in the project until it is unhidden" |
 | R14 | The library's Drawings group is added but the chart group still lists the drawings, so the tools appear twice. | S2 | `packages/components/src/registry.test.ts` — the catalogue count assertion stays correct; the executor confirms the library shows the eight drawing kinds once |
+| R15 | A renamed kind breaks a saved document: `priceLine` and `priceZone` no longer exist in the registry. | S1 | `packages/components/src/project-migrate.test.ts` — "maps a migrated price line to a horizontal line" and "maps a migrated price zone to a rectangle"; the registry test asserts the new catalogue counts |
+| R16 | A handle system is built twice: the drawing handles and the swing handles drift apart. | S2 | The plan names `swingHandles()` and the swing drag handler as the machinery to reuse; the executor reports that no second handle implementation was added |
 
 ---
 
@@ -164,11 +167,11 @@ Slices that do not strictly depend on the previous one: S0's provenance groundwo
 
 Not in this work, and not to be started by an executor of this plan:
 
-- Point handles on the canvas — dragging a trendline's endpoints after placement. The points scale with the box, so the selection overlay's resize is the editing story this work offers.
-- A price line that positions itself against a market. That is the market-anchored model ADR-009 reverses.
+- A drawing that positions itself against a market. That is the market-anchored model ADR-009 reverses.
 - Re-introducing a chart-relative lifecycle for any drawing.
 - The price zone's authored edge prices, and `zone.extendRight`.
-- Snapping of any kind — a drawing never reads a chart, not even for one moment at placement time.
+- TradingView's "% distance" on the position tool — it needs a price scale this product does not have. The geometric distance ratio is shown instead.
+- Snapping of any kind — a drawing never reads a chart, not even for one moment at placement time. The high and low line's bar snapping is gone with the rest of it.
 - Importing, and every other deferred item in `docs/roadmap/ROADMAP.md` that this work does not name.
 - Multi-user, cloud and sync.
 
@@ -192,7 +195,7 @@ Per-slice render-gate expectations:
 | Slice | `Main` fixture | `AuthoredPath` fixture |
 |---|---|---|
 | S0 | Unchanged — S0 changes no rendering. Report the still sizes. | Unchanged. Report the still sizes. |
-| S1 | **Byte-identical** to the pre-S1 render: same six still sizes, same MP4. Only the sidecar's `schemaVersion` reads `3`. | **Expected to change** — the price line and the trendline become free elements. Report the new still sizes and the MP4 outcome; do not assert they match. |
+| S1 | **Byte-identical** to the pre-S1 render: same six still sizes, same MP4. Only the sidecar's `schemaVersion` reads `3`. | **Expected to change** — the price line becomes a horizontal line and the trendline becomes a free element. Report the new still sizes and the MP4 outcome; do not assert they match. |
 | S2 | **Byte-identical.** S2 changes the editor, not the render path. | Byte-identical — S2 changes placement, not the fixture. Report the sizes. |
 | S3 | **Byte-identical.** S3 changes the editor surface, not the render path. | Byte-identical. Report the sizes. |
 
@@ -228,7 +231,7 @@ The suite was **400 tests over 29 files** before this work. `docs/quality/TEST_S
     export interface DrawingStyle {
       color?: string;
       lineWidth?: number;
-      /** Fill opacity of a zone. */
+      /** Fill opacity of a rectangle or a band. */
       fillOpacity?: number;
       fontSize?: number;
     }
@@ -241,24 +244,24 @@ The suite was **400 tests over 29 files** before this work. `docs/quality/TEST_S
       height?: number;
       opacity?: number;
       style?: DrawingStyle;
+      /** The creator's own figure, drawn beside the shape. */
+      caption?: string;
       /** Per-kind points, as 0..1 fractions of the box. */
       points?: Record<string, DrawingPoint>;
-      /** The price line's one authored number. */
-      price?: number;
-      /** The position tool's three authored numbers and its flags. */
+      /** The position tool's direction and its ratio toggle. */
       position?: {
         direction: 'long' | 'short';
-        entry: number;
-        stop: number;
-        target: number;
         showRiskReward?: boolean;
       };
       label?: { text?: string };
       trendline?: { ray?: 'none' | 'left' | 'right' | 'both' };
     }
     ```
-  - `packages/core/src/validation.ts` — `validateDrawingProps(kind: DrawingKind, props: unknown): { ok: true; value: IndependentDrawingProps } | { ok: false; issues: { path: string; message: string }[] }`. It validates: `x`, `y`, `width`, `height` are finite numbers when present; `opacity` is a number in 0..1; every entry of `points` is an object with finite `x` and `y` in 0..1; `price` is a finite number when present; `position.entry`, `position.stop` and `position.target` are finite numbers; `position.direction` is `'long'` or `'short'`. It rejects a point outside 0..1 with an issue whose `path` names the point key, e.g. `points.start.x`.
-  - `packages/core/src/provenance.ts` — `ProvenanceRecord` gains `annotations: ProvenanceAnnotation[]`, where `ProvenanceAnnotation` is `{ clipId: string; kind: string; authored: Record<string, number> }`. `buildProvenance(project)` populates it by walking the project's tracks and, for each clip whose `element` is one of the eight drawing kinds, reading the **authored** numbers from the clip's props: `price` for `priceLine`, and `position.entry` / `position.stop` / `position.target` for `position`. A clip with no authored numbers contributes an empty `authored` record. The numbers are recorded as authored, never as market-derived.
+    There are **no market numbers** in these props. The position tool's three levels live in
+    `points` — `points.entry`, `points.stop`, `points.target` — because they are positions inside
+    the box, not prices.
+  - `packages/core/src/validation.ts` — `validateDrawingProps(kind: DrawingKind, props: unknown): { ok: true; value: IndependentDrawingProps } | { ok: false; issues: { path: string; message: string }[] }`. It validates: `x`, `y`, `width`, `height` are finite numbers when present; `opacity` is a number in 0..1; `caption` is a string when present; every entry of `points` is an object with finite `x` and `y` in 0..1; `position.direction` is `'long'` or `'short'`; `position.showRiskReward` is a boolean when present. It rejects a point outside 0..1 with an issue whose `path` names the point key, e.g. `points.start.x`. It rejects the retired market-number props: a `price` prop on any kind is an issue whose `path` names `price`, and a `position.entry` / `position.stop` / `position.target` is an issue whose `path` names that key.
+  - `packages/core/src/provenance.ts` — `ProvenanceRecord` gains `annotations: ProvenanceAnnotation[]`, where `ProvenanceAnnotation` is `{ clipId: string; kind: string; caption?: string }`. `buildProvenance(project)` populates it by walking the project's tracks and, for each clip whose `element` is one of the eight drawing kinds, recording the clip's kind and its caption. The caption is recorded as **the creator's own figure**, never as market-derived.
 
 **This slice is additive and invisible.** It changes no rendering, no schema version and no editor behaviour.
 
@@ -270,13 +273,14 @@ Add `DrawingPoint`, `DrawingStyle` and `IndependentDrawingProps` exactly as writ
 
 Follow the pattern the module already uses: it is the only module allowed to name a Zod symbol (`import * as z from 'zod/v4'`), and it returns plain results. Build the schema per kind:
 
-- a shared base: `x`, `y`, `width`, `height` finite numbers (optional); `opacity` a number between 0 and 1; `style` an object of optional `color` (string), `lineWidth` (number), `fillOpacity` (number), `fontSize` (number);
+- a shared base: `x`, `y`, `width`, `height` finite numbers (optional); `opacity` a number between 0 and 1; `caption` a string (optional); `style` an object of optional `color` (string), `lineWidth` (number), `fillOpacity` (number), `fontSize` (number);
 - `points`: an optional record of `{ x: number, y: number }` where both are between 0 and 1;
-- `price`: an optional finite number;
-- `position`: an optional object with `direction` (`'long' | 'short'`), `entry`, `stop`, `target` (finite numbers) and `showRiskReward` (optional boolean);
+- `position`: an optional object with `direction` (`'long' | 'short'`) and `showRiskReward` (optional boolean);
 - `label.text` (optional string) and `trendline.ray` (optional `'none' | 'left' | 'right' | 'both'`).
 
-The validator takes the kind and requires the kind's own content to be present when it is present: a `priceLine` may carry `price` and no `points`; a `position` may carry `position` and no `points`; the other six kinds may carry `points` and no `price` / `position`. A `priceLine` carrying `points` is rejected with an issue naming `points`.
+The validator takes the kind and requires the kind's own content to be present when it is present: a `horizontalLine` and a `rectangle` carry no points; the six point-carrying kinds carry `points`; a `position` carries `position` and its three levels in `points`.
+
+The validator also **rejects the retired market-number props**, so a stray `price` or `position.entry` cannot slip into a v3 document: a `price` prop is an issue whose `path` is `price`, and a `position.entry`, `position.stop` or `position.target` is an issue whose `path` names that key.
 
 - [ ] **Step 3: Write the validator's tests in `packages/core/src/validation.test.ts`**
 
@@ -284,8 +288,8 @@ Assert, by name:
 
 - "accepts an independent drawing's props"
 - "rejects a point outside the drawing's own box" — `points.start.x = 1.5` is rejected and the issue's `path` names `points.start.x`
-- "rejects a price line that carries points"
-- "rejects a position tool whose numbers are not numbers"
+- "rejects a horizontal line that carries points"
+- "rejects a retired market number" — a `price` prop is rejected and the issue's `path` names `price`
 - "accepts a drawing with no kind-specific content"
 
 - [ ] **Step 4: Add the provenance annotations section**
@@ -296,9 +300,9 @@ In `packages/core/src/provenance.ts`, add `ProvenanceAnnotation` and the `annota
 
 Assert, by name:
 
-- "records a drawing's authored numbers as authored" — a project with a `priceLine` clip carrying `price: 4200` yields one annotation whose `authored` is `{ price: 4200 }`
-- "records a position tool's three authored numbers"
-- "records a drawing with no authored numbers" — the annotation's `authored` is `{}`
+- "records a drawing's caption as the creator's own figure" — a project with a `horizontalLine` clip carrying `caption: '4200'` yields one annotation whose `caption` is `'4200'`
+- "records a drawing's kind"
+- "records a drawing with no caption" — the annotation carries the kind and no caption
 
 - [ ] **Step 6: Run the suite and report**
 
@@ -315,8 +319,9 @@ git add -A
 git commit -m "Add the independent drawing geometry, its validator and the provenance annotations
 
 The drawing model gets a box of its own, points normalised inside that box
-and the creator's own numbers, plus a validator that only core may write and
-a provenance section that records a drawing's authored numbers as authored.
+and a caption the creator types, plus a validator that only core may write
+and a provenance section that records a drawing's kind and caption as the
+creator's own.
 
 Nothing renders differently yet: this slice is the substrate the cutover
 stands on.
@@ -326,13 +331,14 @@ stands on.
 
 ---
 
-### Task 2: S1 — The atomic cutover: schema v3, the migration, the renderers, the producer
+### Task 2: S1 — The atomic cutover: schema v3, the two renames, the migration, the renderers, the producer
 
 **Requirements:** OB-011, OB-012, OB-013, CV-005, MD-010, CPT-005 (rewritten), OB-003, OB-005 (rewritten), OB-006
 
 **Files:**
 
 - Modify: `packages/core/src/elements.ts` (retire `MarketAnchor` `:171` and `DrawingSpec` `:193`)
+- Modify: `packages/core/src/elements.test.ts` if it names the retired types
 - Modify: `packages/components/src/project-migrate.ts` (`CURRENT_PROJECT_SCHEMA_VERSION = 3` at `:22`, the v2 → v3 migration)
 - Modify: `packages/components/src/project-migrate.test.ts` (the version assertion at `:57` moves from 2 to 3)
 - Modify: `packages/components/src/trading/drawings/definitions.ts` (rewrite)
@@ -340,6 +346,7 @@ stands on.
 - Delete: `packages/components/src/trading/drawings/anchors.ts`
 - Modify: `packages/components/src/trading/inspectors/drawing.tsx` (rewrite)
 - Modify: `packages/components/src/index.ts` (drop the `./trading/drawings/anchors` export at `:9`)
+- Modify: `packages/components/src/registry.ts` (the two renamed kinds)
 - Modify: `packages/editor/src/store.ts` (`addDrawing` at `:918`; `copyClipProps` at `:251`)
 - Modify: `packages/editor/src/drawings.ts` (`DRAWING_TOOLS` at `:20`; `buildDrawingAnchors` `:65` and `drawingBarId` `:51` go)
 - Modify: `packages/editor/src/drawings.test.ts`
@@ -354,23 +361,45 @@ stands on.
 
 - Consumes: `DrawingPoint`, `DrawingStyle`, `IndependentDrawingProps` and `validateDrawingProps` from `packages/core`; `chartGeometry`, `priceToY`, `chartPriceRange` from `packages/components/src/trading/chart.tsx`; `materialiseSeries` (`packages/core/src/series.ts:133`) and `computePriceRange` (`packages/core/src/market.ts:251`) for the migration's full-series range.
 - Produces:
-  - `packages/components/src/project-migrate.ts` — `CURRENT_PROJECT_SCHEMA_VERSION = 3`; a `migrateV2ToV3(doc, tracks)` step that runs after `migrateV1ToV2` when `version < 3`.
-  - `packages/components/src/trading/drawings/definitions.ts` — the eight definitions, each with `propsVersion: 2`, no `evaluate` field, and `params` that include numeric `width` and `height` (so the selection overlay's resize handles work — `apps/studio/src/components/selection-overlay.tsx` enables resize only when the definition exposes numeric `width` and `height` params), plus `opacity` and the kind's own number params.
-  - `packages/components/src/trading/drawings/adapters.tsx` — `DrawingAdapterProps` becomes `{ width, height, style?, points?, price?, position?, trendline?, label? }`. Every adapter draws inside its own box: a point at fraction `(px, py)` is at `(px * width, py * height)`.
-  - `packages/editor/src/store.ts` — `addDrawing(kind: DrawingKind, draft: DrawingDraft): string` where `DrawingDraft` is `{ x, y, width, height, points?, price?, position?, label?, trendline?, style?, opacity?, from?, durationInFrames?, trackId? }`.
+  - `packages/components/src/project-migrate.ts` — `CURRENT_PROJECT_SCHEMA_VERSION = 3`; a `migrateV2ToV3(doc, tracks)` step that runs after `migrateV1ToV2` when `version < 3`, and that maps the old element types to the new ones.
+  - `packages/components/src/trading/drawings/definitions.ts` — the eight definitions, each with `propsVersion: 2`, no `evaluate` field, and `params` that include numeric `width` and `height` (so the selection overlay's resize handles work — `apps/studio/src/components/selection-overlay.tsx` enables resize only when the definition exposes numeric `width` and `height` params), plus `opacity` and the kind's own params.
+  - `packages/components/src/trading/drawings/adapters.tsx` — `DrawingAdapterProps` becomes `{ width, height, style?, caption?, points?, position?, trendline?, label? }`. Every adapter draws inside its own box: a point at fraction `(px, py)` is at `(px * width, py * height)`.
+  - `packages/editor/src/store.ts` — `addDrawing(kind: DrawingKind, draft: DrawingDraft): string` where `DrawingDraft` is `{ x, y, width, height, points?, caption?, position?, label?, trendline?, style?, opacity?, from?, durationInFrames?, trackId? }`.
   - `packages/editor/src/drawings.ts` — `DRAWING_TOOLS` with the new click counts and default box sizes; `buildDrawingAnchors` and `drawingBarId` are deleted.
 
-**The migration's algorithm, exactly.** For each drawing clip in a v2 document:
+**The two renames.** The eight kinds become TradingView's set:
+
+| v2 kind | v3 kind |
+|---|---|
+| `priceLine` | `horizontalLine` |
+| `priceZone` | `rectangle` |
+| `highLowLine`, `verticalLine`, `trendline`, `textLabel`, `arrow`, `position` | unchanged |
+
+The registry (`packages/components/src/registry.ts`), the definitions, the library catalogue and the
+migration all change together in this slice. There is no alias for the old names.
+
+**The migration's algorithm, exactly.** The migration first **maps the old element types to the new
+ones**: `priceLine` → `horizontalLine`, `priceZone` → `rectangle`; the other six keep their names.
+Then, for each drawing clip in a v2 document:
 
 1. Look up `props.chartClipId` in the project's tracks. If it is missing, take the fallback path (step 8).
 2. Look up `props.paneId` among the chart's panes. If it is missing, take the fallback path.
 3. Materialise the pane's series and aggregate it by the pane's factor; take `computePriceRange` over **all** of it — the full-series range, not the revealed subset.
 4. `chartGeometry(chartProps, fullBarCount, pane.rect)` for the plot area.
 5. Map the old anchors: a price anchor becomes a `y` via `priceToY` over the full-series range; a point anchor (bar + price) becomes the bar's slot-centre `x` and a price `y`; a candle anchor (bar + side) becomes that extreme's price mapped to a `y` at the bar's slot-centre `x`; a time anchor (bar) becomes the slot-centre `x`.
-6. Build the new props per kind: `priceLine` keeps `price` exactly and gets a band of the plot area's width, 24 px tall, centred on the price's `y`; `highLowLine`, `verticalLine`, `trendline`, `priceZone`, `textLabel` and `arrow` get their points; a `priceZone` with `extendRight` gets a box widened to the chart's right edge; `position` keeps `entry`, `stop` and `target` exactly and gets the plot-area rect as its box, with its levels re-derived from the preserved numbers; `style` and `opacity` are preserved; `label.text` and `trendline.ray` are preserved.
+6. Build the new props per kind:
+   - `horizontalLine` (from `priceLine`): no points. The box is a band of the plot area's width, 24 px tall, centred on the price's `y`. The old anchor's price becomes the **`caption`**, exactly — the creator's own figure is not lost.
+   - `highLowLine`: `points.top` and `points.bottom` on a vertical segment. The bar snapping is gone — it does not read bars.
+   - `verticalLine`: `points.at` from the bar's slot centre.
+   - `trendline`: `points.start` and `points.end`.
+   - `rectangle` (from `priceZone`): the element's own box. The zone's two edge prices are **not** carried over — they were market-derived clicks. A zone with `extendRight` gets a box widened to the chart's right edge.
+   - `textLabel`: `points.at`; `label.text` is preserved.
+   - `arrow`: `points.from` and `points.to`.
+   - `position`: `points.entry`, `points.stop` and `points.target` are the old anchors' prices mapped to `y` fractions of the box; the box is the plot-area rect. `position.direction` and `position.showRiskReward` are preserved.
+   - `caption`, `style` and `opacity` are preserved.
 7. Convert the lifecycle: `from = chart.from + props.in`, `durationInFrames = (out > in ? out : chart.durationInFrames) − in`, where `out === 0` means open-ended.
-8. The fallback path, when the chart, the pane or the series cannot be resolved: keep the drawing's stored `props.x`, `props.y`, `props.width`, `props.height` as the box, use the kind's default points, keep any authored number that can be read from the old anchors, and set the default frame range. The migration never throws on a drawing and never leaves one half-converted.
-9. Set the migrated clip's `propsVersion` to 2 and remove `chartClipId`, `paneId`, `anchors`, `in` and `out` from its props.
+8. The fallback path, when the chart, the pane or the series cannot be resolved: keep the drawing's stored `props.x`, `props.y`, `props.width`, `props.height` as the box, use the kind's default points, keep any caption that can be read, and set the default frame range. The migration never throws on a drawing and never leaves one half-converted.
+9. Set the migrated clip's `propsVersion` to 2, set its `element` to the mapped kind, and remove `chartClipId`, `paneId`, `anchors`, `in` and `out` from its props.
 
 **The migration's comment carries the approximation in these words:** the placement uses the chart's plot area and the chart's full-series price range, and is therefore an approximation at the last frame.
 
@@ -383,33 +412,37 @@ Write `migrateV2ToV3` in `packages/components/src/project-migrate.ts` and bump `
 Change the assertion at `:57` from `toBe(2)` to `toBe(3)`. Assert, by name:
 
 - "migrates a v2 document to v3"
-- "keeps a migrated price line's authored price exactly" — a v2 drawing with a price anchor of `4200` migrates to `props.price === 4200`
+- "maps a migrated price line to a horizontal line" — the clip's `element` becomes `horizontalLine`
+- "maps a migrated price zone to a rectangle" — the clip's `element` becomes `rectangle`
+- "keeps the other six drawing kinds' names"
+- "keeps a migrated price line's price as its caption" — a v2 drawing with a price anchor of `4200` migrates to `props.caption === '4200'`
 - "places a migrated drawing using the chart's plot area and the full-series price range"
 - "converts a chart-relative lifecycle into the drawing's own frame range" — `in: 10`, `out: 40` on a chart at `from: 100` gives `from: 110`, `durationInFrames: 30`
 - "treats an out of zero as an open-ended range"
 - "falls back to the stored box when the chart is missing"
 - "falls back to the stored box when the pane is missing"
 - "leaves no chart-anchor props on a migrated drawing" — no `chartClipId`, no `paneId`, no `anchors`, no `in`, no `out`
+- "leaves no retired market number on a migrated drawing" — no `price`, no `position.entry`, no `position.stop`, no `position.target`
 - "is idempotent" — `migrateProject(migrateProject(doc))` deep-equals `migrateProject(doc)`
 - "leaves a v3 document unchanged"
 
 - [ ] **Step 3: Rewrite the adapters to draw in their own box**
 
-In `packages/components/src/trading/drawings/adapters.tsx`, change `DrawingAdapterProps` to `{ width, height, style?, points?, price?, position?, trendline?, label? }`. Remove the chart-relative `DrawingCanvas` offset: the composition already centres a clip's content on `props.x` / `props.y`, so a drawing's adapter renders an SVG of `width` × `height` with `viewBox="0 0 width height"` and draws in box-local pixels. A point at fraction `(px, py)` maps to `(px * width, py * height)`.
+In `packages/components/src/trading/drawings/adapters.tsx`, change `DrawingAdapterProps` to `{ width, height, style?, caption?, points?, position?, trendline?, label? }`. Remove the chart-relative `DrawingCanvas` offset: the composition already centres a clip's content on `props.x` / `props.y`, so a drawing's adapter renders an SVG of `width` × `height` with `viewBox="0 0 width height"` and draws in box-local pixels. A point at fraction `(px, py)` maps to `(px * width, py * height)`.
 
-Per kind: `priceLine` draws a horizontal rule across the box at `height / 2` and the price as a caption at the rule's right end; `highLowLine` draws a vertical segment at `width / 2` between `points.top` and `points.bottom`; `verticalLine` draws a vertical rule at `points.at.x * width` spanning the full height; `trendline` draws the segment between `points.start` and `points.end` with the `ray` behaviour kept; `priceZone` draws a filled band between `points.top.y * height` and `points.bottom.y * height` across the full width; `textLabel` draws `label.text` at `points.at`; `arrow` draws the arrow between `points.from` and `points.to`; `position` draws three levels derived from `position.entry` / `position.stop` / `position.target` — mapped affinely over their own min/max so the highest is at the top of the box, the lowest at the bottom and the remaining one interpolated by value, with an even spacing by role when all three are equal — plus the optional ratio label `|target − entry| / |entry − stop|`, and **never** a P&L figure and never a broker fill.
+Per kind: `horizontalLine` draws a horizontal rule across the box at `height / 2`; `verticalLine` draws a vertical rule at `points.at.x * width` spanning the full height; `trendline` draws the segment between `points.start` and `points.end` — **any angle** — with the `ray` behaviour kept; `highLowLine` draws a vertical segment between `points.top` and `points.bottom`; `rectangle` draws the element's own box, outlined and optionally filled; `textLabel` draws `label.text` at `points.at`; `arrow` draws the arrow between `points.from` and `points.to`; `position` draws three horizontal levels at `points.entry.y`, `points.stop.y` and `points.target.y`, plus the ratio label `|target.y − entry.y| / |entry.y − stop.y|` when `position.showRiskReward` is set. Every adapter draws the `caption` beside the shape when one is present. **No adapter draws a market value, a P&L figure or a broker fill.**
 
 - [ ] **Step 4: Rewrite the definitions**
 
-In `packages/components/src/trading/drawings/definitions.ts`: remove the `evaluate` field and the chart lookup; set `propsVersion: 2`; give each definition its own defaults — `x: 960`, `y: 540`, `opacity: 1`, `style: { color: '#e8eaf0', lineWidth: 1.5 }` — plus the kind's content and the kind's default box (`priceLine` 480×24, `highLowLine` 24×320, `verticalLine` 24×320, `trendline` 320×180, `priceZone` 320×180, `textLabel` 200×40, `arrow` 320×180, `position` 320×240). The `params` array per kind exposes numeric `width` and `height` (the selection overlay needs them for resize), `opacity`, and the kind's own authored-number params. `COMMON_PARAMS` (`:227`) loses `in` and `out` and keeps `opacity`.
+In `packages/components/src/trading/drawings/definitions.ts`: remove the `evaluate` field and the chart lookup; set `propsVersion: 2`; rename the two kinds — `priceLine` → `horizontalLine`, `priceZone` → `rectangle` — and give each definition its own defaults — `x: 960`, `y: 540`, `opacity: 1`, `style: { color: '#e8eaf0', lineWidth: 1.5 }` — plus the kind's content and the kind's default box (`horizontalLine` 480×24, `verticalLine` 24×320, `trendline` 320×180, `highLowLine` 24×320, `rectangle` 320×180, `textLabel` 200×40, `arrow` 320×180, `position` 320×240). The `params` array per kind exposes numeric `width` and `height` (the selection overlay needs them for resize), `opacity`, and the kind's own params — a `caption` text field on every kind, `trendline.ray` on the trend line, `label.text` on the text label, `position.direction` and `position.showRiskReward` on the position tool. `COMMON_PARAMS` (`:227`) loses `in` and `out` and keeps `opacity`.
 
 - [ ] **Step 5: Delete `anchors.ts` and retire the anchor types**
 
-Delete `packages/components/src/trading/drawings/anchors.ts`; remove its export from `packages/components/src/index.ts` (`:9`); remove `MarketAnchor` (`:171`) and `DrawingSpec` (`:193`) from `packages/core/src/elements.ts`; remove `buildDrawingAnchors` (`:65`) and `drawingBarId` (`:51`) from `packages/editor/src/drawings.ts`; update `DRAWING_TOOLS` (`:20`) to the new click counts — `priceLine` 1, `verticalLine` 1, `textLabel` 1, `position` 1, `highLowLine` 2, `trendline` 2, `priceZone` 2, `arrow` 2.
+Delete `packages/components/src/trading/drawings/anchors.ts`; remove its export from `packages/components/src/index.ts` (`:9`); remove `MarketAnchor` (`:171`) and `DrawingSpec` (`:193`) from `packages/core/src/elements.ts`; remove `buildDrawingAnchors` (`:65`) and `drawingBarId` (`:51`) from `packages/editor/src/drawings.ts`; update `DRAWING_TOOLS` (`:20`) to the new kinds and click counts — `horizontalLine` 1, `verticalLine` 1, `textLabel` 1, `position` 1, `rectangle` 1, `highLowLine` 2, `trendline` 2, `arrow` 2.
 
 - [ ] **Step 6: Rewrite the drawing inspector**
 
-In `packages/components/src/trading/inspectors/drawing.tsx`, drop the anchors panel entirely. The panel now edits the authored number(s) — `price` for a price line, `position.entry` / `position.stop` / `position.target` for the position tool — the style (`color`, `lineWidth`, `fillOpacity`, `fontSize`), and the per-kind extras (`trendline.ray`, `label.text`, `position.direction`, `position.showRiskReward`). It writes through `onChange` with the same commit-first discipline the current panel uses.
+In `packages/components/src/trading/inspectors/drawing.tsx`, drop the anchors panel entirely. The panel now edits the **caption** — a text field on every kind — the style (`color`, `lineWidth`, `fillOpacity`, `fontSize`), and the per-kind extras (`trendline.ray`, `label.text`, `position.direction`, `position.showRiskReward`). There is no number field for a price or for the position tool's levels, because there are no numbers; the levels are dragged on the canvas. It writes through `onChange` with the same commit-first discipline the current panel uses.
 
 - [ ] **Step 7: Rewrite the store producer**
 
@@ -423,13 +456,14 @@ In `apps/studio/src/components/PreviewPanel.tsx`, the placement path must still 
 
 In `packages/components/src/trading/drawings/drawings.test.tsx`, replace the fixtures that referenced `MarketAnchor` and the chart (`BARS`, `chartProps()`, `CHART_ID`, `FRAMES_PER_BAR`) with fixtures that build a drawing clip on its own. Assert, by name:
 
-- "renders a price line in its own box with no chart in the project"
-- "renders a trendline between its two points"
-- "renders a price zone as a band across its box"
+- "renders a horizontal line in its own box with no chart in the project"
+- "renders a trend line between its two points at any angle"
+- "renders a rectangle as the element's own box"
+- "renders a high and low line as a vertical segment"
 - "renders a text label at its point"
+- "draws the caption beside the shape and claims no market value"
 - "draws no profit-and-loss figure and implies no broker fill" — the rendered output of a position tool contains no currency-with-sign or P&L string
-- "derives the position levels from the creator's own numbers" — entry sits at `risk / (risk + reward)` up from the bottom for a canonical long
-- "spaces the position levels evenly when the three numbers are equal"
+- "computes the position ratio from the drawn geometry" — the ratio label equals `|target.y − entry.y| / |entry.y − stop.y|`
 
 In `packages/editor/src/drawings.test.ts`, drop the `buildDrawingAnchors` and `drawingBarId` assertions and assert the new tool metadata: the eight kinds and their click counts, and `isDrawingKind`.
 
@@ -437,14 +471,14 @@ In `packages/editor/src/drawings.test.ts`, drop the `buildDrawingAnchors` and `d
 
 In `packages/editor/src/store.test.ts`, replace the cases "creates a price line as a clip anchored to a chart and a pane", "duplicates a drawing without sharing its anchors", "locks and hides a drawing" and "undoes a drawing deletion" with the equivalents for the independent model:
 
-- "creates a price line as an independent clip"
+- "creates a horizontal line as an independent clip"
 - "duplicates a drawing without sharing its points"
 - "gives a new drawing its own frame range"
 - "undoes a drawing deletion"
 
 - [ ] **Step 11: Rewrite the `AuthoredPath` fixture**
 
-In `packages/video/remotion/authored-path-fixture.ts`, rewrite the price line and the trendline as independent drawings at schema version 3: the price line carries its own box and its authored `price`; the trendline carries its own box and its two points. The chart keeps its own props unchanged. Update `packages/video/src/authored-path-fixture.test.ts` to the new fixture shape.
+In `packages/video/remotion/authored-path-fixture.ts`, rewrite the price line and the trendline as independent drawings at schema version 3: the price line becomes a `horizontalLine` with its own box and a caption carrying the old price; the trendline keeps its kind and carries its own box and its two points. The chart keeps its own props unchanged. Update `packages/video/src/authored-path-fixture.test.ts` to the new fixture shape.
 
 - [ ] **Step 12: Run the render gate and report**
 
@@ -462,16 +496,19 @@ Run `pnpm test`, `pnpm typecheck` and `pnpm build`. Report the observed counts a
 
 ```bash
 git add -A
-git commit -m "Make the drawings independent elements
+git commit -m "Make the drawings independent elements in TradingView's vocabulary
 
 The eight drawing kinds lose their chart, their pane and their market
 anchors. Each one is now a clip with its own box, its own frame range and
 its own points, and it renders whether or not a chart exists in the
-project.
+project. The price line becomes a horizontal line and the price zone
+becomes a rectangle, because a line that keeps the name priceLine while
+holding no price is a false label.
 
-Existing documents are migrated: the authored numbers are kept exactly and
-the placement uses the chart's plot area and full-series price range, which
-is an approximation at the last frame and is stated in the migration's own
+Existing documents are migrated: the old element types are mapped to the
+new ones, a price line's price is kept as its caption, and the placement
+uses the chart's plot area and full-series price range, which is an
+approximation at the last frame and is stated in the migration's own
 comment.
 
 "
@@ -479,7 +516,7 @@ comment.
 
 ---
 
-### Task 3: S2 — PILOT: the editor flow — tools without a chart, placement, the drop, the track rule, the inspector
+### Task 3: S2 — PILOT: the editor flow — tools without a chart, placement, the drop, the draggable handles, the track rule, the inspector
 
 **Requirements:** OB-001, OB-003, OB-004, OB-011, OB-012, OB-013, OB-010, CH-009, TL-006
 
@@ -489,17 +526,18 @@ comment.
 - Modify: `packages/editor/src/store.ts` (`addDrawing`'s default track rule and default frame range; `ensureChartMarket` re-homed into `addClip` for `candlestickChart`)
 - Modify: `packages/editor/src/store.test.ts`
 - Modify: `apps/studio/src/components/ToolRail.tsx` (the chart gate goes)
-- Modify: `apps/studio/src/components/PreviewPanel.tsx` (placement without a chart; the drop path; the notice goes)
+- Modify: `apps/studio/src/components/PreviewPanel.tsx` (placement without a chart; the drop path; the notice goes; the drawing point handles and their drag handler)
 - Modify: `packages/ui/src/components/library/catalog.tsx` (a separate **Drawings** group)
-- Modify: `packages/components/src/trading/inspectors/drawing.tsx` (the panel shows the box and the authored numbers in the new model)
+- Modify: `packages/components/src/trading/inspectors/drawing.tsx` (the panel shows the caption, the style and the per-kind extras)
 - Modify: `packages/video/remotion/authored-path-fixture.ts` (only if the fixture needs the new props shape — it should not after S1)
 
 **Interfaces:**
 
-- Consumes: the independent drawing props from S1; `groupSelection` / `ungroupSelection` / `duplicateSelection` / `copySelection` / `paste` / `removeClips` (unchanged); `moveTrack` (`:480`) for the layer order.
+- Consumes: the independent drawing props from S1; the swing path's handle machinery — `swingHandles()` and the swing drag handler in `apps/studio/src/components/PreviewPanel.tsx`; `groupSelection` / `ungroupSelection` / `duplicateSelection` / `copySelection` / `paste` / `removeClips` (unchanged); `moveTrack` (`:480`) for the layer order.
 - Produces:
   - `packages/editor/src/drawings.ts` — `DRAWING_TOOLS` gains the default box size per kind; a helper `defaultDrawingBox(kind, picks)` that builds the box from the creator's clicks: one-click kinds use the kind's default box centred on the click; two-click kinds use the bounding box of the two points, padded by 16 px on each side, with a minimum of 32 px in each axis.
   - `packages/editor/src/store.ts` — `addDrawing` gains the default track rule and the default frame range: the track immediately above the chart it was dropped on when there is one (one step towards the top layer, clamped at 0, appended to that track so it renders above the chart), otherwise the track of the selected clip, otherwise the first track; `from = currentFrame` and a duration of about 90 frames or the remaining project duration, whichever is shorter. `ensureChartMarket` moves into `addClip` for `candlestickChart`, so a chart added from the library still receives a series, a pane and a clock after `resolveDrawingTarget` is gone.
+  - `apps/studio/src/components/PreviewPanel.tsx` — drawing point handles: the canvas draws a handle over each of the selected drawing's points, and dragging a handle rewrites that point in the clip's props. The handles are **the swing path's machinery, reused** — the same hit geometry, the same drag handler — not a second handle system.
 
 - [ ] **Step 1: Add the default box helper to `packages/editor/src/drawings.ts`**
 
@@ -531,27 +569,31 @@ In `apps/studio/src/components/ToolRail.tsx`, remove the `isChart` gate (`:22`, 
 
 In `apps/studio/src/components/PreviewPanel.tsx`, the click path computes the drawing's own box and points from the click — using `defaultDrawingBox` — and calls `addDrawing` with them. No chart is looked up, no pane is resolved, no anchor is built. The drop path (`:527`) does the same at the drop point, and the notice "A drawing needs a chart — drop it on one, or select a chart and use the tool rail." (`:541`) is deleted.
 
-- [ ] **Step 7: Give the library its own Drawings group**
+- [ ] **Step 7: Draw the drawing's point handles and let the creator drag them**
+
+In `apps/studio/src/components/PreviewPanel.tsx`, when a drawing is selected the canvas draws a handle over each of its points, and dragging a handle rewrites that point in the clip's props through `updateClip`. **Reuse the swing path's machinery** — `swingHandles()` (`:623`) and the swing drag handler (`onPointerMove`, `:392`, with the gesture state in `swingDrag`, `:116`) — for the handle's hit geometry and the drag interaction; do not build a second handle system. The trend line's two handles move freely, so the line takes any angle; the high and low line's two handles stay on a vertical segment; the position tool's three handles move their levels, and the ratio label follows the geometry.
+
+- [ ] **Step 8: Give the library its own Drawings group**
 
 In `packages/ui/src/components/library/catalog.tsx`, move the eight drawing kinds out of the "Chart" group (`:38-50`) into a new **Drawings** group, so a drawing appears once and the chart group's name stays true.
 
-- [ ] **Step 8: Show the drawing's own fields in the inspector**
+- [ ] **Step 9: Show the drawing's own fields in the inspector**
 
-In `packages/components/src/trading/inspectors/drawing.tsx`, the panel shows the authored number or numbers, the style and the per-kind extras. The box (`x`, `y`, `width`, `height`) is edited through the definition's numeric params, so the generic inspector's POSITION section carries `x` and `y` and the PROPERTIES section carries `width` and `height`; the clip's own frame range is the generic inspector's CLIP section. The chart-relative `in` / `out` are gone and are not replaced.
+In `packages/components/src/trading/inspectors/drawing.tsx`, the panel shows the **caption**, the style and the per-kind extras. The box (`x`, `y`, `width`, `height`) is edited through the definition's numeric params, so the generic inspector's POSITION section carries `x` and `y` and the PROPERTIES section carries `width` and `height`; the clip's own frame range is the generic inspector's CLIP section. The chart-relative `in` / `out` are gone and are not replaced, and there is no number field for a price or for the position tool's levels — those are dragged on the canvas.
 
-- [ ] **Step 9: Exercise the flow in a browser and report**
+- [ ] **Step 10: Exercise the flow in a browser and report**
 
-With **no chart anywhere in the project**: arm each of the eight tools, place a drawing, and confirm it renders, sits on the expected track, carries its own start and length, and shows its authored number or numbers in the inspector. With **a chart in the project**: place a drawing over the chart and confirm the track rule (above the chart's track; the chart's own track when the chart is on the top layer). Report every observation.
+With **no chart anywhere in the project**: arm each of the eight tools, place a drawing, and confirm it renders, sits on the expected track, carries its own start and length, and shows its caption in the inspector. Drag each point of a trend line, a high and low line and a position tool and confirm the shape and the ratio follow. With **a chart in the project**: place a drawing over the chart and confirm the track rule (above the chart's track; the chart's own track when the chart is on the top layer). Report every observation.
 
-- [ ] **Step 10: Run the render gate and report**
+- [ ] **Step 11: Run the render gate and report**
 
 Run `node scripts/verify-r1.mjs`. Both fixtures' still sizes and both MP4 outcomes must be **byte-identical to the S1 render** — S2 changes the editor, not the render path. Report the sizes.
 
-- [ ] **Step 11: Run the suite and report**
+- [ ] **Step 12: Run the suite and report**
 
 Run `pnpm test`, `pnpm typecheck` and `pnpm build`. Report the observed counts and results.
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 13: Commit**
 
 ```bash
 git add -A
@@ -562,8 +604,10 @@ places the drawing in the composition, and the drawing gets its own frame
 range and its own track: the track above the chart it was dropped on, the
 selected clip's track, or the first track.
 
-The creator's numbers stay the creator's: they are in the inspector, and
-the chart-relative in and out are gone.
+The points are draggable handles now, reusing the swing path's machinery,
+so the trend line takes any angle and the position tool's levels are where
+the creator puts them. The chart-relative in and out are gone, and the
+creator's own figure is a caption.
 
 "
 ```
@@ -704,7 +748,7 @@ Report the observed test count and file count, the typecheck result, the build r
 
 - [ ] **Step 3: Confirm the cutover is clean**
 
-Grep the workspace for `MarketAnchor`, `DrawingSpec`, `REQUIRED_ANCHORS`, `resolveAnchors`, `buildDrawingAnchors`, `drawingBarId`, `resolveDrawingTarget`, `setDrawingLocked` and `setDrawingHidden`. Every hit must be gone, except the historical references inside `docs/decisions/ADR-007-CHART-ELEMENT-MODEL.md` and `docs/decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md`, which record what was decided. Report the grep output.
+Grep the workspace for `MarketAnchor`, `DrawingSpec`, `REQUIRED_ANCHORS`, `resolveAnchors`, `buildDrawingAnchors`, `drawingBarId`, `resolveDrawingTarget`, `setDrawingLocked`, `setDrawingHidden`, the retired element types `priceLine` and `priceZone`, and the retired props `price`, `position.entry`, `position.stop` and `position.target`. Every hit must be gone, except the historical references inside `docs/decisions/ADR-007-CHART-ELEMENT-MODEL.md` and `docs/decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md`, which record what was decided. Report the grep output.
 
 - [ ] **Step 4: Bring the companion documents in line**
 
@@ -718,7 +762,7 @@ git commit -m "Bring the companion documents in line with the independent drawin
 
 The functional spec, the component contract, the roadmap and the test
 strategy now read as implemented: drawings are ordinary elements with
-their own box, their own range and their own numbers, and the context menu
+their own box, their own range and their own geometry, and the context menu
 and the generalised lock and hide are recorded.
 
 "
@@ -732,8 +776,8 @@ and the generalised lock and hide are recorded.
 - The final test count and file count (the suite was 400 tests over 29 files before this work).
 - The six `Main` still sizes and the MP4 outcome, and the statement that they are byte-identical to the pre-change render; the `Main` provenance sidecar's `schemaVersion` and `annotations`.
 - The three `AuthoredPath` still sizes and the MP4 outcome, and the statement that they changed because the drawings became free elements — expected, not a regression.
-- The provenance sidecar's `annotations` section, showing a drawing's authored numbers recorded as authored.
-- The grep output from the clean-cutover check, and the observation that the only remaining mentions of the retired symbols are in the two ADRs that record the decision.
+- The provenance sidecar's `annotations` section, showing a drawing's kind and its caption recorded as the creator's own.
+- The grep output from the clean-cutover check, and the observation that the only remaining mentions of the retired symbols — `MarketAnchor`, `DrawingSpec`, `priceLine`, `priceZone`, `buildDrawingAnchors`, `drawingBarId`, `resolveDrawingTarget`, `setDrawingLocked`, `setDrawingHidden` — are in the two ADRs that record the decision.
 - Every item listed in the Deferred work section, named as still deferred.
-- The observation that the price line's authored number places nothing, and that the interface says so.
+- The observation that a drawing states no market value, that the creator's own figure is its caption, and that the interface says so.
 - Anything not exercised, named as unverified.

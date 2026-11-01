@@ -2,7 +2,8 @@
 
 **Status:** Proposed for owner approval — no implementation authorised by this document.
 **Date:** 2026-11-01
-**Design edition:** 1.0
+**Design edition:** 1.1 — the drawing vocabulary is TradingView's; `priceLine` → `horizontalLine`
+and `priceZone` → `rectangle`; no drawing carries a market value.
 **Supersedes:** the market-anchor drawing decision in
 [ADR-007 — The chart element model](../decisions/ADR-007-CHART-ELEMENT-MODEL.md) §Decision item 4,
 as recorded and explained in [ADR-009 — Drawings are independent elements](../decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md).
@@ -32,7 +33,7 @@ chart, and they inherit every constraint that comes with that:
 ### 1.2 The one sentence this design makes true
 
 > A creator should be able to **place a drawing anywhere in the composition**, with its own box,
-> its own time range and its own numbers, **whether or not a chart exists in the project at all**.
+> its own time range and its own geometry, **whether or not a chart exists in the project at all**.
 
 The word that carries the weight is *anywhere*. Not "on a chart's plot area, at a price". Anywhere.
 
@@ -41,12 +42,12 @@ The word that carries the weight is *anywhere*. Not "on a chart's plot area, at 
 | # | Feature | Requirement IDs |
 |---|---|---|
 | F1 | The eight drawing kinds become ordinary elements: their own box in composition space, their own frame range, their own layer position, rendered with no chart in the project | OB-001, OB-003, OB-010, CH-009 |
-| F2 | A drawing's geometry is authored in its own terms: normalised points inside its box, and the creator's own numbers for the price line and the position tool | OB-004, OB-005, OB-006, CPT-005 |
-| F3 | The placement flow: the tools are always offered, a click or a drop places a drawing at that point, and the numbers are typed | OB-001, OB-004 |
-| F4 | The migration: a document with today's chart-anchored drawings renders again after the cutover, with the authored numbers kept exactly and the placement stated as an approximation | CV-001, CV-003, AP-002 |
+| F2 | The drawing set is TradingView's vocabulary — horizontal line, vertical line, trend line, high and low line, rectangle, text, arrow, long/short position — and every kind is pure geometry with no market value anywhere | OB-004, OB-005, OB-006, CPT-005 |
+| F3 | The placement flow: the tools are always offered, a click or a drop places a drawing at that point, and the creator drags the points afterwards | OB-001, OB-004 |
+| F4 | The migration: a document with today's chart-anchored drawings renders again after the cutover, with the old element types mapped to the new ones, the price kept as a caption, and the placement stated as an approximation | CV-001, CV-003, AP-002 |
 | F5 | A canvas context menu: group, ungroup, duplicate, copy, paste, delete, rename, layer order, lock, hide | OB-010, TL-006 |
 | F6 | Lock and hide generalise to every clip | OB-010, CV-004 |
-| F7 | The provenance record gains an annotations section that records a drawing's authored numbers as authored | MD-010, EX-004 |
+| F7 | The provenance record gains an annotations section that records a drawing's kind and its caption | MD-010, EX-004 |
 
 ### 1.4 Scope decisions already made (not reopened here)
 
@@ -54,9 +55,17 @@ The word that carries the weight is *anywhere*. Not "on a chart's plot area, at 
   are. This design changes what a drawing *is*, not what a chart *is*.
 - **No snapping, ever.** A drawing does not read a chart's scale, bars or pane — not even for a
   moment at placement time. Snapping would reintroduce exactly the coupling this design removes.
-- **No new element types.** The eight `DrawingKind` values keep their ids
-  (`packages/core/src/elements.ts:182`). The registry's rule that a type is never renamed,
-  renumbered or reused is not negotiable.
+- **The vocabulary is TradingView's.** The set is horizontal line, vertical line, trend line, high
+  and low line, rectangle, text, arrow and long/short position. Two kinds are **renamed**:
+  `priceLine` becomes `horizontalLine` and `priceZone` becomes `rectangle`, because a line that
+  keeps the name `priceLine` while holding no price is a false label. The registry's standing rule
+  that a type is never renamed **does not apply to these two**, and the v2 → v3 migration maps the
+  old element types to the new ones. The other six kinds keep their ids
+  (`packages/core/src/elements.ts:182`), and no kind is renumbered or reused.
+- **No market values anywhere.** Every kind is pure geometry. The horizontal line has no price,
+  the rectangle has no edge prices, the position tool's three levels are positions inside its own
+  box. The creator's own figure is a **caption** — a short string the creator types, drawn beside
+  the shape.
 - **The market-anchor model is not kept behind a flag.** The cutover is clean: no shim, no alias,
   no second drawing model.
 
@@ -70,16 +79,20 @@ The word that carries the weight is *anywhere*. Not "on a chart's plot area, at 
 2. **Independence is total.** No chart lookup, no pane lookup, no anchor resolution, no snapping,
    no fallback that quietly reads the market. A drawing that reads a chart is a chart annotation
    wearing an element's clothes.
-3. **The creator's numbers are the creator's numbers.** A price line's price is a figure the
-   creator typed. It is not market truth, and the product does not pretend otherwise.
-4. **Honesty over convenience.** Where independence costs something — a price cannot place itself
+3. **The drawing is geometry, and the creator owns it.** A drawing's points and levels are
+   positions in its own box that the creator drags; the creator's own figure is a caption the
+   creator types. Nothing in a drawing is market truth, and the product does not pretend otherwise.
+4. **A name must not claim what the data does not support.** A line that holds no price is not a
+   price line; a zone with no prices is a rectangle. That is why the two kinds are renamed, and it
+   is the same rule that governs every other label in the product.
+5. **Honesty over convenience.** Where independence costs something — a level cannot place itself
    on a market, a migration cannot reproduce a live scale — the cost is stated in the interface
    and in the code, not hidden behind a plausible-looking default.
-5. **The timeline is the lifecycle.** One frame range, one place, one meaning. A chart-relative
+6. **The timeline is the lifecycle.** One frame range, one place, one meaning. A chart-relative
    range is deleted, not deprecated.
-6. **Surfaces over new machinery.** Grouping, duplication, copy, paste, delete and the layer order
+7. **Surfaces over new machinery.** Grouping, duplication, copy, paste, delete and the layer order
    already exist in the store. The context menu surfaces them; it does not reinvent them.
-7. **The render gate is the proof.** A change to a drawing is not done until
+8. **The render gate is the proof.** A change to a drawing is not done until
    `node scripts/verify-r1.mjs` has rendered it.
 
 ---
@@ -101,7 +114,7 @@ export interface DrawingPoint {
 export interface DrawingStyle {
   color?: string;
   lineWidth?: number;
-  /** Fill opacity of a zone. */
+  /** Fill opacity of a rectangle or a zone band. */
   fillOpacity?: number;
   fontSize?: number;
 }
@@ -115,6 +128,7 @@ Every drawing clip carries, in its props:
 | `width`, `height` | number | the box size in pixels |
 | `opacity` | number | 0..1 |
 | `style` | `DrawingStyle` | the drawing's own appearance |
+| `caption` | string | an optional short string the creator types, drawn beside the shape — the creator's own figure |
 
 and, per kind, the content described in §3.3.
 
@@ -128,7 +142,8 @@ The clip's own `from` and `durationInFrames` are the drawing's lifecycle. There 
 | `paneId` | Same reason. A pane is a chart's internal structure. |
 | `anchors` (`MarketAnchor`) | A market anchor is a reference *out* of the drawing. The whole point is that the drawing has no reference out. |
 | `in`, `out` (chart-relative) | A chart-relative frame range is a second clock. The clip's own range is the only range. |
-| `zone.extendRight` | `ComponentRenderContext` carries no composition size (`packages/core/src/contract.ts:22-34`), so a zone cannot know where "the right edge" is. The box is the extent. |
+| `zone.extendRight` | `ComponentRenderContext` carries no composition size (`packages/core/src/contract.ts:22-34`), so a rectangle cannot know where "the right edge" is. The box is the extent. |
+| The authored numbers (`price`, `position.entry` / `position.stop` / `position.target`) | A drawing reads no market, so it holds no market value. The horizontal line carries no price; the rectangle carries no edge prices; the position tool's three levels are positions in its own box. The creator's own figure is a `caption`. |
 | The drawing definitions' `evaluate` step | With nothing to resolve, there is nothing to evaluate. `evaluateDrawing` (`packages/components/src/trading/drawings/definitions.ts:100`) goes with `anchors.ts` (`packages/components/src/trading/drawings/anchors.ts`). |
 
 Retired with them: `MarketAnchor` (`packages/core/src/elements.ts:171`) and `DrawingSpec`
@@ -138,16 +153,20 @@ chart API and are heavily tested.
 
 ### 3.3 The per-kind model
 
-| Kind | Points | Authored numbers | Other props | Drawn shape |
-|---|---|---|---|---|
-| `priceLine` | — | `price: number` | — | a horizontal rule across the box at the box's vertical centre; the price is a caption at the rule's right end |
-| `highLowLine` | `points.top`, `points.bottom` | — | — | a vertical segment at the box's horizontal centre, between the two points |
-| `verticalLine` | `points.at` | — | — | a vertical rule at `at.x`, spanning the box's full height |
-| `trendline` | `points.start`, `points.end` | — | `trendline.ray` | a straight line between the two points, optionally extended as a ray |
-| `priceZone` | `points.top`, `points.bottom` | — | — | a filled band between the two points' heights, across the box's full width |
-| `textLabel` | `points.at` | — | `label.text` | the text, anchored at the point |
-| `arrow` | `points.from`, `points.to` | — | — | an arrow from one point to the other |
-| `position` | — | `position.entry`, `position.stop`, `position.target` | `position.direction`, `position.showRiskReward` | three horizontal levels inside the box, derived from the three numbers |
+The set is TradingView's, and every kind is pure geometry. There is no market value anywhere in it.
+
+| Kind | TradingView equivalent | Points | Other props | Drawn shape | How the creator manipulates it |
+|---|---|---|---|---|---|
+| `horizontalLine` | Horizontal Line | — | — | a horizontal rule across the box at the box's vertical centre | placed by one click; the caption is typed |
+| `verticalLine` | Vertical Line | `points.at` | — | a vertical rule at `at.x`, spanning the box's full height | placed by one click; the point is dragged |
+| `trendline` | Trend Line | `points.start`, `points.end` | `trendline.ray` | a straight line between the two points, **any angle**, optionally extended as a ray | two clicks, then two draggable handles |
+| `highLowLine` | High and Low Line | `points.top`, `points.bottom` | — | a vertical segment between the two points | two clicks, then two draggable handles; the segment stays vertical |
+| `rectangle` | Rectangle | — | — | the element's own box, outlined and optionally filled | one click; the box is resized like any element's |
+| `textLabel` | Text | `points.at` | `label.text` | the text, anchored at the point | one click; the text is typed |
+| `arrow` | Arrow | `points.from`, `points.to` | — | a segment from one point to the other, with a head | two clicks, then two draggable handles |
+| `position` | Long/Short Position | `points.entry`, `points.stop`, `points.target` | `position.direction`, `position.showRiskReward` | three horizontal levels inside the box, plus the distance ratio | one click, then three draggable level handles |
+
+Every kind also carries the optional `caption` (§3.1) and the shared `style`.
 
 #### 3.3.1 Normalised points
 
@@ -161,48 +180,52 @@ Consequences:
 - A point is meaningless outside its box, which is exactly the property the design wants: the
   geometry travels with the element.
 
-#### 3.3.2 The price line
+#### 3.3.2 The horizontal line, and the caption
 
-The price line carries one authored number and no points. The rule is drawn at the box's vertical
-centre, across the box's full width, and the number is shown as a caption at the rule's right end.
+The horizontal line carries no points and no price. The rule is drawn at the box's vertical
+centre, across the box's full width.
+
+If the creator wants to state a level — "4200", "level 3", "stop here" — they type it in the
+**caption**, and the caption is drawn beside the rule. TradingView labels its lines the same way.
+The caption is the creator's own figure ✓ and the product never claims it is a market value.
 
 This is the sharpest honesty limit in the design and it is stated rather than smoothed over:
 
-> With no chart scale, an authored price cannot position itself against a market. The number is a
-> creator-authored caption; the box places the geometry.
-
-A creator who wants a rule *at* price 4200 on a chart gets a rule where they put it, labelled
-4200. That is a different product from a market-anchored price line, and it is the product the
-owner asked for.
+> A drawing reads no market, so it states no market value. The caption is the creator's own
+> figure; the box places the geometry.
 
 #### 3.3.3 The position tool
 
-The three numbers are the single source of truth. They place the three levels:
+The position tool carries three **levels** — `points.entry`, `points.stop`, `points.target` — which
+are positions inside its own box, not prices. The creator drags them.
 
-1. Take `min` and `max` of `entry`, `stop`, `target`.
-2. The highest number maps to the top of the box's inner band; the lowest maps to the bottom; the
-   remaining one is interpolated by value.
-3. For a canonical long this puts entry at `risk / (risk + reward)` up from the bottom, so the
-   drawn geometry preserves the risk/reward ratio exactly.
-4. When all three numbers are equal the levels are spaced evenly by role: for a long, stop at 0.25,
-   entry at 0.5, target at 0.75 (fractions up from the bottom); a short mirrors that.
+The tool shows the **distance ratio**: the target's distance from the entry, divided by the
+stop's distance from the entry, computed from the drawn geometry:
 
-The risk/reward label is `|target − entry| / |entry − stop|`, computed from the numbers. The
-position tool never draws a profit-and-loss figure and never implies a broker fill. That rule
-(OB-006) is unchanged by this design.
+```
+ratio = |target.y − entry.y| / |entry.y − stop.y|
+```
 
-`direction` (`long` / `short`) tells the adapter how to read the three roles; `showRiskReward`
-toggles the ratio label.
+That is a true statement about the shape on screen — how many times further the target is from
+the entry than the stop is. It is **not** a profit-and-loss figure and it does **not** imply a
+broker fill (OB-006 stands).
+
+TradingView's "% distance" is **not** shown: it needs a price scale, and this product has none.
+A creator who wants a price in the trade types it in the caption.
+
+`direction` (`long` / `short`) tells the adapter how to read the three roles — for a long the
+target is above the entry and the stop below, for a short the other way round — and
+`showRiskReward` toggles the ratio label.
 
 #### 3.3.4 Default boxes and click counts
 
 | Kind | Clicks to place | Default box (px) |
 |---|---|---|
-| `priceLine` | 1 | 480 × 24 |
-| `highLowLine` | 2 | 24 × 320 |
+| `horizontalLine` | 1 | 480 × 24 |
 | `verticalLine` | 1 | 24 × 320 |
 | `trendline` | 2 | 320 × 180 |
-| `priceZone` | 2 | 320 × 180 |
+| `highLowLine` | 2 | 24 × 320 |
+| `rectangle` | 1 | 320 × 180 |
 | `textLabel` | 1 | 200 × 40 |
 | `arrow` | 2 | 320 × 180 |
 | `position` | 1 | 320 × 240 |
@@ -211,8 +234,8 @@ Two-click kinds build their box from the two clicks: the bounding box of the two
 16 px on each side, with a minimum of 32 px in each axis. One-click kinds use the default box
 centred on the click.
 
-The position tool takes **one** click and its numbers are typed. Three clicks *and* three typed
-numbers would be two sources of truth for the same three levels.
+The position tool takes **one** click and its three levels are dragged afterwards. The rectangle
+takes one click and is resized like any other element's box.
 
 ### 3.4 Rendering
 
@@ -223,6 +246,9 @@ centred on `props.x` / `props.y`, so the drawing needs no offset arithmetic of i
 (`packages/components/src/trading/drawings/adapters.tsx`) simplifies to a plain SVG of the drawing's
 own size.
 
+The caption, when present, is drawn beside the shape in the drawing's own style, in the same
+manner TradingView labels its lines.
+
 A drawing renders in every frame of its own range. There is no `visible` flag any more: the
 lifecycle is the clip's frame range, and the range is the timeline's business.
 
@@ -230,7 +256,7 @@ lifecycle is the clip's frame range, and the range is the timeline's business.
 
 | Action | Signature | Behaviour |
 |---|---|---|
-| `addDrawing` | `(kind: DrawingKind, draft: DrawingDraft) => string` | Creates an independent clip: the box and points from the draft, the frame range from the current frame, the track from the default rule (§3.7), the props from the definition's defaults merged with the draft. |
+| `addDrawing` | `(kind: DrawingKind, draft: DrawingDraft) => string` | Creates an independent clip: the box, the points and the optional caption from the draft, the frame range from the current frame, the track from the default rule (§3.7), the props from the definition's defaults merged with the draft. |
 | `updateDrawing` | `(clipId, patch) => void` | Unchanged in shape; now patches an independent drawing's props. |
 | `setClipLocked` | `(clipId, locked) => void` | Renamed from `setDrawingLocked` and generalised to every clip. |
 | `setClipHidden` | `(clipId, hidden) => void` | Renamed from `setDrawingHidden` and generalised to every clip. |
@@ -263,9 +289,16 @@ it deep-copies `anchors` today.
 - **The drawing's own frame range** starts at the current frame and runs about ninety frames, or
   to the end of the project if that is sooner. The creator edits it in the timeline, like any
   clip's range.
-- **The drawing inspector** shows the box, the authored number or numbers, the style, and the
-  clip's own frame range. The chart-relative `in` / `out` are gone, including from
-  `COMMON_PARAMS` (`packages/components/src/trading/drawings/definitions.ts:227`).
+- **The points are draggable handles.** The editor draws handles over the canvas for a drawing's
+  points and the creator drags them. This is the machinery the swing path already uses for its
+  anchors — `swingHandles()` (`apps/studio/src/components/PreviewPanel.tsx:623`) and the swing drag
+  handler (`onPointerMove`, `:392`, with the gesture state in `swingDrag`, `:116`); it is **reused,
+  not rebuilt**. The trend line's two handles take any angle; the high and low line's two handles
+  stay on a vertical segment; the position tool's three handles move their levels.
+- **The drawing inspector** shows the box, the geometry, the caption, the style, and the clip's own
+  frame range. The chart-relative `in` / `out` are gone, including from
+  `COMMON_PARAMS` (`packages/components/src/trading/drawings/definitions.ts:227`). There are no
+  number fields, because there are no numbers.
 
 ### 3.7 The default track
 
@@ -323,7 +356,15 @@ The v1 → v2 step runs first, so a v1 document becomes v2 and then v3 in one pa
 
 #### 3.10.1 The algorithm
 
-For each drawing clip in the document:
+The migration **maps the old element types to the new ones** as its first act:
+
+| v2 element | v3 element |
+|---|---|
+| `priceLine` | `horizontalLine` |
+| `priceZone` | `rectangle` |
+| `highLowLine`, `verticalLine`, `trendline`, `textLabel`, `arrow`, `position` | unchanged |
+
+Then, for each drawing clip in the document:
 
 1. **Find the chart.** Look up `props.chartClipId` in the project's tracks. If it is not there,
    fall back to the stored box (§3.10.3).
@@ -341,18 +382,23 @@ For each drawing clip in the document:
    - A candle anchor (bar + side) becomes the bar's extreme price, mapped to a `y`.
    - A time anchor (bar) becomes the bar's slot centre `x`.
 6. **Build the new props.**
-   - `priceLine`: `price` is the old anchor's price, **exactly**. The box is a band of the plot
-     area's width and 24 px tall, centred on the price's `y`.
-   - `highLowLine`: `points.top` and `points.bottom` from the two anchors.
+   - `horizontalLine` (from `priceLine`): no points. The box is a band of the plot area's width and
+     24 px tall, centred on the price's `y`. The old anchor's price becomes the **`caption`**,
+     exactly — the creator's own figure is not lost.
+   - `highLowLine`: `points.top` and `points.bottom` from the two anchors, on a vertical segment.
+     The bar snapping is gone: the result is TradingView's shape without the bar.
    - `verticalLine`: `points.at` from the bar's slot centre.
    - `trendline`: `points.start` and `points.end`.
-   - `priceZone`: `points.top` and `points.bottom`; an extend-right zone's box is widened to the
-     chart's right edge.
+   - `rectangle` (from `priceZone`): the element's own box. The zone's two edge prices are **not**
+     carried over — they were market-derived clicks and a market-derived number has no meaning in
+     an independent element. An extend-right zone's box is widened to the chart's right edge.
    - `textLabel`: `points.at`; `label.text` is preserved.
    - `arrow`: `points.from` and `points.to`.
-   - `position`: `entry`, `stop` and `target` are the old anchors' prices, **exactly**; the box is
-     the plot-area rect, and the levels are re-derived from the preserved numbers.
-   - `style` and `opacity` are preserved.
+   - `position`: `points.entry`, `points.stop` and `points.target` are the old anchors' prices
+     mapped to `y` fractions of the box; the box is the plot-area rect. The three levels are
+     positions, so their old prices become their old *positions* — an approximation, stated in
+     §3.10.2. `position.direction` and `position.showRiskReward` are preserved.
+   - `caption`, `style` and `opacity` are preserved.
 7. **Convert the lifecycle.** The old `in` / `out` were chart-relative:
    `from = chart.from + in`, and `durationInFrames = (out > in ? out : chart.durationInFrames) − in`.
    An `out` of 0 means open-ended.
@@ -365,18 +411,19 @@ migration cannot reproduce the scale a chart had at a particular frame, so the m
 an **approximation at the last frame**. The migration carries that sentence in its own comment, and
 the design states it here so that nobody later reads the migration as exact.
 
-What is *not* approximate: the authored numbers. `price`, `entry`, `stop` and `target` are carried
-over exactly.
+What is *not* approximate: the caption. A v2 price line's price becomes the caption, exactly, so
+the creator's own figure survives.
 
 What *is* approximate: where the element sits, and — for the position tool — where its three
-levels sit, because the levels are re-derived from the numbers rather than from the chart's scale.
+levels sit, because the levels are mapped from the old prices through the full-series range rather
+than from the chart's live scale.
 
 #### 3.10.3 The fallback
 
 If the chart, the pane or the series cannot be resolved, the migration keeps the drawing's stored
 box (`props.x`, `props.y`, `props.width`, `props.height`), uses the kind's default points, keeps
-any authored number it can read, and sets a default frame range. The migration never throws on a
-drawing and never leaves a drawing half-converted.
+any caption it can read, and sets a default frame range. The migration never throws on a drawing
+and never leaves a drawing half-converted.
 
 #### 3.10.4 Idempotence
 
@@ -386,8 +433,8 @@ deep-equals `migrateProject(p)`, as today.
 ### 3.11 Provenance
 
 `ProvenanceRecord` (`packages/core/src/provenance.ts:71`) gains an `annotations` section: one
-entry per drawing clip, carrying the drawing's kind and its creator-authored numbers, recorded as
-**authored** and not market-derived. The `series` and `simulation` sections stay as they are.
+entry per drawing clip, carrying the drawing's kind and its caption, recorded as **the creator's
+own** and not market-derived. The `series` and `simulation` sections stay as they are.
 `packages/core` keeps its no-React, no-Remotion rule.
 
 ### 3.12 The render gate
@@ -398,8 +445,9 @@ entry per drawing clip, carrying the drawing's kind and its creator-authored num
   byte-identical across this change: the v1 → v2 → v3 migration is a no-op for it. Its provenance
   sidecar's `schemaVersion` field will read 3; that is expected and is not a frame change.
 - **AuthoredPath** — the feature fixture. It carries a price line and a trendline, both of which
-  become independent drawings. Its stills and MP4 are **expected to change**, and that change is
-  the honest record of the cutover.
+  become independent drawings — the price line as a horizontal line. The fixture is rewritten to
+  schema v3. Its stills and MP4 are **expected to change**, and that change is the honest record
+  of the cutover.
 
 ---
 
@@ -411,13 +459,13 @@ entry per drawing clip, carrying the drawing's kind and its creator-authored num
 |---|---|---|
 | OB-001 | The product offers the eight drawing tools | The tools survive; they become elements (§3.3) |
 | OB-003 | A drawing is an object with its own lifecycle | The clip's own frame range is the lifecycle (§3.1) |
-| OB-004 | The creator controls a drawing's numbers | The authored number(s) are first-class props, edited in the inspector (§3.6) |
-| OB-005 | The price zone is a band | The band is the box plus two points (§3.3) — **rewritten**: it no longer carries market-derived edge prices |
-| OB-006 | The position tool shows levels and an optional R:R ratio, never a P&L figure and never a broker fill | Unchanged in rule; the levels are derived from the creator's numbers (§3.3.3) |
+| OB-004 | The creator controls a drawing's numbers | **Rewritten**: a drawing holds no market number at all. The creator controls the geometry — the points and the levels — and states a figure in the caption (§3.3) |
+| OB-005 | The price zone is a band | **Rewritten twice over**: the kind is renamed `rectangle` and it is the element's own box, with no market-derived edge prices (§3.3) |
+| OB-006 | The position tool shows levels and an optional R:R ratio, never a P&L figure and never a broker fill | Unchanged in rule; the levels are positions in the box and the ratio is computed from the drawn geometry (§3.3.3) |
 | OB-010 | Objects can be grouped and layered | The context menu surfaces grouping; layer order is a new action (§3.8) |
 | CH-009 | The chart is a collection of elements | Unchanged — and now the chart is not the *only* place an element can live |
 | CPT-005 | A drawing's placement survives a chart resize | **Rewritten**: a drawing has no chart to resize. Its placement is its own box (§3.1) |
-| MD-010 | Provenance travels with the export | The annotations section records authored numbers (§3.11) |
+| MD-010 | Provenance travels with the export | The annotations section records each drawing's kind and caption (§3.11) |
 | EX-004 | The export's metadata is complete | Same |
 
 ### 4.2 New requirement IDs (to be added to `docs/spec/FUNCTIONAL_SPEC.md` §3)
@@ -426,18 +474,21 @@ entry per drawing clip, carrying the drawing's kind and its creator-authored num
 |---|---|
 | OB-011 | A drawing is placed at a point in the composition and renders with no chart in the project |
 | OB-012 | A drawing's geometry is authored inside its own box and scales with it |
-| OB-013 | A drawing carries creator-authored numbers, recorded in the export as authored |
+| OB-013 | A drawing carries an optional caption the creator types, recorded in the export as the creator's own figure |
 | OB-014 | The canvas offers a context menu: group, ungroup, duplicate, copy, paste, delete, rename, bring to front, send to back, lock, hide |
 | OB-015 | Lock and hide apply to every clip, not only to drawings |
-| CV-005 | A document that holds chart-anchored drawings is migrated to independent drawings without losing the authored numbers |
+| CV-005 | A document that holds chart-anchored drawings is migrated to independent drawings, with the old element types mapped to the new ones and the price kept as a caption |
 
 ### 4.3 Not claimed by this design
 
-- That an authored price positions itself against a market. It does not, and cannot (§3.3.2).
+- That a drawing states a market value. It does not, and cannot (§3.3.2). The creator's own
+  figure is a caption.
 - That a migrated drawing lands on exactly the pixel it had. It lands on an approximation, stated
   (§3.10.2).
 - That the price zone keeps its authored edge prices. It does not; those edges were market-derived
   clicks, and a market-derived number has no meaning in an independent element.
+- TradingView's "% distance" on the position tool. It needs a price scale this product does not
+  have (§3.3.3).
 - Any change to the chart's model. None is proposed.
 
 ---
@@ -447,10 +498,11 @@ entry per drawing clip, carrying the drawing's kind and its creator-authored num
 | Question | Answer |
 |---|---|
 | Which documents are affected? | Any document holding a drawing: schema v1 documents pass through v2 first |
-| What is preserved exactly? | `price`, `entry`, `stop`, `target`, `label.text`, `trendline.ray`, `style`, `opacity` |
+| Which element types change? | `priceLine` → `horizontalLine` and `priceZone` → `rectangle`; the other six keep their names |
+| What is preserved exactly? | The price line's price (as the caption), `label.text`, `trendline.ray`, `position.direction`, `position.showRiskReward`, `style`, `opacity` |
 | What is approximated? | The element's placement, and the position tool's level positions |
-| What is dropped? | The zone's `extendRight` behaviour and its edge prices |
-| What happens when the chart is gone? | The stored box is kept, the default points are used, the authored number is kept, a default range is set |
+| What is dropped? | The zone's `extendRight` behaviour and its edge prices; the high/low line's bar snapping |
+| What happens when the chart is gone? | The stored box is kept, the default points are used, any caption is kept, a default range is set |
 | Is it idempotent? | Yes — a v3 document passes through unchanged |
 | Does the Main fixture change? | No: its stills and MP4 stay byte-identical; only its sidecar's `schemaVersion` reads 3 |
 
@@ -460,17 +512,18 @@ entry per drawing clip, carrying the drawing's kind and its creator-authored num
 
 | # | Risk | Why it is real | Mitigation and where it is proven |
 |---|---|---|---|
-| R1 | **A migrated document renders differently.** The old drawing sat at a price on a live scale; the new one sits at a migrated box position. | The migration cannot reproduce a live scale. | The migration uses the plot area and the full-series range and states the approximation in its own comment. `packages/components/src/project-migrate.test.ts` — "keeps a migrated price line's authored price exactly" and "places a migrated drawing using the chart's plot area". |
+| R1 | **A migrated document renders differently.** The old drawing sat at a price on a live scale; the new one sits at a migrated box position. | The migration cannot reproduce a live scale. | The migration uses the plot area and the full-series range and states the approximation in its own comment. `packages/components/src/project-migrate.test.ts` — "keeps a migrated price line's price as its caption" and "places a migrated drawing using the chart's plot area". |
 | R2 | **The Main fixture's bytes change.** Any change to the composition or the migration path can move a pixel in an unrelated fixture. | The render gate compares bytes. | `Main` holds no drawings, so the migration is a no-op for it. The render gate must report identical still sizes and an identical MP4 for `Main`. |
 | R3 | **The cutover lands in two pieces.** The migration rewrites the props the renderer reads; a half-landed cutover renders nothing. | `migrateClip` rejects a clip whose `propsVersion` exceeds its component's (`packages/components/src/project-migrate.ts:28-90`), so the definition bump and the migration must ship together. | The migration, the definitions' `propsVersion` bump, the renderers, the store producer and the call sites are one atomic slice. The plan states this and does not split it. |
 | R4 | **A hidden clip starts rendering.** The `hidden` check lives inside the drawing renderer today. | Once drawings stop using that renderer, nothing checks the flag. | The composition skips a hidden clip. A test asserts a hidden clip is not rendered and a hidden drawing is not pickable on the canvas. |
 | R5 | **A locked clip cannot be unlocked.** Locking is easy; getting back is not. | A locked clip is not selectable on the canvas. | A locked clip stays selectable on the timeline and carries a lock badge. A test asserts a locked clip is not canvas-pickable but is timeline-selectable. |
-| R6 | **The price line reads as a lie.** A number that says 4200 next to a rule that is nowhere near 4200 invites distrust. | The number cannot place itself without a scale. | The interface states the limit: the number is an authored caption. The caption is labelled as an authored value, not a market level. |
-| R7 | **The position tool's levels mislead.** A ratio computed from the creator's numbers is exact, but the levels look like a market setup. | The geometry looks like a trade even though nothing is market-derived. | The ratio is a geometric fact about the drawn levels; no P&L figure is drawn and no broker fill is implied (OB-006). A test asserts the picture contains no P&L string. |
+| R6 | **A caption reads as a market claim.** A caption that says 4200 beside a rule nowhere near 4200 invites distrust. | The caption cannot place itself without a scale. | The caption is labelled as the creator's own figure, never as a market level, and the interface states the limit (§3.3.2). |
+| R7 | **The position tool's levels mislead.** The ratio is a true fact about the geometry, but the levels look like a market setup. | The geometry looks like a trade even though nothing is market-derived. | The ratio is a geometric fact about the drawn levels; no P&L figure is drawn and no broker fill is implied (OB-006). A test asserts the picture contains no P&L string. |
 | R8 | **Copy/paste shares state.** A pasted drawing could share its `points` object with the original. | `copyClipProps` deep-copies what it knows about. | `copyClipProps` deep-copies `points`. A test asserts a duplicated drawing's points are a different object with equal values. |
 | R9 | **A drawing lands on the wrong track.** The default rule is a heuristic. | "Immediately above the chart" is one step towards the top layer, and a chart on the topmost track shares its track. | The rule is stated exactly (§3.7) and a store test asserts each branch. |
 | R10 | **The context menu offers a locked clip's actions.** A locked clip's menu should be reduced. | The menu is generic. | Locked clips are not canvas-pickable, so the menu never opens on one. |
 | R11 | **Scope creep into a second drawing model.** "Just keep the old renderer for migrated documents" is an easy sentence to write and a permanent cost. | It is the alternative the ADR rejects. | The cutover is clean: no shim, no alias. A test asserts the old anchor props are gone from the migrated document. |
+| R12 | **A renamed kind breaks a saved document.** `priceLine` and `priceZone` no longer exist in the registry. | The element type is the persisted id. | The v2 → v3 migration maps the old types to the new ones, so an old document opens as a horizontal line and a rectangle. A test asserts the mapping. |
 
 ---
 
@@ -525,28 +578,38 @@ Anything not exercised is reported as unverified. There is no substitute for the
 
 ## 9. Approval
 
-This document changes the project schema and the meaning of eight element types. Under
-`AGENTS.md` it requires owner approval before any implementation begins, and the roadmap is not
-coding permission.
+This document changes the project schema and the meaning of eight element types, and it renames
+two of them. Under `AGENTS.md` it requires owner approval before any implementation begins, and
+the roadmap is not coding permission.
 
-Six decisions inside it are the owner's, and ADR-009 records each with its alternative:
+Seven decisions inside it are the owner's, and ADR-009 records each with its alternative:
 
-1. **§3.3.2 — the price line carries one authored number and no points.** The alternative is a
-   price line that positions itself against a scale, which is the market-anchored model this
-   design reverses.
-2. **§3.10 — the migration keeps the authored number exactly and approximates the placement.** The
-   alternative is keeping the old renderer alive behind a flag, which keeps two drawing models in
-   the product forever.
-3. **§3.7 — the default track for a new drawing.** The alternative is always the first track.
-4. **§3.6 — the drawing inspector shows box, numbers, style and the clip's own frame range.** The
-   alternative is an inspector that also shows the market context the drawing no longer has.
-5. **§3.8 — the canvas context menu and its item set.** The alternative is a timeline context menu,
+1. **§3.3 — the drawing set is TradingView's vocabulary, and every kind is pure geometry.** There
+   are no market values anywhere in it; the creator's own figure is a caption. The alternative is a
+   set that keeps authored prices on a horizontal line and on the position tool, which is what this
+   design first proposed and what the owner's TradingView reference supersedes.
+2. **§3.3, decision 9 in ADR-009 — `priceLine` is renamed `horizontalLine` and `priceZone` is
+   renamed `rectangle`, and the migration carries the rename.** The alternative is keeping the old
+   names over new behaviour, which leaves two kinds whose names claim a market the product does not
+   have.
+3. **§3.10 — the migration keeps what it can — the price as a caption — and approximates the
+   placement.** The alternative is keeping the old renderer alive behind a flag, which keeps two
+   drawing models in the product forever.
+4. **§3.7 — the default track for a new drawing.** The alternative is always the first track.
+5. **§3.6 — the drawing inspector shows box, geometry, caption, style and the clip's own frame
+   range.** The alternative is an inspector that also shows the market context the drawing no
+   longer has.
+6. **§3.8 — the canvas context menu and its item set.** The alternative is a timeline context menu,
    or no context menu.
-6. **§3.9 — lock and hide generalise to every clip.** The alternative is keeping them
+7. **§3.9 — lock and hide generalise to every clip.** The alternative is keeping them
    drawing-only.
 
-One point deserves the owner's attention before approval rather than after:
+Two points deserve the owner's attention before approval rather than after:
 
-> The price line's authored number cannot place the rule against a market. After this change, a
-> price line says "4200" and sits where the creator put it. That is the consequence of total
-> independence, and the interface says so rather than implying a market anchor it does not have.
+> **A drawing states no market value.** After this change, a horizontal line says "4200" in its
+> caption and sits where the creator put it. That is the consequence of total independence, and
+> the interface says so rather than implying a market anchor it does not have.
+
+> **Two element types change name.** A document saved before this work opens with its price lines
+> as horizontal lines and its price zones as rectangles. The migration carries the rename, so
+> nothing is lost — but the names in the saved file are different afterwards.
