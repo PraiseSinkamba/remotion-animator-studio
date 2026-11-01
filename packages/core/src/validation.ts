@@ -550,15 +550,16 @@ export const validateChartRelations = (raw: unknown): ValidationResult<ChartProp
 /* independent drawings                                               */
 /* ------------------------------------------------------------------ */
 
-/** One point inside a drawing's own box, as a 0..1 fraction. */
+/** One point of a drawing, in composition pixels. */
 const drawingPointSchema = z.object({
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
+  x: z.number(),
+  y: z.number(),
 });
 
-/** The kinds whose rule sits at the box's own centre and carry no points. */
+/** The kinds whose rule sits at its own anchor and carry no points. */
 const POINT_FREE_DRAWING_KINDS: readonly DrawingKind[] = [
   'horizontalLine',
+  'verticalLine',
   'rectangle',
 ];
 
@@ -594,9 +595,8 @@ const drawingBaseShape = {
     })
     .optional(),
   label: z.object({ text: z.string().optional() }).optional(),
-  trendline: z
-    .object({ ray: z.enum(['none', 'left', 'right', 'both']).optional() })
-    .optional(),
+  // The ray is retired: a trend line has no box to run to the edge of.
+  trendline: z.never().optional(),
   price: z.never().optional(),
 };
 
@@ -612,9 +612,9 @@ const drawingSchemaFor = (kind: DrawingKind) =>
  * Validates a drawing's props against its kind.
  *
  * A drawing of the independent model is pure geometry: a box of its own,
- * points normalised inside that box and a caption the creator types. The
- * validator keeps the retired market numbers out, and keeps a point inside
- * the box it belongs to.
+ * points that are places in the composition and a caption the creator types.
+ * The validator keeps the retired market numbers out, and keeps a point a
+ * place — a pair of numbers.
  */
 export const validateDrawingProps = (
   kind: DrawingKind,

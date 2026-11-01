@@ -18,7 +18,7 @@ export const authoredPathProject: Project = {
   fps: 30,
   durationInFrames: 180,
   backgroundColor: '#0d0d14',
-  schemaVersion: 3,
+  schemaVersion: 4,
   series: [
     {
       id: AUTHORED_SERIES_ID,
@@ -82,7 +82,7 @@ export const authoredPathProject: Project = {
               unit: 'logical',
               referenceSeriesId: AUTHORED_SERIES_ID,
               stepBars: 1,
-              framesPerStep: 15,
+              framesPerBar: 15,
             },
             revealMode: 'simulated',
             framesPerBar: 15,
@@ -129,7 +129,7 @@ export const authoredPathProject: Project = {
               unit: 'logical',
               referenceSeriesId: AUTHORED_SERIES_ID,
               stepBars: 1,
-              framesPerStep: 15,
+              framesPerBar: 15,
             },
             revealMode: 'simulated',
             framesPerBar: 15,
@@ -157,7 +157,7 @@ export const authoredPathProject: Project = {
           from: 0,
           durationInFrames: 180,
           props: {
-            // The line owns its box: it reads no chart and no market. The
+            // The line owns its shape: it reads no chart and no market. The
             // creator's own figure rides along as the caption.
             caption: '100.5',
             opacity: 1,
@@ -165,10 +165,9 @@ export const authoredPathProject: Project = {
             x: 960,
             y: 690,
             width: 1020,
-            height: 24,
           },
           effects: [],
-          propsVersion: 2,
+          propsVersion: 3,
         },
         {
           id: 'c-trendline',
@@ -177,22 +176,17 @@ export const authoredPathProject: Project = {
           from: 0,
           durationInFrames: 180,
           props: {
-            // Two points inside its own box: the far end is a bar the pane
+            // Two points in the composition: the far end is a bar the pane
             // has not revealed yet, so the line runs ahead of the market.
             points: {
-              start: { x: 0.05, y: 0.95 },
-              end: { x: 0.15, y: 0.93 },
+              start: { x: 501, y: 918.6 },
+              end: { x: 603, y: 908.44 },
             },
-            trendline: { ray: 'none' },
             opacity: 1,
             style: { color: '#7c5cff', lineWidth: 1.5 },
-            x: 960,
-            y: 690,
-            width: 1020,
-            height: 508,
           },
           effects: [],
-          propsVersion: 2,
+          propsVersion: 3,
         },
       ],
       transitions: [

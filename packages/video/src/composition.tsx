@@ -126,17 +126,23 @@ const ClipRenderer: React.FC<{
     );
   }
 
+  // A drawing that is placed by its points has no anchor of its own: its
+  // content already carries its own position in composition pixels, so the
+  // wrapper sits at the origin and is centred on nothing.
+  const anchored = typeof props.x === 'number' && typeof props.y === 'number';
+
   return (
     <div
       style={{
         position: 'absolute',
-        left: props.x,
-        top: props.y,
+        left: anchored ? props.x : 0,
+        top: anchored ? props.y : 0,
         opacity: fx.opacity * blendOpacity,
         filter: filters.length ? filters.join(' ') : undefined,
         clipPath: blendClipPath ?? fx.clipPath ?? undefined,
         transform:
-          `translate(-50%, -50%) translate(${fx.translateX}px, ${fx.translateY}px) scale(${fx.scale}) rotate(${fx.rotate}deg)` +
+          (anchored ? 'translate(-50%, -50%) ' : '') +
+          `translate(${fx.translateX}px, ${fx.translateY}px) scale(${fx.scale}) rotate(${fx.rotate}deg)` +
           (fx.rotateX !== 0 || fx.rotateY !== 0
             ? ` perspective(1200px) rotateX(${fx.rotateX}deg) rotateY(${fx.rotateY}deg)`
             : ''),

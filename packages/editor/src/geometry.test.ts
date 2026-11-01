@@ -36,14 +36,15 @@ const regionOf = (clip: Clip) => {
   return region;
 };
 
-/** A trend line across the frame: (880, 585) to (1040, 495). */
+/**
+ * A trend line across the frame: (880, 585) to (1040, 495).
+ *
+ * The points are places in the composition: a drawing that is placed by its
+ * points has no box of its own.
+ */
 const trendline = () =>
   makeClip('trendline', {
-    x: 960,
-    y: 540,
-    width: 320,
-    height: 180,
-    points: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
+    points: { start: { x: 880, y: 585 }, end: { x: 1040, y: 495 } },
   });
 
 const SCALE: ElementHandle = { id: 'se', effect: 'scale', props: ['width', 'height'] };
@@ -83,7 +84,7 @@ describe('hitsElement', () => {
   });
 
   it('hits a point element within its tolerance', () => {
-    const region = regionOf(makeClip('horizontalLine', { x: 960, y: 540, width: 480, height: 24 }));
+    const region = regionOf(makeClip('horizontalLine', { x: 960, y: 540, width: 480 }));
     expect(hitsElement('point', region, { x: 965, y: 540 }, 8)).toBe(true);
     expect(hitsElement('point', region, { x: 985, y: 540 }, 8)).toBe(false);
   });
@@ -91,11 +92,7 @@ describe('hitsElement', () => {
   it('keeps the tolerance in screen pixels, so the same pointer hits at every zoom', () => {
     const region = regionOf(
       makeClip('trendline', {
-        x: 960,
-        y: 540,
-        width: 320,
-        height: 180,
-        points: { start: { x: 0.5, y: 0.25 }, end: { x: 0.5, y: 0.75 } },
+        points: { start: { x: 960, y: 495 }, end: { x: 960, y: 585 } },
       }),
     );
     for (const scale of [0.25, 1, 4]) {
@@ -109,11 +106,7 @@ describe('hitsElement', () => {
   it('hits a zero length segment as a point', () => {
     const region = regionOf(
       makeClip('trendline', {
-        x: 960,
-        y: 540,
-        width: 320,
-        height: 180,
-        points: { start: { x: 0.5, y: 0.5 }, end: { x: 0.5, y: 0.5 } },
+        points: { start: { x: 960, y: 540 }, end: { x: 960, y: 540 } },
       }),
     );
     expect(hitsElement('segment', region, { x: 960, y: 543 }, 6)).toBe(true);
@@ -173,25 +166,21 @@ describe('dragEffect', () => {
     const region = regionOf(clip);
     const patch = dragEffect(clip, { id: 'start', effect: 'point' }, region, { x: 900, y: 560 }, { x: 880, y: 585 });
     const points = patch!.points as Record<string, { x: number; y: number }>;
-    expect(points.end).toEqual({ x: 0.75, y: 0.25 });
-    expect(points.start.x).toBeCloseTo((900 - 800) / 320);
-    expect(points.start.y).toBeCloseTo((560 - 450) / 180);
+    // The point is a place in the composition: it moves to the pointer.
+    expect(points.start).toEqual({ x: 900, y: 560 });
+    expect(points.end).toEqual({ x: 1040, y: 495 });
   });
 
   it('keeps a high low line on one vertical', () => {
     const clip = makeClip('highLowLine', {
-      x: 960,
-      y: 540,
-      width: 320,
-      height: 180,
-      points: { top: { x: 0.5, y: 0.25 }, bottom: { x: 0.5, y: 0.75 } },
+      points: { top: { x: 960, y: 495 }, bottom: { x: 960, y: 585 } },
     });
     const region = regionOf(clip);
     const patch = dragEffect(clip, { id: 'top', effect: 'point' }, region, { x: 1200, y: 500 }, { x: 960, y: 495 });
     const points = patch!.points as Record<string, { x: number; y: number }>;
-    expect(points.top.x).toBeCloseTo(0.5);
-    expect(points.top.y).toBeCloseTo((500 - 450) / 180);
-    expect(points.bottom).toEqual({ x: 0.5, y: 0.75 });
+    expect(points.top.x).toBeCloseTo(960);
+    expect(points.top.y).toBeCloseTo(500);
+    expect(points.bottom).toEqual({ x: 960, y: 585 });
   });
 
   it('moves one level of a position tool', () => {
@@ -200,15 +189,19 @@ describe('dragEffect', () => {
       y: 540,
       width: 320,
       height: 240,
-      points: { entry: { x: 0, y: 0.5 }, stop: { x: 0, y: 0.75 }, target: { x: 0, y: 0.25 } },
+      points: {
+        entry: { x: 800, y: 540 },
+        stop: { x: 800, y: 600 },
+        target: { x: 800, y: 480 },
+      },
     });
     const region = regionOf(clip);
-    const patch = dragEffect(clip, { id: 'stop', effect: 'level' }, region, { x: 960, y: 600 }, { x: 960, y: 630 });
+    const patch = dragEffect(clip, { id: 'stop', effect: 'level' }, region, { x: 960, y: 630 }, { x: 960, y: 630 });
     const points = patch!.points as Record<string, { x: number; y: number }>;
-    expect(points.stop.x).toBeCloseTo(0);
-    expect(points.stop.y).toBeCloseTo((600 - 420) / 240);
-    expect(points.entry).toEqual({ x: 0, y: 0.5 });
-    expect(points.target).toEqual({ x: 0, y: 0.25 });
+    // A level is a horizontal line: it moves up and down only.
+    expect(points.stop).toEqual({ x: 800, y: 630 });
+    expect(points.entry).toEqual({ x: 800, y: 540 });
+    expect(points.target).toEqual({ x: 800, y: 480 });
   });
 });
 

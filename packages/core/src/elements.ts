@@ -195,7 +195,13 @@ export const INDEPENDENT_DRAWING_KINDS: readonly DrawingKind[] = [
   'position',
 ];
 
-/** A point inside a drawing's own box, as a 0..1 fraction. Origin top-left, y down. */
+/**
+ * A point of a drawing, in composition pixels.
+ *
+ * Since schema version 4 a drawing's points are absolute: they are places in
+ * the composition, not fractions of a box. A drawing with no box of its own —
+ * a trend line, an arrow, a high/low line — is placed by its points alone.
+ */
 export interface DrawingPoint { x: number; y: number; }
 
 /** The colours and weights a drawing carries. */
@@ -209,23 +215,68 @@ export interface DrawingStyle {
 
 /** The props every independent drawing carries. */
 export interface IndependentDrawingProps {
+  /** The anchor: the point the composition centres the drawing's content on. */
   x?: number;
   y?: number;
+  /** The drawing's own box, where it has one. */
   width?: number;
   height?: number;
   opacity?: number;
   style?: DrawingStyle;
   /** The creator's own figure, drawn beside the shape. */
   caption?: string;
-  /** Per-kind points, as 0..1 fractions of the box. */
+  /** The drawing's points, in composition pixels. */
   points?: Record<string, DrawingPoint>;
   /** The position tool's direction and its ratio toggle. */
   position?: {
     direction: 'long' | 'short';
     showRiskReward?: boolean;
   };
+  /** The label tool's text. */
   label?: { text?: string };
-  trendline?: { ray?: 'none' | 'left' | 'right' | 'both' };
+}
+
+/** A horizontal rule: its centre, its length, and no box of its own. */
+export type HorizontalLineProps = Omit<IndependentDrawingProps, 'width' | 'height'> & {
+  width?: number;
+};
+
+/** A vertical rule: its own x, the centre of its span and its length. */
+export type VerticalLineProps = Omit<IndependentDrawingProps, 'width' | 'height'> & {
+  height?: number;
+};
+
+/** A rectangle: its own box, outlined and optionally filled. */
+export type RectangleProps = IndependentDrawingProps;
+
+/** A text label at a point of its own. */
+export type TextLabelProps = Omit<IndependentDrawingProps, 'points'> & {
+  points?: { at: DrawingPoint };
+};
+
+/** Entry, stop and target levels, in a box of the tool's own. */
+export type PositionProps = Omit<IndependentDrawingProps, 'points'> & {
+  points?: { entry: DrawingPoint; stop: DrawingPoint; target: DrawingPoint };
+};
+
+/** A shape that is two points: a trend line, an arrow, a high/low line. */
+export type EndpointDrawingProps = Omit<
+  IndependentDrawingProps,
+  'x' | 'y' | 'width' | 'height'
+> & {
+  points?: Record<string, DrawingPoint>;
+};
+
+/** The props of each drawing kind, keyed by the kind itself. */
+export interface DrawingPropsByKind {
+  horizontalLine: HorizontalLineProps;
+  verticalLine: VerticalLineProps;
+  trendline: EndpointDrawingProps;
+  highLowLine: EndpointDrawingProps;
+  rectangle: RectangleProps;
+  textLabel: TextLabelProps;
+  arrow: EndpointDrawingProps;
+  position: PositionProps;
 }
 
 /**

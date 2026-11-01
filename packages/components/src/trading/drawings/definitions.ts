@@ -1,23 +1,26 @@
 /**
  * The eight independent drawing tools, registered from one file.
  *
- * A drawing is an ordinary clip that owns its own box, its own frame range
+ * A drawing is an ordinary clip that owns its own shape, its own frame range
  * and its own points. It reads no chart, no pane and no market, so it renders
  * whether or not a chart exists in the project.
  *
- * The geometry is normalised inside the box: a point is a 0..1 fraction
- * (origin top-left, y down), and the adapter turns it into the box's own
- * pixels. The composition centres the clip's content on the clip's own
- * `x` / `y`, so the drawing needs no offset arithmetic of its own.
+ * A drawing's points are absolute: they are places in the composition. A
+ * drawing with a box of its own — a rule, a rectangle, a label, the position
+ * tool — is centred by the composition on its own `x` / `y`. A drawing with
+ * no box — a trend line, an arrow, a high/low line — is placed by its points
+ * alone, and its region is derived from them.
  */
 import React from 'react';
 import {
   componentBounds,
   registerComponent,
+  type ComponentBounds,
   type ComponentProps,
   type ComponentRenderContext,
   type DrawingKind,
   type DrawingPoint,
+  type DrawingStyle,
   type ElementEditModel,
   type ElementType,
   type VideoComponentDefinition,
@@ -35,39 +38,104 @@ import {
 } from './adapters';
 import { DrawingInspector } from '../inspectors/drawing';
 
-/** The default points of a kind, as 0..1 fractions of its box. */
-export const DEFAULT_DRAWING_POINTS: Record<DrawingKind, Record<string, DrawingPoint>> = {
-  horizontalLine: {},
-  verticalLine: { at: { x: 0.5, y: 0.5 } },
-  trendline: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
-  highLowLine: { top: { x: 0.5, y: 0.25 }, bottom: { x: 0.5, y: 0.75 } },
-  rectangle: {},
-  textLabel: { at: { x: 0.5, y: 0.5 } },
-  arrow: { from: { x: 0.25, y: 0.75 }, to: { x: 0.75, y: 0.25 } },
-  position: { entry: { x: 0, y: 0.5 }, stop: { x: 0, y: 0.75 }, target: { x: 0, y: 0.25 } },
-};
+/** The band a horizontal rule is drawn in: its thickness, not a stored size. */
+const RULE_BAND = 24;
+/** The band a vertical rule is drawn in. */
+const RULE_THICKNESS = 24;
+/** The text box a label is drawn in. */
+const LABEL_BOX = { width: 200, height: 40 };
 
-/** The parameters every drawing shares. They are flat, so the store writes them directly. */
-const COMMON_PARAMS = [
-  // The generic inspector's POSITION section carries x and y, and the
-  // PROPERTIES section carries the size: a drawing is an ordinary element
-  // and is placed like one.
-  { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 },
-  { key: 'y', label: 'Y', kind: 'number' as const, min: -1000, max: 4000, step: 1 },
-  { key: 'width', label: 'Width', kind: 'number' as const, min: 8, max: 1920, step: 1 },
-  { key: 'height', label: 'Height', kind: 'number' as const, min: 8, max: 1080, step: 1 },
-  { key: 'opacity', label: 'Opacity', kind: 'number' as const, min: 0, max: 1, step: 0.05 },
-];
+/** The parameters the inspector's POSITION section carries. */
+const X_PARAM = { key: 'x', label: 'X', kind: 'number' as const, min: -1000, max: 5000, step: 1 };
+const Y_PARAM = { key: 'y', label: 'Y', kind: 'number' as const, min: -1000, max: 4000, step: 1 };
+const WIDTH_PARAM = { key: 'width', label: 'Width', kind: 'number' as const, min: 8, max: 1920, step: 1 };
+const HEIGHT_PARAM = { key: 'height', label: 'Height', kind: 'number' as const, min: 8, max: 1080, step: 1 };
+const OPACITY_PARAM = { key: 'opacity', label: 'Opacity', kind: 'number' as const, min: 0, max: 1, step: 0.05 };
 
-/** The props a new drawing starts with, apart from its own content. */
-const baseDefaults = (width: number, height: number): ComponentProps => ({
-  x: 960,
-  y: 540,
-  width,
-  height,
+/** The props a new drawing starts with, apart from its own shape. */
+const baseDefaults = (shape: ComponentProps): ComponentProps => ({
   opacity: 1,
   style: { color: '#e8eaf0', lineWidth: 1.5 },
+  ...shape,
 });
+
+const num = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+/**
+ * The box a drawing is drawn in.
+ *
+ * `null` when the drawing's shape is its points alone: a trend line, an arrow
+ * and a high/low line have no box, and their content is placed by the points
+ * themselves.
+ */
+type DrawingShape = (props: Record<string, unknown>) => {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} | null;
+
+const horizontalShape: DrawingShape = (props) => ({
+  x: num(props.x, 960),
+  y: num(props.y, 540),
+  width: num(props.width, 480),
+  height: RULE_BAND,
+});
+
+const verticalShape: DrawingShape = (props) => ({
+  x: num(props.x, 960),
+  y: num(props.y, 540),
+  width: RULE_THICKNESS,
+  height: num(props.height, 320),
+});
+
+const rectangleShape: DrawingShape = (props) => ({
+  x: num(props.x, 960),
+  y: num(props.y, 540),
+  width: num(props.width, 320),
+  height: num(props.height, 180),
+});
+
+const labelShape: DrawingShape = (props) => ({
+  x: num(props.x, 960),
+  y: num(props.y, 540),
+  width: LABEL_BOX.width,
+  height: LABEL_BOX.height,
+});
+
+const positionShape: DrawingShape = (props) => ({
+  x: num(props.x, 960),
+  y: num(props.y, 540),
+  width: num(props.width, 320),
+  height: num(props.height, 240),
+});
+
+const endpointShape: DrawingShape = () => null;
+
+/**
+ * The region an endpoint drawing is picked in.
+ *
+ * The shape has no box of its own, so the region is the bounding box of its
+ * two points.
+ */
+const pointBounds = (props: Record<string, unknown>): ComponentBounds => {
+  const points = (props.points ?? {}) as Record<string, DrawingPoint>;
+  const entries = Object.values(points).filter(
+    (point) => point && typeof point.x === 'number' && typeof point.y === 'number',
+  );
+  if (entries.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
+  const xs = entries.map((point) => point.x);
+  const ys = entries.map((point) => point.y);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const height = Math.max(...ys) - Math.min(...ys);
+  return {
+    x: Math.min(...xs) + width / 2,
+    y: Math.min(...ys) + height / 2,
+    width,
+    height,
+  };
+};
 
 /** One drawing definition, with only the fields that differ. */
 const drawingDefinition = (
@@ -76,6 +144,9 @@ const drawingDefinition = (
   icon: string,
   description: string,
   defaults: ComponentProps,
+  shape: DrawingShape,
+  bounds: (props: Record<string, unknown>) => ComponentBounds,
+  params: VideoComponentDefinition['params'],
   adapter: React.FC<DrawingAdapterProps>,
   edit: ElementEditModel,
 ): VideoComponentDefinition => ({
@@ -84,33 +155,57 @@ const drawingDefinition = (
   icon,
   description,
   category: 'trading',
-  propsVersion: 2,
+  propsVersion: 3,
   defaults,
-  params: COMMON_PARAMS,
+  params,
   edit,
   render: ({ clip, props }: ComponentRenderContext): React.ReactElement | null => {
     if (clip.hidden) return null;
-    const width = typeof props.width === 'number' ? props.width : 320;
-    const height = typeof props.height === 'number' ? props.height : 180;
-    const opacity = typeof props.opacity === 'number' ? props.opacity : 1;
+    // The definition's defaults under the clip's own props: a drawing that
+    // misses a point is drawn as the defaults say.
+    const merged: Record<string, unknown> = {
+      ...defaults,
+      ...(props as Record<string, unknown>),
+    };
+    const points = {
+      ...(defaults.points as Record<string, DrawingPoint> | undefined),
+      ...(merged.points as Record<string, DrawingPoint> | undefined),
+    };
+    const opacity = num(merged.opacity, 1);
+    const adapterProps: DrawingAdapterProps = {
+      width: 0,
+      height: 0,
+      style: merged.style as DrawingStyle | undefined,
+      caption: typeof merged.caption === 'string' ? merged.caption : undefined,
+      points,
+      position: merged.position as { direction: 'long' | 'short'; showRiskReward?: boolean } | undefined,
+      label: merged.label as { text?: string } | undefined,
+    };
+
+    const box = shape(merged);
+    if (!box) {
+      // The shape is its own points. The content is placed by them, in
+      // composition pixels, and there is no box for the composition to centre.
+      return React.createElement(
+        'div',
+        { style: { position: 'relative', width: 0, height: 0, opacity } },
+        React.createElement(adapter, adapterProps),
+      );
+    }
     return React.createElement(
       'div',
-      { style: { width, height, opacity } },
+      { style: { width: box.width, height: box.height, opacity } },
       React.createElement(adapter, {
-        width,
-        height,
-        style: props.style,
-        caption: props.caption,
-        points: props.points,
-        position: props.position,
-        trendline: props.trendline,
-        label: props.label,
+        ...adapterProps,
+        width: box.width,
+        height: box.height,
+        origin: { x: box.x, y: box.y },
       }),
     );
   },
   inspector: DrawingInspector,
-  // The editor's selection box follows the drawing's own stored position.
-  bounds: componentBounds,
+  // The editor's selection box follows the drawing's own stored shape.
+  bounds,
 });
 
 /** The eight drawing definitions, in library order. */
@@ -119,8 +214,14 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'horizontalLine',
     'Horizontal Line',
     '📏',
-    'A horizontal rule across its own box.',
-    { ...baseDefaults(480, 24), points: DEFAULT_DRAWING_POINTS.horizontalLine },
+    'A horizontal rule of its own length.',
+    baseDefaults({ x: 960, y: 540, width: 480 }),
+    horizontalShape,
+    (props) => {
+      const box = horizontalShape(props);
+      return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : componentBounds(props);
+    },
+    [X_PARAM, Y_PARAM, WIDTH_PARAM, OPACITY_PARAM],
     HorizontalLineAdapter,
     // One anchor: the line is dragged by its own anchor.
     { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
@@ -129,8 +230,14 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'verticalLine',
     'Vertical Line',
     '┃',
-    'A vertical rule down its own box.',
-    { ...baseDefaults(24, 320), points: DEFAULT_DRAWING_POINTS.verticalLine },
+    'A vertical rule of its own length.',
+    baseDefaults({ x: 960, y: 540, height: 320 }),
+    verticalShape,
+    (props) => {
+      const box = verticalShape(props);
+      return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : componentBounds(props);
+    },
+    [X_PARAM, Y_PARAM, HEIGHT_PARAM, OPACITY_PARAM],
     VerticalLineAdapter,
     // One anchor: the line is dragged by its own anchor.
     { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
@@ -139,12 +246,12 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'trendline',
     'Trendline',
     '📐',
-    'A line between two points of its own box, at any angle.',
-    {
-      ...baseDefaults(320, 180),
-      points: DEFAULT_DRAWING_POINTS.trendline,
-      trendline: { ray: 'none' },
-    },
+    'A line between two points, at any angle.',
+    baseDefaults({ points: { start: { x: 880, y: 585 }, end: { x: 1040, y: 495 } } }),
+    endpointShape,
+    pointBounds,
+    // A trend line has no anchor of its own: it is placed by its two points.
+    [OPACITY_PARAM],
     TrendlineAdapter,
     // Two endpoints: the line is dragged by them.
     {
@@ -159,8 +266,11 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'highLowLine',
     'High/Low Line',
     '↕️',
-    'A vertical segment between two points of its own box.',
-    { ...baseDefaults(24, 320), points: DEFAULT_DRAWING_POINTS.highLowLine },
+    'A vertical segment between two points.',
+    baseDefaults({ points: { top: { x: 960, y: 460 }, bottom: { x: 960, y: 620 } } }),
+    endpointShape,
+    pointBounds,
+    [OPACITY_PARAM],
     HighLowLineAdapter,
     // Two endpoints: the high and the low.
     {
@@ -176,7 +286,10 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'Rectangle',
     '🟦',
     'The element’s own box, outlined and optionally filled.',
-    { ...baseDefaults(320, 180), points: DEFAULT_DRAWING_POINTS.rectangle },
+    baseDefaults({ x: 960, y: 540, width: 320, height: 180 }),
+    rectangleShape,
+    componentBounds,
+    [X_PARAM, Y_PARAM, WIDTH_PARAM, HEIGHT_PARAM, OPACITY_PARAM],
     RectangleAdapter,
     // The box is the truth.
     {
@@ -192,8 +305,14 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'textLabel',
     'Text Label',
     '🔤',
-    'A text label at a point of its own box.',
-    { ...baseDefaults(200, 40), points: DEFAULT_DRAWING_POINTS.textLabel, label: { text: 'Label' } },
+    'A text label at a point.',
+    baseDefaults({ x: 960, y: 540, points: { at: { x: 960, y: 540 } }, label: { text: 'Label' } }),
+    labelShape,
+    (props) => {
+      const box = labelShape(props);
+      return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : componentBounds(props);
+    },
+    [X_PARAM, Y_PARAM, OPACITY_PARAM],
     TextLabelAdapter,
     // One anchor: the label is dragged by its own anchor.
     { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
@@ -202,8 +321,11 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'arrow',
     'Arrow',
     '➡️',
-    'An arrow between two points of its own box.',
-    { ...baseDefaults(320, 180), points: DEFAULT_DRAWING_POINTS.arrow },
+    'An arrow between two points.',
+    baseDefaults({ points: { from: { x: 880, y: 585 }, to: { x: 1040, y: 495 } } }),
+    endpointShape,
+    pointBounds,
+    [OPACITY_PARAM],
     ArrowAdapter,
     // Two endpoints: the arrow is dragged by them.
     {
@@ -219,11 +341,21 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'Position',
     '🎯',
     'Entry, stop and target levels, with an optional risk/reward ratio.',
-    {
-      ...baseDefaults(320, 240),
-      points: DEFAULT_DRAWING_POINTS.position,
+    baseDefaults({
+      x: 960,
+      y: 540,
+      width: 320,
+      height: 240,
+      points: {
+        entry: { x: 800, y: 540 },
+        stop: { x: 800, y: 600 },
+        target: { x: 800, y: 480 },
+      },
       position: { direction: 'long', showRiskReward: true },
-    },
+    }),
+    positionShape,
+    componentBounds,
+    [X_PARAM, Y_PARAM, WIDTH_PARAM, HEIGHT_PARAM, OPACITY_PARAM],
     PositionAdapter,
     // Three levels, each dragged on its own.
     {

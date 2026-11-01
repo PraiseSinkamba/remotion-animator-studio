@@ -375,15 +375,11 @@ describe('validateChartGroup', () => {
 
 describe('validateDrawingProps', () => {
   const trendlineProps = () => ({
-    x: 960,
-    y: 540,
-    width: 320,
-    height: 180,
     opacity: 1,
     style: { color: '#e8eaf0', lineWidth: 1.5, fillOpacity: 0.2, fontSize: 24 },
     caption: 'the creator’s own figure',
-    points: { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
-    trendline: { ray: 'both' },
+    // The points are places in the composition, not fractions of a box.
+    points: { start: { x: 880, y: 585 }, end: { x: 1040, y: 495 } },
   });
 
   it("accepts an independent drawing's props", () => {
@@ -391,16 +387,24 @@ describe('validateDrawingProps', () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('expected the drawing to be accepted');
-    expect(result.value.points?.start).toEqual({ x: 0, y: 0 });
+    expect(result.value.points?.start).toEqual({ x: 880, y: 585 });
     expect(result.value.caption).toBe('the creator’s own figure');
   });
 
-  it("rejects a point outside the drawing's own box", () => {
-    const result = validateDrawingProps('trendline', { points: { start: { x: 1.5, y: 0 } } });
+  it('rejects a point that is not a place', () => {
+    const result = validateDrawingProps('trendline', { points: { start: { x: 'left', y: 0 } } });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected the drawing to be rejected');
     expect(result.issues.some((issue) => issue.path === 'points.start.x')).toBe(true);
+  });
+
+  it('rejects the retired ray', () => {
+    const result = validateDrawingProps('trendline', { trendline: { ray: 'both' } });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the drawing to be rejected');
+    expect(result.issues.some((issue) => issue.path === 'trendline')).toBe(true);
   });
 
   it('rejects a horizontal line that carries points', () => {

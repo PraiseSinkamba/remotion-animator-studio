@@ -27,10 +27,13 @@ import type {
 } from '@chart-studio/core';
 import { candlestickChartDefinition } from './trading/definitions/candlestick-chart';
 import { chartGeometry, priceToY } from './trading/chart';
-import { DEFAULT_DRAWING_POINTS } from './trading/drawings/definitions';
+// The drawing definitions register themselves; the migration needs them to
+// know a drawing's props version.
+import './trading/drawings/definitions';
+import { CURRENT_PROJECT_SCHEMA_VERSION } from '@chart-studio/core';
 
 /** Schema version this build writes and understands. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 3;
+export { CURRENT_PROJECT_SCHEMA_VERSION };
 
 function fail(message: string): never {
   throw new Error(message);
@@ -301,6 +304,24 @@ const renameLegacyElements = (doc: Record<string, unknown>): Record<string, unkn
   };
 };
 
+/**
+ * The points a version 2 drawing carried, as 0..1 fractions of its own box.
+ *
+ * The table is the migration's own: the definitions' defaults are absolute
+ * places in the composition, and the version 2 → 3 step is the last one that
+ * speaks in fractions.
+ */
+const LEGACY_DRAWING_POINTS: Record<DrawingKind, Record<string, { x: number; y: number }>> = {
+  horizontalLine: {},
+  verticalLine: { at: { x: 0.5, y: 0.5 } },
+  trendline: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
+  highLowLine: { top: { x: 0.5, y: 0.25 }, bottom: { x: 0.5, y: 0.75 } },
+  rectangle: {},
+  textLabel: { at: { x: 0.5, y: 0.5 } },
+  arrow: { from: { x: 0.25, y: 0.75 }, to: { x: 0.75, y: 0.25 } },
+  position: { entry: { x: 0, y: 0.5 }, stop: { x: 0, y: 0.75 }, target: { x: 0, y: 0.25 } },
+};
+
 /** The props a migrated drawing keeps when the chart cannot be resolved. */
 const fallbackProps = (
   kind: DrawingKind,
@@ -315,7 +336,7 @@ const fallbackProps = (
   delete next.price;
   delete next.zone;
 
-  const defaults = DEFAULT_DRAWING_POINTS[kind];
+  const defaults = LEGACY_DRAWING_POINTS[kind];
   if (Object.keys(defaults).length > 0) next.points = defaults;
 
   // The caption is the creator's own figure: keep it when it can be read.
@@ -608,6 +629,157 @@ const migrateV2ToV3 = (
 };
 
 /**
+ * The points each drawing's shape needs.
+ *
+ * A drawing that does not carry them is left exactly as it was: nobody drew
+ * them, so nobody invents them.
+ */
+const DRAWING_POINT_KEYS: Record<DrawingKind, string[]> = {
+  horizontalLine: [],
+  verticalLine: [],
+  trendline: ['start', 'end'],
+  highLowLine: ['top', 'bottom'],
+  rectangle: [],
+  textLabel: ['at'],
+  arrow: ['from', 'to'],
+  position: ['entry', 'stop', 'target'],
+};
+
+/**
+ * The v3 → v4 conversion of one drawing.
+ *
+ * A drawing's points become places in the composition: the fraction of the
+ * drawing's own box becomes the pixel it pointed at. The drawings that have
+ * no box of their own — a trend line, an arrow, a high/low line — lose the
+ * box they never used, and a label keeps only its point.
+ *
+ * The conversion is non-destructive: a drawing that does not carry the
+ * points its shape needs is left exactly as it was.
+ */
+const migrateDrawingToV4 = (clip: Clip): Clip => {
+  const kind = clip.element as DrawingKind;
+  const props = { ...(clip.props as Record<string, unknown>) };
+  const points = props.points as Record<string, { x: number; y: number }> | undefined;
+
+  const box = {
+    x: typeof props.x === 'number' ? props.x : undefined,
+    y: typeof props.y === 'number' ? props.y : undefined,
+    width: typeof props.width === 'number' ? props.width : undefined,
+    height: typeof props.height === 'number' ? props.height : undefined,
+  };
+  // The box's own origin in the composition: the content is centred on the
+  // anchor, so the box's left edge sits half a width to the left of it.
+  const left =
+    box.x !== undefined && box.width !== undefined ? box.x - box.width / 2 : undefined;
+  const top =
+    box.y !== undefined && box.height !== undefined ? box.y - box.height / 2 : undefined;
+
+  /** A fraction of the drawing's box, as a place in the composition. */
+  const absolute = (
+    point: { x: number; y: number } | undefined,
+  ): { x: number; y: number } | undefined => {
+    if (!point || left === undefined || top === undefined) return undefined;
+    if (!box.width || !box.height) return undefined;
+    return { x: left + point.x * box.width, y: top + point.y * box.height };
+  };
+
+  const needed = DRAWING_POINT_KEYS[kind];
+  const next: Record<string, unknown> = { ...props };
+  const set = (key: string, value: number | undefined): void => {
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+  };
+
+  switch (kind) {
+    case 'horizontalLine':
+      // The rule keeps its centre and its length, and loses the band it was
+      // drawn in.
+      set('x', box.x);
+      set('y', box.y);
+      set('width', box.width);
+      delete next.height;
+      delete next.points;
+      break;
+    case 'verticalLine': {
+      // The rule keeps its own x, the centre of its span and its length.
+      const at = absolute(points?.at);
+      set('x', at ? at.x : box.x);
+      set('y', box.y);
+      set('height', box.height);
+      delete next.width;
+      delete next.points;
+      break;
+    }
+    case 'rectangle':
+      // The box is the truth: it does not change.
+      delete next.points;
+      break;
+    case 'textLabel': {
+      const at = absolute(points?.at);
+      if (!at) return clip;
+      // The label keeps only its point.
+      set('x', at.x);
+      set('y', at.y);
+      delete next.width;
+      delete next.height;
+      next.points = { at };
+      break;
+    }
+    case 'position': {
+      const entry = absolute(points?.entry);
+      const stop = absolute(points?.stop);
+      const target = absolute(points?.target);
+      if (!entry || !stop || !target) return clip;
+      // The box stays: the levels are places inside it.
+      next.points = { entry, stop, target };
+      break;
+    }
+    case 'trendline':
+    case 'arrow':
+    case 'highLowLine': {
+      const converted: Record<string, { x: number; y: number }> = {};
+      for (const key of needed) {
+        const point = absolute(points?.[key]);
+        if (!point) return clip;
+        converted[key] = point;
+      }
+      // The shape is its points: the box it never used goes.
+      next.points = converted;
+      delete next.x;
+      delete next.y;
+      delete next.width;
+      delete next.height;
+      break;
+    }
+  }
+
+  // The ray is retired: a trend line has no box to run to the edge of.
+  delete next.trendline;
+
+  return { ...clip, props: next, propsVersion: 3 };
+};
+
+/**
+ * The v3 → v4 conversion.
+ *
+ * Only the drawings change: the rest of the document is carried through
+ * untouched.
+ */
+const migrateV3ToV4 = (
+  doc: Record<string, unknown>,
+  tracks: Track[],
+): { doc: Record<string, unknown>; tracks: Track[] } => {
+  const nextTracks = tracks.map((track) => ({
+    ...track,
+    clips: track.clips.map((clip) =>
+      DRAWING_ELEMENTS.includes(clip.element) ? migrateDrawingToV4(clip) : clip,
+    ),
+  }));
+
+  return { doc, tracks: nextTracks };
+};
+
+/**
  * Validate and upgrade a project document.
  *
  * @throws when the document is malformed, uses an unsupported schema version,
@@ -653,7 +825,8 @@ export const migrateProject = (raw: unknown): Project => {
   const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index));
 
   const v2 = version < 2 ? migrateV1ToV2(doc, tracks) : { doc, tracks };
-  const migrated = version < 3 ? migrateV2ToV3(v2.doc, v2.tracks) : v2;
+  const v3 = version < 3 ? migrateV2ToV3(v2.doc, v2.tracks) : v2;
+  const migrated = version < 4 ? migrateV3ToV4(v3.doc, v3.tracks) : v3;
 
   return {
     ...(migrated.doc as unknown as Project),

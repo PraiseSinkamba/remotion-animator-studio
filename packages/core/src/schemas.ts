@@ -3,6 +3,14 @@ import type { ChartGroupSpec } from './elements';
 import type { ComponentProps } from './contract';
 import type { SeriesSpec } from './series';
 
+/**
+ * The project schema version this build writes and understands.
+ *
+ * A document that carries a higher version is rejected by the migration,
+ * never guessed at.
+ */
+export const CURRENT_PROJECT_SCHEMA_VERSION = 4;
+
 export type ElementType =
   | 'text'
   | 'shape'

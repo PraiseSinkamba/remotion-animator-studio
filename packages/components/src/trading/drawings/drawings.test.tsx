@@ -16,35 +16,25 @@ const project = (): Project => ({
   fps: 30,
   durationInFrames: 300,
   backgroundColor: '#000000',
-  schemaVersion: 3,
+  schemaVersion: 4,
   tracks: [],
-});
-
-const drawingClip = (element: string, props: Record<string, unknown>): Clip => ({
-  id: 'drawing-1',
-  name: 'Drawing',
-  element: element as Clip['element'],
-  from: 0,
-  durationInFrames: 300,
-  props: {
-    x: 960,
-    y: 540,
-    width: 320,
-    height: 180,
-    opacity: 1,
-    style: { color: '#ffffff', lineWidth: 1.5 },
-    ...props,
-  },
-  effects: [],
-  propsVersion: 2,
 });
 
 /** Renders a drawing exactly as the composition does. */
 const draw = (element: string, props: Record<string, unknown>, clip?: Partial<Clip>) => {
   const definition = drawingDefinitions.find((entry) => entry.type === element);
   if (!definition) throw new Error(`no drawing definition for ${element}`);
-  const merged = drawingClip(element, { ...definition.defaults, ...props });
-  const full = { ...merged, ...clip, props: { ...merged.props, ...(clip?.props ?? {}) } };
+  const full = {
+    id: 'drawing-1',
+    name: 'Drawing',
+    element: element as Clip['element'],
+    from: 0,
+    durationInFrames: 300,
+    props,
+    effects: [],
+    propsVersion: 3,
+    ...clip,
+  };
   const container = render(
     React.createElement(definition.render, {
       clip: full,
@@ -58,34 +48,37 @@ const draw = (element: string, props: Record<string, unknown>, clip?: Partial<Cl
 };
 
 describe('the drawing tools', () => {
-  it('renders a horizontal line in its own box with no chart in the project', () => {
-    const { container } = draw('horizontalLine', { width: 480, height: 24 });
+  it('renders a horizontal rule across its own length', () => {
+    const { container } = draw('horizontalLine', { x: 960, y: 540, width: 480 });
 
     const line = container.querySelector('[data-testid="drawing-horizontal-line"] line');
     expect(line).not.toBeNull();
-    // The rule runs across the whole box, at its vertical centre.
+    // The rule runs across the whole length, at the band's vertical centre.
     expect(line?.getAttribute('x1')).toBe('0');
     expect(line?.getAttribute('x2')).toBe('480');
     expect(line?.getAttribute('y1')).toBe('12');
     expect(line?.getAttribute('y2')).toBe('12');
   });
 
-  it('renders a trend line between its two points at any angle', () => {
+  it('renders a trend line between its two points, wherever they are', () => {
     const { container } = draw('trendline', {
-      width: 320,
-      height: 180,
-      points: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
+      points: { start: { x: 880, y: 585 }, end: { x: 1040, y: 495 } },
     });
 
+    const svg = container.querySelector('[data-testid="drawing-trendline"]');
+    // The shape has no box: it is placed by its points, in composition pixels.
+    expect(svg?.getAttribute('style')).toContain('left: 872px');
+    expect(svg?.getAttribute('style')).toContain('top: 487px');
+
     const trend = container.querySelector('[data-testid="drawing-trendline"] line');
-    expect(trend?.getAttribute('x1')).toBe('80');
-    expect(trend?.getAttribute('y1')).toBe('135');
-    expect(trend?.getAttribute('x2')).toBe('240');
-    expect(trend?.getAttribute('y2')).toBe('45');
+    expect(trend?.getAttribute('x1')).toBe('8');
+    expect(trend?.getAttribute('y1')).toBe('98');
+    expect(trend?.getAttribute('x2')).toBe('168');
+    expect(trend?.getAttribute('y2')).toBe('8');
   });
 
   it("renders a rectangle as the element's own box", () => {
-    const { container } = draw('rectangle', { width: 320, height: 180 });
+    const { container } = draw('rectangle', { x: 960, y: 540, width: 320, height: 180 });
 
     const rect = container.querySelector('[data-testid="drawing-rectangle"] rect');
     expect(rect?.getAttribute('x')).toBe('0');
@@ -96,28 +89,27 @@ describe('the drawing tools', () => {
 
   it('renders a high and low line as a vertical segment', () => {
     const { container } = draw('highLowLine', {
-      width: 24,
-      height: 320,
-      points: { top: { x: 0.5, y: 0.25 }, bottom: { x: 0.5, y: 0.75 } },
+      points: { top: { x: 960, y: 460 }, bottom: { x: 960, y: 620 } },
     });
 
     const line = container.querySelector('[data-testid="drawing-high-low-line"] line');
-    expect(line?.getAttribute('x1')).toBe('12');
-    expect(line?.getAttribute('x2')).toBe('12');
-    expect(line?.getAttribute('y1')).toBe('80');
-    expect(line?.getAttribute('y2')).toBe('240');
+    expect(line?.getAttribute('x1')).toBe('8');
+    expect(line?.getAttribute('x2')).toBe('8');
+    expect(line?.getAttribute('y1')).toBe('8');
+    expect(line?.getAttribute('y2')).toBe('168');
   });
 
   it('renders a text label at its point', () => {
     const { container } = draw('textLabel', {
-      width: 200,
-      height: 40,
-      points: { at: { x: 0.5, y: 0.5 } },
+      x: 960,
+      y: 540,
+      points: { at: { x: 960, y: 540 } },
       label: { text: 'Hello' },
     });
 
     const label = container.querySelector('[data-testid="drawing-text-label"] text');
     expect(label?.textContent).toBe('Hello');
+    // The label's baseline starts on its point.
     expect(label?.getAttribute('x')).toBe('100');
     expect(label?.getAttribute('y')).toBe('20');
   });
@@ -133,12 +125,14 @@ describe('the drawing tools', () => {
 
   it('draws no profit-and-loss figure and implies no broker fill', () => {
     const { container } = draw('position', {
+      x: 960,
+      y: 540,
       width: 320,
       height: 240,
       points: {
-        entry: { x: 0, y: 0.5 },
-        stop: { x: 0, y: 0.75 },
-        target: { x: 0, y: 0.25 },
+        entry: { x: 800, y: 540 },
+        stop: { x: 800, y: 600 },
+        target: { x: 800, y: 480 },
       },
       position: { direction: 'long', showRiskReward: true },
     });
@@ -152,18 +146,20 @@ describe('the drawing tools', () => {
 
   it('computes the position ratio from the drawn geometry', () => {
     const { container } = draw('position', {
+      x: 960,
+      y: 540,
       width: 320,
       height: 240,
       points: {
-        entry: { x: 0, y: 0.5 },
-        stop: { x: 0, y: 0.75 },
-        target: { x: 0, y: 0.25 },
+        entry: { x: 800, y: 540 },
+        stop: { x: 800, y: 600 },
+        target: { x: 800, y: 480 },
       },
       position: { direction: 'long', showRiskReward: true },
     });
 
     const ratio = container.querySelector('[data-testid="drawing-risk-reward"]');
-    // |target.y - entry.y| / |entry.y - stop.y| = 0.25 / 0.25 = 1.
+    // |target.y - entry.y| / |entry.y - stop.y| = 60 / 60 = 1.
     expect(ratio?.textContent).toBe('R 1.00');
   });
 

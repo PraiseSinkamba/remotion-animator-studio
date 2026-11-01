@@ -42,41 +42,82 @@ describe('the drawing tools', () => {
     });
   });
 
-  it('gives every kind a default box', () => {
+  it('gives every kind with a shape of its own a default size', () => {
     for (const tool of DRAWING_TOOLS) {
-      expect(tool.width).toBeGreaterThan(0);
-      expect(tool.height).toBeGreaterThan(0);
+      if (tool.kind === 'trendline' || tool.kind === 'arrow' || tool.kind === 'highLowLine') {
+        // These three are placed by their points: they have no box.
+        expect(tool.width).toBeUndefined();
+        expect(tool.height).toBeUndefined();
+        continue;
+      }
+      expect(tool.width ?? tool.height ?? 0).toBeGreaterThan(0);
     }
   });
 });
 
 describe('drawingDraftFromClicks', () => {
-  it('centres the kind\'s own box on a single click', () => {
+  it('places a horizontal rule by its centre and its length', () => {
     const draft = drawingDraftFromClicks('horizontalLine', [{ x: 400, y: 300 }]);
     expect(draft.x).toBe(400);
     expect(draft.y).toBe(300);
     expect(draft.width).toBe(480);
-    expect(draft.height).toBe(24);
+    expect(draft.height).toBeUndefined();
     expect(draft.points).toBeUndefined();
   });
 
-  it('bounds a two-click drawing by the rectangle between the clicks, padded', () => {
-    // The box is the rectangle between the clicks, padded by 16 on each side
-    // so the shape never touches its own edge.
+  it('places a vertical rule by its own x and its length', () => {
+    const draft = drawingDraftFromClicks('verticalLine', [{ x: 400, y: 300 }]);
+    expect(draft.x).toBe(400);
+    expect(draft.y).toBe(300);
+    expect(draft.height).toBe(320);
+    expect(draft.width).toBeUndefined();
+  });
+
+  it('places a text label at the click', () => {
+    const draft = drawingDraftFromClicks('textLabel', [{ x: 400, y: 300 }]);
+    expect(draft.x).toBe(400);
+    expect(draft.y).toBe(300);
+    expect(draft.points).toEqual({ at: { x: 400, y: 300 } });
+  });
+
+  it('gives the position tool its own box and its three levels', () => {
+    const draft = drawingDraftFromClicks('position', [{ x: 400, y: 300 }]);
+    expect(draft.width).toBe(320);
+    expect(draft.height).toBe(240);
+    // The levels are places in the composition: the box's left edge, and the
+    // three levels inside the box.
+    expect(draft.points).toEqual({
+      entry: { x: 240, y: 300 },
+      stop: { x: 240, y: 360 },
+      target: { x: 240, y: 240 },
+    });
+  });
+
+  it('makes a trend line the two clicks themselves', () => {
     const draft = drawingDraftFromClicks('trendline', [
       { x: 100, y: 200 },
       { x: 300, y: 100 },
     ]);
-    expect(draft.x).toBe(200);
-    expect(draft.y).toBe(150);
-    expect(draft.width).toBe(232);
-    expect(draft.height).toBe(132);
-    // The clicks keep their own places inside the padded box: the box's left
-    // edge is 16 px before the first click and its top edge 16 px above it.
     expect(draft.points).toEqual({
-      start: { x: 16 / 232, y: 116 / 132 },
-      end: { x: 216 / 232, y: 16 / 132 },
+      start: { x: 100, y: 200 },
+      end: { x: 300, y: 100 },
     });
+    expect(draft.x).toBeUndefined();
+    expect(draft.y).toBeUndefined();
+    expect(draft.width).toBeUndefined();
+    expect(draft.height).toBeUndefined();
+  });
+
+  it('makes an arrow the two clicks themselves', () => {
+    const draft = drawingDraftFromClicks('arrow', [
+      { x: 100, y: 200 },
+      { x: 300, y: 100 },
+    ]);
+    expect(draft.points).toEqual({
+      from: { x: 100, y: 200 },
+      to: { x: 300, y: 100 },
+    });
+    expect(draft.x).toBeUndefined();
   });
 
   it('makes a high and low line a vertical segment', () => {
@@ -84,12 +125,11 @@ describe('drawingDraftFromClicks', () => {
       { x: 500, y: 100 },
       { x: 520, y: 300 },
     ]);
-    expect(draft.x).toBe(500);
-    expect(draft.y).toBe(200);
-    expect(draft.height).toBe(200);
     expect(draft.points).toEqual({
-      top: { x: 0.5, y: 0 },
-      bottom: { x: 0.5, y: 1 },
+      top: { x: 500, y: 100 },
+      bottom: { x: 500, y: 300 },
     });
+    expect(draft.x).toBeUndefined();
+    expect(draft.height).toBeUndefined();
   });
 });

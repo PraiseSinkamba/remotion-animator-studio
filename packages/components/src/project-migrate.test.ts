@@ -55,14 +55,14 @@ const legacyProject = (): TestDoc => ({
 describe('migrateProject', () => {
   it('treats a missing schemaVersion as the legacy version', () => {
     const migrated = migrateProject(legacyProject());
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(3);
-    expect(migrated.schemaVersion).toBe(3);
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(4);
+    expect(migrated.schemaVersion).toBe(4);
     expect(migrated.tracks[0].clips[0].element).toBe('text');
     expect(migrated.tracks[0].clips[0].props).toEqual({ text: 'Hi' });
   });
 
   it('rejects a newer schema version by name', () => {
-    expect(() => migrateProject({ ...legacyProject(), schemaVersion: 4 })).toThrow(/4/);
+    expect(() => migrateProject({ ...legacyProject(), schemaVersion: 5 })).toThrow(/5/);
   });
 
   it('rejects a malformed document', () => {
@@ -339,9 +339,9 @@ describe('migrateProject — the v2 to v3 conversion', () => {
     return clip;
   };
 
-  it('migrates a v2 document to v3', () => {
+  it('migrates a v2 document to v4', () => {
     const migrated = migrateProject(v2Document([]));
-    expect(migrated.schemaVersion).toBe(3);
+    expect(migrated.schemaVersion).toBe(4);
   });
 
   it('maps a migrated price line to a horizontal line', () => {
@@ -428,7 +428,8 @@ describe('migrateProject — the v2 to v3 conversion', () => {
     expect(clip.props.x).toBeCloseTo(928, 6);
     expect(clip.props.y).toBeCloseTo(742.8, 6);
     expect(clip.props.width).toBe(1020);
-    expect(clip.props.height).toBe(24);
+    // The rule keeps its length; the band it was drawn in is gone.
+    expect(clip.props.height).toBeUndefined();
   });
 
   it("converts a chart-relative lifecycle into the drawing's own frame range", () => {
@@ -476,7 +477,7 @@ describe('migrateProject — the v2 to v3 conversion', () => {
     expect(clip.props.x).toBe(100);
     expect(clip.props.y).toBe(200);
     expect(clip.props.width).toBe(300);
-    expect(clip.props.height).toBe(40);
+    expect(clip.props.height).toBeUndefined();
     expect(clip.props.caption).toBe('4200');
   });
 
@@ -495,7 +496,7 @@ describe('migrateProject — the v2 to v3 conversion', () => {
     expect(clip.props.x).toBe(100);
     expect(clip.props.y).toBe(200);
     expect(clip.props.width).toBe(300);
-    expect(clip.props.height).toBe(40);
+    expect(clip.props.height).toBeUndefined();
   });
 
   it('leaves no chart-anchor props on a migrated drawing', () => {
@@ -544,7 +545,7 @@ describe('migrateProject — the v2 to v3 conversion', () => {
     expect(twice).toEqual(once);
   });
 
-  it('leaves a v3 document unchanged', () => {
+  it('converts a v3 document to v4', () => {
     const doc: TestDoc = {
       name: 'V3',
       width: 1920,
@@ -580,6 +581,222 @@ describe('migrateProject — the v2 to v3 conversion', () => {
         },
       ],
     };
-    expect(migrateProject(doc)).toEqual(doc);
+    const migrated = migrateProject(doc);
+    expect(migrated.schemaVersion).toBe(4);
+    const clip = migrated.tracks[0].clips[0];
+    // The rule keeps its centre and its length; the band it was drawn in is
+    // gone.
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.y).toBe(540);
+    expect(clip.props.width).toBe(480);
+    expect(clip.props.height).toBeUndefined();
+    // The creator's own figure survives.
+    expect(clip.props.caption).toBe('4200');
+    expect(clip.propsVersion).toBe(3);
+  });
+});
+
+describe('migrateProject — the v3 to v4 conversion', () => {
+  /** A version 3 document with one drawing of its own. */
+  const v3Document = (element: ElementType, props: Record<string, unknown>): TestDoc => ({
+    name: 'V3',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    durationInFrames: 300,
+    backgroundColor: '#0d0d14',
+    schemaVersion: 3,
+    tracks: [
+      {
+        id: 't1',
+        name: 'Track 1',
+        clips: [
+          {
+            id: 'c-drawing',
+            name: 'Drawing',
+            element,
+            from: 0,
+            durationInFrames: 90,
+            props,
+            effects: [],
+            propsVersion: 2,
+          },
+        ],
+      },
+    ],
+  });
+
+  /** The migrated drawing clip of a document. */
+  const migratedDrawing = (doc: TestDoc) => {
+    const migrated = migrateProject(doc);
+    const clip = migrated.tracks
+      .flatMap((track) => track.clips)
+      .find((entry) => entry.id === 'c-drawing');
+    if (!clip) throw new Error('no drawing in the migrated document');
+    return clip;
+  };
+
+  it('makes a trend line’s points places in the composition', () => {
+    const clip = migratedDrawing(
+      v3Document('trendline', {
+        x: 960,
+        y: 540,
+        width: 320,
+        height: 180,
+        points: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
+      }),
+    );
+
+    expect(clip.props.points).toEqual({
+      start: { x: 880, y: 585 },
+      end: { x: 1040, y: 495 },
+    });
+    // The shape is its points: the box it never used is gone.
+    expect(clip.props.x).toBeUndefined();
+    expect(clip.props.y).toBeUndefined();
+    expect(clip.props.width).toBeUndefined();
+    expect(clip.props.height).toBeUndefined();
+    expect(clip.propsVersion).toBe(3);
+  });
+
+  it('keeps a rule’s centre and its length, and drops its band', () => {
+    const clip = migratedDrawing(
+      v3Document('horizontalLine', {
+        x: 960,
+        y: 690,
+        width: 1020,
+        height: 24,
+        caption: '100.5',
+      }),
+    );
+
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.y).toBe(690);
+    expect(clip.props.width).toBe(1020);
+    expect(clip.props.height).toBeUndefined();
+    // The creator's own figure survives.
+    expect(clip.props.caption).toBe('100.5');
+    expect(clip.propsVersion).toBe(3);
+  });
+
+  it('keeps a vertical rule’s own x, its span and its length', () => {
+    const clip = migratedDrawing(
+      v3Document('verticalLine', {
+        x: 960,
+        y: 540,
+        width: 24,
+        height: 320,
+        points: { at: { x: 0.5, y: 0.5 } },
+      }),
+    );
+
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.y).toBe(540);
+    expect(clip.props.height).toBe(320);
+    expect(clip.props.width).toBeUndefined();
+    expect(clip.props.points).toBeUndefined();
+  });
+
+  it('keeps a label’s point and drops its box', () => {
+    const clip = migratedDrawing(
+      v3Document('textLabel', {
+        x: 960,
+        y: 540,
+        width: 200,
+        height: 40,
+        points: { at: { x: 0.5, y: 0.5 } },
+        label: { text: 'Hi' },
+      }),
+    );
+
+    expect(clip.props.points).toEqual({ at: { x: 960, y: 540 } });
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.y).toBe(540);
+    expect(clip.props.width).toBeUndefined();
+    expect(clip.props.height).toBeUndefined();
+    expect(clip.props.label).toEqual({ text: 'Hi' });
+  });
+
+  it('keeps the position tool’s box and makes its levels places', () => {
+    const clip = migratedDrawing(
+      v3Document('position', {
+        x: 960,
+        y: 540,
+        width: 320,
+        height: 240,
+        points: {
+          entry: { x: 0, y: 0.5 },
+          stop: { x: 0, y: 0.75 },
+          target: { x: 0, y: 0.25 },
+        },
+      }),
+    );
+
+    expect(clip.props.points).toEqual({
+      entry: { x: 800, y: 540 },
+      stop: { x: 800, y: 600 },
+      target: { x: 800, y: 480 },
+    });
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.y).toBe(540);
+    expect(clip.props.width).toBe(320);
+    expect(clip.props.height).toBe(240);
+  });
+
+  it('leaves the rectangle’s box alone', () => {
+    const clip = migratedDrawing(
+      v3Document('rectangle', { x: 960, y: 540, width: 320, height: 180 }),
+    );
+
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.y).toBe(540);
+    expect(clip.props.width).toBe(320);
+    expect(clip.props.height).toBe(180);
+  });
+
+  it('keeps the keys it does not know', () => {
+    const clip = migratedDrawing(
+      v3Document('horizontalLine', {
+        x: 960,
+        y: 690,
+        width: 1020,
+        height: 24,
+        custom: 'kept',
+      }),
+    );
+
+    expect(clip.props.custom).toBe('kept');
+  });
+
+  it('leaves a drawing without its points exactly as it was', () => {
+    const clip = migratedDrawing(
+      v3Document('trendline', { x: 960, y: 540, width: 320, height: 180 }),
+    );
+
+    expect(clip.props.points).toBeUndefined();
+    expect(clip.props.x).toBe(960);
+    expect(clip.props.width).toBe(320);
+    expect(clip.propsVersion).toBe(2);
+  });
+
+  it('changes nothing else in the document', () => {
+    const doc = legacyProject();
+    doc.schemaVersion = 3;
+    const migrated = migrateProject(doc);
+    expect(migrated.tracks[0].clips[0].element).toBe('text');
+    expect(migrated.tracks[0].clips[0].props).toEqual({ text: 'Hi' });
+  });
+
+  it('is idempotent', () => {
+    const doc = v3Document('trendline', {
+      x: 960,
+      y: 540,
+      width: 320,
+      height: 180,
+      points: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
+    });
+    const once = migrateProject(doc);
+    const twice = migrateProject(once);
+    expect(twice).toEqual(once);
   });
 });

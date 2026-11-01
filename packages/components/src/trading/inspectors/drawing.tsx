@@ -2,8 +2,8 @@
  * The inspector for the independent drawing tools.
  *
  * One panel serves all eight kinds: it edits the **caption** — a text field
- * on every kind — the style, and the per-kind extras (the trend line's ray,
- * the label's text, the position tool's direction and its risk/reward label).
+ * on every kind — the style, and the per-kind extras (the label's text, the
+ * position tool's direction and its risk/reward label).
  *
  * There is no number field for a price or for the position tool's levels,
  * because there are no numbers: a drawing holds no market value. The levels
@@ -26,7 +26,7 @@ interface DrawingOption {
 const KIND_OPTIONS: Record<DrawingKind, DrawingOption[]> = {
   horizontalLine: [],
   verticalLine: [],
-  trendline: [{ key: 'ray', label: 'Ray', kind: 'select', options: ['none', 'left', 'right', 'both'] }],
+  trendline: [],
   highLowLine: [],
   rectangle: [],
   textLabel: [{ key: 'text', label: 'Text', kind: 'text' }],
@@ -54,10 +54,6 @@ export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
 
   const editOption = (option: DrawingOption, value: string | boolean) => {
     commit();
-    if (option.key === 'ray') {
-      onChange({ trendline: { ...(props.trendline ?? {}), ray: String(value) } });
-      return;
-    }
     if (option.key === 'text') {
       onChange({ label: { ...(props.label ?? {}), text: String(value) } });
       return;
@@ -133,11 +129,7 @@ export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
 
       {options.map((option) => {
         const source =
-          option.key === 'ray'
-            ? (props.trendline ?? {})
-            : option.key === 'text'
-              ? (props.label ?? {})
-              : (props.position ?? {});
+          option.key === 'text' ? (props.label ?? {}) : (props.position ?? {});
         const value = (source as Record<string, unknown>)[option.key];
         return (
           <div className="param-row" key={option.key}>

@@ -32,8 +32,8 @@ describe('the authored path verification fixture', () => {
     expect(clip.props.panes).toHaveLength(2);
   });
 
-  it('is a schema version 3 document', () => {
-    expect(authoredPathProject.schemaVersion).toBe(3);
+  it('is a schema version 4 document', () => {
+    expect(authoredPathProject.schemaVersion).toBe(4);
   });
 
   it('carries the drawings as independent elements', () => {
@@ -45,12 +45,19 @@ describe('the authored path verification fixture', () => {
     expect(line?.props.caption).toBe('100.5');
     expect(line?.props.chartClipId).toBeUndefined();
     expect(line?.props.anchors).toBeUndefined();
+    // The rule keeps its centre and its length, and no band of its own.
+    expect(line?.props.width).toBe(1020);
+    expect(line?.props.height).toBeUndefined();
 
     expect(trend?.element).toBe('trendline');
+    // The line's two points are places in the composition.
     expect(trend?.props.points).toEqual({
-      start: { x: 0.05, y: 0.95 },
-      end: { x: 0.15, y: 0.93 },
+      start: { x: 501, y: 918.6 },
+      end: { x: 603, y: 908.44 },
     });
+    // The shape is its points: the box it never used is gone.
+    expect(trend?.props.x).toBeUndefined();
+    expect(trend?.props.width).toBeUndefined();
     expect(trend?.props.chartClipId).toBeUndefined();
     expect(trend?.props.anchors).toBeUndefined();
   });
