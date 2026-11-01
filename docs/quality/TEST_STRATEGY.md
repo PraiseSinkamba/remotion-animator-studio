@@ -17,7 +17,7 @@
 No claim of passing tests or performance is valid until actual runs produce inspected results.
 
 The repository contains a working editor and a runnable test suite. `pnpm test` runs Vitest across the
-workspace; the suite is spread over 27 test files. Section 3 records what those tests cover and,
+workspace; the suite is spread over 29 test files. Section 3 records what those tests cover and,
 just as importantly, what they do not.
 
 ## 2. Foundational fixtures
@@ -51,12 +51,12 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 
 ## 3. What the suite covers today
 
-The suite is spread over 27 test files. Counted from the sources, the files declare 344 `it`/`test`
+The suite is spread over 29 test files. Counted from the sources, the files declare 388 `it`/`test`
 cases, and two of them expand when they run: the reference-parity case in
 `packages/core/src/path.test.ts` runs once per entry of its six-case table, and the nine-case
 storage contract suite in `packages/editor/src/storage/contract-suite.ts` runs against each of the
-three repository backends (localStorage, in-memory and SQLite). Running the suite gives
-**378 executed cases over 27 files**, and the whole workspace type-checks and builds.
+three repository backends (localStorage, in-memory and SQLite). Collected with `npx vitest list`,
+the suite holds **411 cases over 29 files**, and the whole workspace type-checks and builds.
 
 What it actually asserts:
 
@@ -108,6 +108,8 @@ curve vocabulary (CV-001–CV-004) and the
 | Authoring operations | `addSwingAnchor`, `moveSwingAnchor`, `removeSwingAnchor` and `normalizeSwingPath` are pure, keep the anchors ascending, reject a duplicate bar index and leave the path they were given untouched | AP-002, AP-003 | `packages/core/src/path.test.ts` |
 | Zero range and OHLC invariants | Every generated bar is OHLC-consistent and strictly positive, and every bar has a non-zero range, including at an anchor | AP-001 | `packages/core/src/path.test.ts` |
 | Provenance | The record carries the origin and the fields that origin carries — `authored-path` gives its algorithm version, seed and anchor count, `manual` gives its bar count — and the simulation flags independently of the origin; a series no chart draws is still listed; the sidecar is written beside the video and does not throw when the project cannot be read | AP-004, QA-005 | `packages/core/src/provenance.test.ts`, `packages/video/src/provenance-sidecar.test.ts` |
+| Independent drawing geometry | A drawing's props are accepted as a box of its own, a caption and normalised points; a point outside its own box is rejected and the offending key is named; a kind that carries no points rejects them; the retired market numbers — a `price` and a `position` level — are rejected and named; an opacity outside 0..1 is rejected | OB-011, OB-012 | `packages/core/src/validation.test.ts` |
+| Provenance annotations | The record carries one entry per drawing, naming the drawing's kind and the caption the creator typed as their own figure; a drawing with no caption carries its kind alone | OB-013 | `packages/core/src/provenance.test.ts` |
 | Schema version 2 migration | A v1 document migrates to a v2 document whose single pane renders the same candles in the same place; the migration stays non-destructive and idempotent; a higher version is still rejected; the offending field is named | CPT-006 | `packages/components/src/project-migrate.test.ts` |
 | Pane evaluation | The pane's bars never contain an index beyond the as-of index; with an automatic price range a future bar never moves the axis; a partially aggregated bucket holds no value from a later constituent | CH-003, TF-003, TF-004 | `packages/components/src/trading/candlestick-chart.test.tsx`, `packages/core/src/time.test.ts` |
 | Anchors and drawings | A price-anchored drawing keeps its price when the chart rect changes and moves with the chart clip it is anchored to; a drawing anchored to an unrevealed candle is hidden; the position tool shows entry, stop and target and no P&L | OB-003, CPT-005, OB-006 | `packages/components/src/trading/drawings/drawings.test.tsx` |

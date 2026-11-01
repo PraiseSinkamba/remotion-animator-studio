@@ -220,6 +220,67 @@ export interface DrawingSpec {
 }
 
 /**
+ * The drawing kinds of the independent drawing model.
+ *
+ * A drawing of this model is pure geometry: its own box, its own points and
+ * its own caption. It never names a market value.
+ */
+export type IndependentDrawingKind =
+  | 'horizontalLine'
+  | 'verticalLine'
+  | 'trendline'
+  | 'highLowLine'
+  | 'rectangle'
+  | 'textLabel'
+  | 'arrow'
+  | 'position';
+
+/** Every independent drawing kind, in the order the tools offer them. */
+export const INDEPENDENT_DRAWING_KINDS: readonly IndependentDrawingKind[] = [
+  'horizontalLine',
+  'verticalLine',
+  'trendline',
+  'highLowLine',
+  'rectangle',
+  'textLabel',
+  'arrow',
+  'position',
+];
+
+/** A point inside a drawing's own box, as a 0..1 fraction. Origin top-left, y down. */
+export interface DrawingPoint { x: number; y: number; }
+
+/** The colours and weights a drawing carries. */
+export interface DrawingStyle {
+  color?: string;
+  lineWidth?: number;
+  /** Fill opacity of a rectangle or a band. */
+  fillOpacity?: number;
+  fontSize?: number;
+}
+
+/** The props every independent drawing carries. */
+export interface IndependentDrawingProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  opacity?: number;
+  style?: DrawingStyle;
+  /** The creator's own figure, drawn beside the shape. */
+  caption?: string;
+  /** Per-kind points, as 0..1 fractions of the box. */
+  points?: Record<string, DrawingPoint>;
+  /** The position tool's direction and its ratio toggle. */
+  position?: {
+    direction: 'long' | 'short';
+    showRiskReward?: boolean;
+  };
+  label?: { text?: string };
+  trendline?: { ray?: 'none' | 'left' | 'right' | 'both' };
+}
+
+/**
  * The persisted props of a candlestick chart clip (schema v2).
  *
  * Named for the document, not the render: the component's own render props

@@ -11,11 +11,15 @@
  * materialised — the record reads the specs, so an authored path is never
  * regenerated just to describe it.
  *
- * Only type imports: the render tools import this module directly under plain
- * node, so it must not pull in runtime dependencies.
+ * No external runtime dependency: the render tools import this module directly
+ * under plain node, so it pulls in nothing but core's own element model.
  */
 import type { SeriesSpec } from './series';
 import type { Project } from './schemas';
+// The extension is deliberate: the render tools import this module directly
+// under plain node, which resolves a `.ts` specifier but not an extensionless
+// one. See the same note in `market.ts`.
+import { INDEPENDENT_DRAWING_KINDS } from './elements.ts';
 
 /** The provenance of one series, shaped by where the series came from. */
 export type ProvenanceSeries =
@@ -67,6 +71,21 @@ export interface ProvenanceSimulation {
   simulatedChartIds: string[];
 }
 
+/**
+ * The provenance of one drawing.
+ *
+ * A drawing states no market value: the caption is the creator's own figure,
+ * the kind is the tool the creator drew with.
+ */
+export interface ProvenanceAnnotation {
+  /** The clip the drawing lives in. */
+  clipId: string;
+  /** The drawing kind, as the element names it. */
+  kind: string;
+  /** The creator's own figure, when one was typed. */
+  caption?: string;
+}
+
 /** The record that travels with an export. */
 export interface ProvenanceRecord {
   /** The document schema version of the exported project. */
@@ -75,6 +94,8 @@ export interface ProvenanceRecord {
   series: ProvenanceSeries[];
   /** The simulation flags of the project. */
   simulation: ProvenanceSimulation;
+  /** One entry per drawing in the project. */
+  annotations: ProvenanceAnnotation[];
 }
 
 /**
@@ -132,6 +153,24 @@ export const buildProvenance = (project: Project): ProvenanceRecord => {
     })
     .map((clip) => clip.id);
 
+  // The eight drawing kinds, read as plain strings: the document's element
+  // type does not name them yet — the cutover renames two of them and adds
+  // the rest.
+  const drawingKinds: readonly string[] = INDEPENDENT_DRAWING_KINDS;
+
+  const annotations: ProvenanceAnnotation[] = (project.tracks ?? [])
+    .flatMap((track) => track.clips ?? [])
+    .filter((clip) => drawingKinds.includes(clip.element))
+    .map((clip) => {
+      const props: Record<string, unknown> = clip.props ?? {};
+      const caption = typeof props.caption === 'string' ? props.caption : undefined;
+      return {
+        clipId: clip.id,
+        kind: clip.element,
+        ...(caption === undefined ? {} : { caption }),
+      };
+    });
+
   return {
     schemaVersion: project.schemaVersion ?? 1,
     series,
@@ -139,5 +178,6 @@ export const buildProvenance = (project: Project): ProvenanceRecord => {
       simulatedIntrabarPath: simulatedChartIds.length > 0,
       simulatedChartIds,
     },
+    annotations,
   };
 };

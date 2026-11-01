@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildProvenance } from './provenance';
-import type { Project } from './schemas';
+import type { ElementType, Project } from './schemas';
 import type { SeriesSpec } from './series';
 
 const projectWith = (series: SeriesSpec[], revealMode?: 'discrete' | 'simulated'): Project => ({
@@ -115,5 +115,59 @@ describe('buildProvenance', () => {
 
     expect(record.series).toHaveLength(1);
     expect(record.series[0].origin).toBe('manual');
+  });
+});
+
+describe('buildProvenance annotations', () => {
+  const drawingProject = (element: string, props: Record<string, unknown>): Project => ({
+    ...projectWith([]),
+    tracks: [
+      {
+        id: 't-draw',
+        name: 'Drawings',
+        clips: [
+          {
+            id: 'c-draw',
+            name: 'Drawing',
+            // The v3 drawing kinds are not element types yet: the cutover
+            // renames two of them and adds the rest in S1.
+            element: element as ElementType,
+            from: 0,
+            durationInFrames: 240,
+            props,
+            effects: [],
+          },
+        ],
+      },
+    ],
+  });
+
+  it("records a drawing's caption as the creator's own figure", () => {
+    const record = buildProvenance(drawingProject('horizontalLine', { caption: '4200' }));
+
+    expect(record.annotations).toHaveLength(1);
+    expect(record.annotations[0].caption).toBe('4200');
+  });
+
+  it("records a drawing's kind", () => {
+    const record = buildProvenance(drawingProject('trendline', { caption: '4200' }));
+
+    expect(record.annotations).toHaveLength(1);
+    expect(record.annotations[0].kind).toBe('trendline');
+    expect(record.annotations[0].clipId).toBe('c-draw');
+  });
+
+  it('records a drawing with no caption', () => {
+    const record = buildProvenance(drawingProject('rectangle', { x: 10, y: 20 }));
+
+    expect(record.annotations).toHaveLength(1);
+    expect(record.annotations[0].kind).toBe('rectangle');
+    expect(record.annotations[0].caption).toBeUndefined();
+  });
+
+  it('records nothing for an element that is not a drawing', () => {
+    const record = buildProvenance(drawingProject('text', { caption: 'hello' }));
+
+    expect(record.annotations).toEqual([]);
   });
 });

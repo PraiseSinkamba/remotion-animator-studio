@@ -10,7 +10,12 @@
 import * as z from 'zod/v4';
 
 import type { Project } from './schemas';
-import type { ChartGroupSpec, ChartProps } from './elements';
+import type {
+  ChartGroupSpec,
+  ChartProps,
+  IndependentDrawingKind,
+  IndependentDrawingProps,
+} from './elements';
 import { TIMEFRAME_BASE_UNITS } from './elements';
 import type { SeriesSpec } from './series';
 import {
@@ -540,6 +545,84 @@ export const validateChartRelations = (raw: unknown): ValidationResult<ChartProp
   if (issues.length > 0) return { ok: false, issues };
   return { ok: true, value: props };
 };
+
+/* ------------------------------------------------------------------ */
+/* independent drawings                                               */
+/* ------------------------------------------------------------------ */
+
+/** One point inside a drawing's own box, as a 0..1 fraction. */
+const drawingPointSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+});
+
+/** The kinds whose rule sits at the box's own centre and carry no points. */
+const POINT_FREE_DRAWING_KINDS: readonly IndependentDrawingKind[] = [
+  'horizontalLine',
+  'rectangle',
+];
+
+/**
+ * The props a drawing of the independent model carries.
+ *
+ * The retired market numbers are declared, not merely absent: a stray
+ * `price` or a `position` level is an issue whose path names it, so it
+ * cannot slip into a v3 document unnoticed.
+ */
+const drawingBaseShape = {
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+  caption: z.string().optional(),
+  style: z
+    .object({
+      color: z.string().optional(),
+      lineWidth: z.number().optional(),
+      fillOpacity: z.number().optional(),
+      fontSize: z.number().optional(),
+    })
+    .optional(),
+  position: z
+    .object({
+      direction: z.enum(['long', 'short']),
+      showRiskReward: z.boolean().optional(),
+      entry: z.never().optional(),
+      stop: z.never().optional(),
+      target: z.never().optional(),
+    })
+    .optional(),
+  label: z.object({ text: z.string().optional() }).optional(),
+  trendline: z
+    .object({ ray: z.enum(['none', 'left', 'right', 'both']).optional() })
+    .optional(),
+  price: z.never().optional(),
+};
+
+const drawingSchemaFor = (kind: IndependentDrawingKind) =>
+  z.object({
+    ...drawingBaseShape,
+    points: POINT_FREE_DRAWING_KINDS.includes(kind)
+      ? z.never().optional()
+      : z.record(z.string(), drawingPointSchema).optional(),
+  });
+
+/**
+ * Validates a drawing's props against its kind.
+ *
+ * A drawing of the independent model is pure geometry: a box of its own,
+ * points normalised inside that box and a caption the creator types. The
+ * validator keeps the retired market numbers out, and keeps a point inside
+ * the box it belongs to.
+ */
+export const validateDrawingProps = (
+  kind: IndependentDrawingKind,
+  props: unknown,
+): ValidationResult<IndependentDrawingProps> =>
+  toResult(
+    drawingSchemaFor(kind).safeParse(props) as z.ZodSafeParseResult<IndependentDrawingProps>,
+  );
 
 /* ------------------------------------------------------------------ */
 /* the exported validators                                            */

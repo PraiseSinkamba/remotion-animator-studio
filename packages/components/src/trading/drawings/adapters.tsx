@@ -11,17 +11,17 @@
  * ratio is a geometric fact about the drawn levels, not a claim about money.
  */
 import React from 'react';
+import type { DrawingStyle } from '@chart-studio/core';
 import type { ChartGeometry } from '../chart';
 import type { ResolvedAnchors } from './anchors';
 
-/** The colours and weights a drawing carries. */
-export interface DrawingStyle {
-  color?: string;
-  lineWidth?: number;
-  /** Fill opacity of a zone. */
-  fillOpacity?: number;
-  fontSize?: number;
-}
+/**
+ * The colours and weights a drawing carries.
+ *
+ * The type lives in core: the drawing model is core's, and the adapters read
+ * it. Re-exported here for the callers that already import it from here.
+ */
+export type { DrawingStyle };
 
 /** What every adapter receives. */
 export interface DrawingAdapterProps {

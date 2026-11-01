@@ -4,6 +4,7 @@ import {
   validateChartGroup,
   validateChartProps,
   validateChartRelations,
+  validateDrawingProps,
   validateProjectDocument,
   validateSeriesSpec,
 } from './validation';
@@ -368,6 +369,84 @@ describe('validateChartGroup', () => {
   });
 
   it('rejects a group holding no chart at all', () => {
-    expect(validateChartGroup(group({ chartClipIds: [] })).ok).toBe(false);
+    expect(validateChartGroup({ ...group(), chartClipIds: [] }).ok).toBe(false);
+  });
+});
+
+describe('validateDrawingProps', () => {
+  const trendlineProps = () => ({
+    x: 960,
+    y: 540,
+    width: 320,
+    height: 180,
+    opacity: 1,
+    style: { color: '#e8eaf0', lineWidth: 1.5, fillOpacity: 0.2, fontSize: 24 },
+    caption: 'the creator’s own figure',
+    points: { start: { x: 0, y: 0 }, end: { x: 1, y: 1 } },
+    trendline: { ray: 'both' },
+  });
+
+  it("accepts an independent drawing's props", () => {
+    const result = validateDrawingProps('trendline', trendlineProps());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('expected the drawing to be accepted');
+    expect(result.value.points?.start).toEqual({ x: 0, y: 0 });
+    expect(result.value.caption).toBe('the creator’s own figure');
+  });
+
+  it("rejects a point outside the drawing's own box", () => {
+    const result = validateDrawingProps('trendline', { points: { start: { x: 1.5, y: 0 } } });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the drawing to be rejected');
+    expect(result.issues.some((issue) => issue.path === 'points.start.x')).toBe(true);
+  });
+
+  it('rejects a horizontal line that carries points', () => {
+    const result = validateDrawingProps('horizontalLine', {
+      points: { at: { x: 0.5, y: 0.5 } },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the drawing to be rejected');
+    expect(result.issues.some((issue) => issue.path === 'points')).toBe(true);
+  });
+
+  it('rejects a retired market number', () => {
+    const result = validateDrawingProps('horizontalLine', { price: 4200 });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the drawing to be rejected');
+    expect(result.issues.some((issue) => issue.path === 'price')).toBe(true);
+  });
+
+  it('rejects a retired position level', () => {
+    const result = validateDrawingProps('position', {
+      position: { direction: 'long', entry: 4200 },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the drawing to be rejected');
+    expect(result.issues.some((issue) => issue.path === 'position.entry')).toBe(true);
+  });
+
+  it('rejects an opacity outside 0..1', () => {
+    const result = validateDrawingProps('horizontalLine', { opacity: 1.5 });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the drawing to be rejected');
+    expect(result.issues.some((issue) => issue.path === 'opacity')).toBe(true);
+  });
+
+  it('accepts a drawing with no kind-specific content', () => {
+    const result = validateDrawingProps('horizontalLine', {
+      x: 960,
+      y: 540,
+      width: 480,
+      height: 24,
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
