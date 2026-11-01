@@ -1,38 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getComponent } from '@chart-studio/components';
+import { dragEffect, elementRegion, handleAt, type Box, type Point } from '@chart-studio/editor';
 import { findClip, useStore } from '@chart-studio/editor';
-import { clipGeometry } from './canvas-hit-test';
 
 /**
- * Editor-only selection box drawn over the preview Player.
+ * Editor-only selection overlay drawn over the preview Player.
  *
- * The box is metadata: it never enters the composition, so it cannot change a
- * rendered pixel or the exported video.
+ * The overlay draws what the selected element **declares**: its own control
+ * points, and its rectangle only when it has one. A line is picked and
+ * dragged by its ends, with no rectangle around it; a text's rectangle is
+ * derived from the text itself; the elements that are boxes keep their box.
+ *
+ * The overlay is metadata: it never enters the composition, so it cannot
+ * change a rendered pixel or the exported video.
  */
 
-/** Where a handle sits on the box and which edges it drags. */
-interface Handle {
-  id: 'nw' | 'ne' | 'se' | 'sw';
-  /** Position on the box, 0..1. */
-  fx: number;
-  fy: number;
-  /** Which edge follows the pointer: -1 west/north, 1 east/south. */
-  sx: number;
-  sy: number;
-  cursor: string;
-}
-
-const HANDLES: Handle[] = [
-  { id: 'nw', fx: 0, fy: 0, sx: -1, sy: -1, cursor: 'cursor-nwse-resize' },
-  { id: 'ne', fx: 1, fy: 0, sx: 1, sy: -1, cursor: 'cursor-nesw-resize' },
-  { id: 'se', fx: 1, fy: 1, sx: 1, sy: 1, cursor: 'cursor-nwse-resize' },
-  { id: 'sw', fx: 0, fy: 1, sx: -1, sy: 1, cursor: 'cursor-nesw-resize' },
-];
-
-/** Smallest box a handle may drag out, when the component has no minimum. */
+/** The smallest box a handle may drag out, when the component has no minimum. */
 const MIN_SIZE = 8;
 
-export const SelectionOverlay: React.FC = () => {
+export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ measured }) => {
   const project = useStore((s) => s.project);
   const selectedClipId = useStore((s) => s.selectedClipIds[0] ?? null);
   const drawingPath = useStore((s) => s.drawingPath);
@@ -44,8 +30,7 @@ export const SelectionOverlay: React.FC = () => {
   const drag = useRef<{
     startX: number;
     startY: number;
-    scale: number;
-    origin: { x: number; y: number; width: number; height: number };
+    handleId: string;
   } | null>(null);
 
   // The Player letterboxes the composition inside the stage; the overlay has
@@ -53,122 +38,145 @@ export const SelectionOverlay: React.FC = () => {
   useEffect(() => {
     const el = layerRef.current;
     if (!el) return;
-    const measure = () => setSize({ width: el.clientWidth, height: el.clientHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
+    const observer = new ResizeObserver(() => {
+      setSize({ width: el.clientWidth, height: el.clientHeight });
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
   const clip = findClip(project, selectedClipId);
   const definition = clip ? getComponent(clip.element) : undefined;
+  const edit = definition?.edit;
 
-  /** The clip's box on the canvas — the same rectangle the canvas hit-tests. */
-  const geometry = useMemo(() => (clip ? clipGeometry(clip) : null), [clip]);
+  /** The element's own geometry, from what it declares. */
+  const region = useMemo(
+    () => (clip ? elementRegion(clip, project, measured?.get(clip.id) ?? null) : null),
+    [clip, project, measured],
+  );
 
-  /** Only positioned components get a box — audio and background have no anchor. */
-  const positioned = !!geometry;
-
-  /** Only components with numeric width/height params can be resized. */
-  const resizable =
-    !!definition &&
-    definition.params.some((p) => p.key === 'width' && p.kind === 'number') &&
-    definition.params.some((p) => p.key === 'height' && p.kind === 'number');
-
-  const widthParam = definition?.params.find((p) => p.key === 'width');
-  const heightParam = definition?.params.find((p) => p.key === 'height');
-  const minWidth = typeof widthParam?.min === 'number' ? widthParam.min : MIN_SIZE;
-  const minHeight = typeof heightParam?.min === 'number' ? heightParam.min : MIN_SIZE;
-  const maxWidth = typeof widthParam?.max === 'number' ? widthParam.max : Infinity;
-  const maxHeight = typeof heightParam?.max === 'number' ? heightParam.max : Infinity;
-
-  const scale = size.width > 0 && size.height > 0 ? Math.min(size.width / project.width, size.height / project.height) : 0;
+  const scale =
+    size.width > 0 && size.height > 0
+      ? Math.min(size.width / project.width, size.height / project.height)
+      : 0;
   const offsetX = (size.width - project.width * scale) / 2;
   const offsetY = (size.height - project.height * scale) / 2;
 
-  const box = geometry
-    ? {
-        left: offsetX + geometry.box.left * scale,
-        top: offsetY + geometry.box.top * scale,
-        width: geometry.box.width * scale,
-        height: geometry.box.height * scale,
-      }
-    : null;
+  /** A client point, in composition pixels. */
+  const compositionPoint = (clientX: number, clientY: number): Point | null => {
+    const el = layerRef.current;
+    if (!el || scale <= 0) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left - offsetX) / scale,
+      y: (clientY - rect.top - offsetY) / scale,
+    };
+  };
 
-  const onHandlePointerDown = (e: React.PointerEvent, handle: Handle) => {
-    if (!geometry || !clip) return;
+  /** A composition point, on the stage. */
+  const stagePoint = (point: Point): { left: number; top: number } => ({
+    left: offsetX + point.x * scale,
+    top: offsetY + point.y * scale,
+  });
+
+  const onHandlePointerDown = (e: React.PointerEvent, handleId: string) => {
+    if (!region) return;
     // Keep the stage's move-drag from starting under the handle.
     e.stopPropagation();
     e.preventDefault();
     commit();
-    drag.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      scale,
-      origin: {
-        x: geometry.anchor.x,
-        y: geometry.anchor.y,
-        width: geometry.box.width,
-        height: geometry.box.height,
-      },
-    };
+    drag.current = { startX: e.clientX, startY: e.clientY, handleId };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const onHandlePointerMove = (e: React.PointerEvent, handle: Handle) => {
+  const onHandlePointerMove = (e: React.PointerEvent) => {
     const current = drag.current;
-    if (!current || !clip) return;
-    const dx = (e.clientX - current.startX) / current.scale;
-    const dy = (e.clientY - current.startY) / current.scale;
-    // Corner handles move both edges: the opposite corner stays put, so the
-    // anchor (the box centre) shifts by half of the size change.
-    const width = Math.min(maxWidth, Math.max(minWidth, current.origin.width + handle.sx * dx));
-    const height = Math.min(maxHeight, Math.max(minHeight, current.origin.height + handle.sy * dy));
-    updateClipProps(clip.id, {
-      width: Math.round(width),
-      height: Math.round(height),
-      x: Math.round(current.origin.x + (handle.sx * (width - current.origin.width)) / 2),
-      y: Math.round(current.origin.y + (handle.sy * (height - current.origin.height)) / 2),
-    });
+    if (!current || !clip || !region || !edit) return;
+    const handle = edit.handles.find((entry) => entry.id === current.handleId);
+    if (!handle) return;
+    const pointer = compositionPoint(e.clientX, e.clientY);
+    const start = compositionPoint(current.startX, current.startY);
+    if (!pointer || !start) return;
+    const patch = dragEffect(clip, handle, region, pointer, start);
+    if (patch) updateClipProps(clip.id, patch);
   };
 
   const onHandlePointerUp = () => {
     drag.current = null;
   };
 
-  const show = !drawingPath && positioned && !!geometry && !!box && scale > 0;
+  const show = !drawingPath && !!edit && !!region && !!clip && scale > 0;
+
+  /**
+   * The rectangle, when the element has one.
+   *
+   * A line's region is the bounding box of its two ends, but it must not be
+   * drawn: the line is picked and dragged by its ends, and a rectangle around
+   * it is exactly the thing this design removes.
+   */
+  const box = region?.pick === 'box' && region.box
+    ? {
+        left: offsetX + region.box.left * scale,
+        top: offsetY + region.box.top * scale,
+        width: region.box.width * scale,
+        height: region.box.height * scale,
+      }
+    : null;
+
+  /** The handles the element declares, placed where they belong. */
+  const handles = (() => {
+    if (!edit || !region || !clip) return [];
+    return edit.handles
+      .map((handle) => {
+        const point = handleAt(region, handle, clip);
+        if (!point) return null;
+        const placed = stagePoint(point);
+        return { handle, left: placed.left, top: placed.top };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  })();
+
+  /** The readout: a text's size is its type, so the font size is what it says. */
+  const readout = (() => {
+    if (!clip || !edit || !region) return null;
+    const font = edit.handles.find((handle) => handle.effect === 'font');
+    if (font) {
+      const size_ = (clip.props as Record<string, unknown>)[font.props?.[0] ?? 'fontSize'];
+      return typeof size_ === 'number' ? `${Math.round(size_)} pt` : null;
+    }
+    if (!region.box || region.pick !== 'box') return null;
+    return `${Math.round(region.box.width)} × ${Math.round(region.box.height)}`;
+  })();
 
   return (
     <div ref={layerRef} className="pointer-events-none absolute inset-0 z-10">
-      {show && geometry && box ? (
+      {show && region && clip ? (
         <>
-          <div
-            className="absolute rounded-sm border-2 border-dashed border-primary"
-            style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
-          />
-          {resizable
-            ? HANDLES.map((handle) => (
-                <div
-                  key={handle.id}
-                  className={`pointer-events-auto absolute size-3 rounded-sm border border-primary-foreground bg-primary ${handle.cursor}`}
-                  style={{
-                    left: box.left + handle.fx * box.width,
-                    top: box.top + handle.fy * box.height,
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                  onPointerDown={(e) => onHandlePointerDown(e, handle)}
-                  onPointerMove={(e) => onHandlePointerMove(e, handle)}
-                  onPointerUp={onHandlePointerUp}
-                  onPointerCancel={onHandlePointerUp}
-                />
-              ))
-            : null}
-          <div
-            className="absolute bg-background px-1 font-mono text-[10px] leading-none text-muted-foreground"
-            style={{ left: box.left, top: Math.max(2, box.top - 16) }}
-          >
-            {Math.round(geometry.box.width)} × {Math.round(geometry.box.height)}
-          </div>
+          {box ? (
+            <div
+              className="absolute rounded-sm border-2 border-dashed border-primary"
+              style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
+            />
+          ) : null}
+          {handles.map(({ handle, left, top }) => (
+            <div
+              key={handle.id}
+              className="pointer-events-auto absolute size-3 rounded-sm border border-primary-foreground bg-primary"
+              style={{ left, top, transform: 'translate(-50%, -50%)' }}
+              onPointerDown={(e) => onHandlePointerDown(e, handle.id)}
+              onPointerMove={onHandlePointerMove}
+              onPointerUp={onHandlePointerUp}
+              onPointerCancel={onHandlePointerUp}
+            />
+          ))}
+          {readout && box ? (
+            <div
+              className="absolute bg-background px-1 font-mono text-[10px] leading-none text-muted-foreground"
+              style={{ left: box.left, top: Math.max(2, box.top - 16) }}
+            >
+              {readout}
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

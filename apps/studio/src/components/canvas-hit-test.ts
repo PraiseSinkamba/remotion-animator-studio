@@ -6,6 +6,15 @@
  * `PreviewPanel`, which owns the stage rect.
  */
 import { componentBounds, getComponent } from '@chart-studio/components';
+import {
+  elementRegion,
+  hitsElement,
+  LINE_TOLERANCE_PX,
+  POINT_TOLERANCE_PX,
+  type Box,
+  type PickKind,
+  type Region,
+} from '@chart-studio/editor';
 import type { Clip, Project } from '@chart-studio/core';
 
 /** A box in project coordinates. */
@@ -89,27 +98,53 @@ const clipsTopDown = (project: Project): Clip[] => {
 export interface PickableClip {
   clip: Clip;
   box: ClipBox;
+  /** The element's geometry, from what it declares. */
+  region: Region;
+  /** How the element is picked: by its box, by its stroke or by its point. */
+  pick: PickKind;
 }
 
 /** Every clip that can be picked, topmost first. */
-export const pickableClips = (project: Project): PickableClip[] => {
+export const pickableClips = (
+  project: Project,
+  measured?: Map<string, Box>,
+): PickableClip[] => {
   const out: PickableClip[] = [];
   for (const clip of clipsTopDown(project)) {
     // A hidden clip is not there to be picked, and a locked one is not to be
     // moved: the timeline still shows both.
     if (clip.hidden || clip.locked) continue;
-    const geometry = clipGeometry(clip);
-    if (geometry) out.push({ clip, box: geometry.box });
+    // The region comes from what the element declares, so a line is picked by
+    // its stroke and a point by its point — not by a rectangle around them.
+    const region = elementRegion(clip, project, measured?.get(clip.id) ?? null);
+    if (!region) continue;
+    const box = region.box
+      ? { left: region.box.left, top: region.box.top, width: region.box.width, height: region.box.height }
+      : { left: region.anchor.x, top: region.anchor.y, width: 0, height: 0 };
+    out.push({ clip, box, region, pick: region.pick });
   }
   return out;
 };
 
-/** The topmost clip whose box contains the point, or null. */
-export const hitTest = (picks: PickableClip[], x: number, y: number): Clip | null => {
-  for (const { clip, box } of picks) {
-    if (x >= box.left && x <= box.left + box.width && y >= box.top && y <= box.top + box.height) {
-      return clip;
-    }
+/**
+ * The topmost clip whose **shape** contains the point, or null.
+ *
+ * A box element is picked anywhere inside it. A line is picked near its
+ * stroke, within a tolerance in screen pixels, so it does not swallow the
+ * elements underneath it. A point is picked near the point.
+ *
+ * `scale` is the canvas scale — screen pixels per composition pixel — so the
+ * tolerance feels the same at every zoom.
+ */
+export const hitTest = (
+  picks: PickableClip[],
+  x: number,
+  y: number,
+  scale = 1,
+): Clip | null => {
+  for (const { clip, region, pick } of picks) {
+    const tolerance = pick === 'segment' ? LINE_TOLERANCE_PX : pick === 'point' ? POINT_TOLERANCE_PX : 0;
+    if (hitsElement(pick, region, { x, y }, tolerance, scale)) return clip;
   }
   return null;
 };

@@ -19,6 +19,7 @@ import {
   type CandlestickChartProps,
   type ChartEvaluation,
 } from '@chart-studio/components';
+import { elementRegion, moveElement, type Box } from '@chart-studio/editor';
 import { strokeToAnchorPoints } from '@chart-studio/core';
 import type {
   Clip,
@@ -165,23 +166,6 @@ export const PreviewPanel: React.FC = () => {
    * is cleared as soon as the field has it, so the menu remembers it here.
    */
   const renamePending = useRef(false);
-  /**
-   * The gesture in progress while a drawing's point is being dragged.
-   *
-   * The same gesture the swing path's anchors use: the canvas has one
-   * handle-drag interaction, and the two callers write their own props.
-   */
-  const pointDrag = useRef<
-    | {
-        kind: 'drawing';
-        clipId: string;
-        /** Which of the drawing's points is being taken hold of. */
-        pointKey: string;
-        /** The drawing's box, so the new fraction can be worked out. */
-        box: { x: number; y: number; width: number; height: number };
-      }
-    | null
-  >(null);
   /** The gesture in progress while a swing path is being authored. */
   const swingDrag = useRef<
     | { mode: 'anchor'; anchorId: string }
@@ -197,7 +181,7 @@ export const PreviewPanel: React.FC = () => {
     startX: number;
     startY: number;
     /** original positions of every clip that moves with the grabbed one */
-    origins: Array<{ clipId: string; x: number; y: number }>;
+    origins: Array<{ clipId: string; clip: Clip; region: ReturnType<typeof elementRegion> }>;
     /** has the pointer actually moved? (a press that never moves is a click) */
     moved: boolean;
     /** the clip that was grabbed */
@@ -252,23 +236,82 @@ export const PreviewPanel: React.FC = () => {
    * The pick list of the current project, cached until the project changes.
    * It is built on demand so a drag does not rebuild it on every frame.
    */
-  const picksCache = useRef<{ project: Project; picks: PickableClip[] } | null>(null);
+  const picksCache = useRef<{
+    project: Project;
+    measured: Map<string, Box>;
+    picks: PickableClip[];
+  } | null>(null);
   const picks = () => {
     const current = useStore.getState().project;
     const cached = picksCache.current;
-    if (cached && cached.project === current) return cached.picks;
-    const list = pickableClips(current);
-    picksCache.current = { project: current, picks: list };
+    if (cached && cached.project === current && cached.measured === measured) return cached.picks;
+    const list = pickableClips(current, measured);
+    picksCache.current = { project: current, measured, picks: list };
     return list;
   };
 
   /**
+   * The box an element actually rendered as.
+   *
+   * A text's size is its content's size, which the props do not carry, so the
+   * editor measures the rendered frame. The measurement is the editor's
+   * alone: the renderer stays pure.
+   */
+  const [measured, setMeasured] = useState<Map<string, Box>>(new Map());
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => {
+      const stage = wrapperRef.current;
+      if (!stage) return;
+      const stageRect = stage.getBoundingClientRect();
+      const { scale } = canvasMetrics(stageRect);
+      if (scale <= 0) return;
+      const next = new Map<string, Box>();
+      for (const clip of projectClips(project)) {
+        const el = stage.querySelector(`[data-clip-id="${clip.id}"]`);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        // The measurement is the element's size; its place is its anchor, so
+        // the box sits where the compositor put it.
+        const width = rect.width / scale;
+        const height = rect.height / scale;
+        const anchorX = Number(clip.props.x ?? 0);
+        const anchorY = Number(clip.props.y ?? 0);
+        next.set(clip.id, {
+          left: anchorX - width / 2,
+          top: anchorY - height / 2,
+          width,
+          height,
+        });
+      }
+      setMeasured((previous) => {
+        if (previous.size === next.size) return previous;
+        let same = true;
+        previous.forEach((box, key) => {
+          const other = next.get(key);
+          if (!other || Math.abs(other.width - box.width) > 0.5 || Math.abs(other.height - box.height) > 0.5) {
+            same = false;
+          }
+        });
+        if (same && next.size === previous.size) return previous;
+        return next;
+      });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [project, currentFrame]);
+
+  /**
    * The topmost element under the pointer, or null for the background.
+   *
+   * The element is picked by the shape it declares — a line by its stroke, a
+   * point by its point — so a line no longer swallows what is under it.
    */
   const pickAt = (clientX: number, clientY: number) => {
     const point = projectPoint(clientX, clientY);
     if (!point) return null;
-    return hitTest(picks(), point.x, point.y);
+    const stage = wrapperRef.current;
+    const scale = stage ? canvasMetrics(stage.getBoundingClientRect()).scale : 1;
+    return hitTest(picks(), point.x, point.y, scale);
   };
 
   /**
@@ -387,25 +430,6 @@ export const PreviewPanel: React.FC = () => {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
-    // A drawing's point is taken before the element itself: taking hold of a
-    // point moves the point, not the box.
-    const pointHandle = nearestHandle(drawingHandles(), projectPoint(e.clientX, e.clientY));
-    if (pointHandle && selected) {
-      commit(); // one undo entry per drag, taken before the first move
-      pointDrag.current = {
-        kind: 'drawing',
-        clipId: selected.id,
-        pointKey: pointHandle.id,
-        box: {
-          x: Number(selected.props.x ?? 0),
-          y: Number(selected.props.y ?? 0),
-          width: Number(selected.props.width ?? 0),
-          height: Number(selected.props.height ?? 0),
-        },
-      };
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      return;
-    }
     const hit = pickAt(e.clientX, e.clientY);
     if (!hit) {
       s.selectClip(null); // the background never drags
@@ -421,11 +445,11 @@ export const PreviewPanel: React.FC = () => {
     const next = useStore.getState();
     // The grabbed clip always moves; the rest of the selection moves with it.
     const moving = new Set([...next.selectedClipIds, hit.id]);
-    const origins: Array<{ clipId: string; x: number; y: number }> = [];
+    const origins: Array<{ clipId: string; clip: Clip; region: ReturnType<typeof elementRegion> }> = [];
     for (const c of projectClips(next.project)) {
       if (!moving.has(c.id)) continue;
-      const geometry = clipGeometry(c);
-      if (geometry) origins.push({ clipId: c.id, x: geometry.anchor.x, y: geometry.anchor.y });
+      const region = elementRegion(c, next.project, measured.get(c.id) ?? null);
+      if (region) origins.push({ clipId: c.id, clip: c, region });
     }
     if (!origins.some((o) => o.clipId === hit.id)) return;
     drag.current = {
@@ -443,25 +467,6 @@ export const PreviewPanel: React.FC = () => {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    const pointGesture = pointDrag.current;
-    if (pointGesture) {
-      const point = projectPoint(e.clientX, e.clientY);
-      if (!point) return;
-      const clip = findClip(project, pointGesture.clipId);
-      if (!clip) return;
-      const { box } = pointGesture;
-      const points = { ...((clip.props.points ?? {}) as Record<string, { x: number; y: number }>) };
-      // The point stays inside the drawing's own box: a drawing's points are
-      // fractions of it, so they cannot leave it.
-      const clamp = (value: number) => Math.max(0, Math.min(1, value));
-      let fractionX = clamp((point.x - (box.x - box.width / 2)) / box.width);
-      const fractionY = clamp((point.y - (box.y - box.height / 2)) / box.height);
-      // A high and low line is a vertical segment: its ends stay on it.
-      if (clip.element === 'highLowLine') fractionX = 0.5;
-      points[pointGesture.pointKey] = { x: fractionX, y: fractionY };
-      updateClipProps(pointGesture.clipId, { points });
-      return;
-    }
     const gesture = swingDrag.current;
     if (gesture) {
       const point = swingPoint(e.clientX, e.clientY);
@@ -497,12 +502,16 @@ export const PreviewPanel: React.FC = () => {
       commit(); // one undo entry per drag, taken before the first move
     }
     for (const o of drag.current.origins) {
-      updateClipProps(o.clipId, { x: Math.round(o.x + dx), y: Math.round(o.y + dy) });
+      // The element moves as a whole: a line is its points, and they move
+      // together.
+      const region = o.region ?? elementRegion(o.clip, project);
+      if (!region) continue;
+      const patch = moveElement(o.clip, region, { x: dx, y: dy });
+      if (patch) updateClipProps(o.clipId, patch);
     }
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
-    pointDrag.current = null;
     const gesture = swingDrag.current;
     swingDrag.current = null;
     if (gesture) {
@@ -693,28 +702,6 @@ export const PreviewPanel: React.FC = () => {
   };
 
   /**
-   * The selected drawing's points, as handles the creator can take hold of.
-   *
-   * A drawing's points are fractions of its own box, so they are placed in
-   * the composition the same way the drawing is.
-   */
-  const drawingHandles = (): CanvasHandle[] => {
-    if (!selected || !isDrawingKind(selected.element)) return [];
-    const points = selected.props.points as Record<string, { x: number; y: number }> | undefined;
-    if (!points) return [];
-    const width = Number(selected.props.width ?? 0);
-    const height = Number(selected.props.height ?? 0);
-    const centreX = Number(selected.props.x ?? 0);
-    const centreY = Number(selected.props.y ?? 0);
-    if (width <= 0 || height <= 0) return [];
-    return Object.entries(points).map(([key, point]) => ({
-      id: key,
-      x: centreX - width / 2 + point.x * width,
-      y: centreY - height / 2 + point.y * height,
-    }));
-  };
-
-  /**
    * The transport actions the selected clip's component declares.
    *
    * The shell names no component: it reads whatever the definition declares
@@ -805,15 +792,15 @@ export const PreviewPanel: React.FC = () => {
           initiallyMuted={muted}
           acknowledgeRemotionLicense
         />
-        <SelectionOverlay />
-        {swingHandles().length > 0 || drawingHandles().length > 0 ? (
+        <SelectionOverlay measured={measured} />
+        {swingHandles().length > 0 ? (
           <div className="pointer-events-none absolute inset-0 z-20">
             <svg
               viewBox={`0 0 ${project.width} ${project.height}`}
               preserveAspectRatio="xMidYMid meet"
               className="h-full w-full"
             >
-              {[...swingHandles(), ...drawingHandles()].map((handle) => (
+              {swingHandles().map((handle) => (
                 <circle
                   key={`${handle.id}`}
                   cx={handle.x}

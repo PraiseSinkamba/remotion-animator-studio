@@ -133,6 +133,9 @@ const ClipRenderer: React.FC<{
 
   return (
     <div
+      // The editor reads this to measure what an element actually rendered
+      // as — a text's box is its content's box, not a number in its props.
+      data-clip-id={clip.id}
       style={{
         position: 'absolute',
         left: anchored ? props.x : 0,

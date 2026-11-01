@@ -53,6 +53,7 @@ export const remocnTypewriterDefinition: VideoComponentDefinition = {
     { key: 'cursor', label: 'Show caret', kind: 'boolean' },
     { key: 'charsPerSecond', label: 'Characters per second', kind: 'number', min: 1, max: 120, step: 1 },
     { key: 'fontSize', label: 'Font size', kind: 'number', min: 8, max: 600, step: 1 },
+    { key: 'maxWidth', label: 'Wrap width', kind: 'number' as const, min: 0, max: 8000, step: 10 },
     { key: 'color', label: 'Text colour', kind: 'color' },
     { key: 'cursorColor', label: 'Caret colour', kind: 'color' },
     { key: 'fontWeight', label: 'Font weight', kind: 'number', min: 100, max: 900, step: 100 },

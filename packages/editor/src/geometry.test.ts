@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 // catalogue instead of a fake one.
 import '@chart-studio/components';
 import { getComponent, type Clip, type ElementHandle, type ElementType, type Project } from '@chart-studio/core';
-import { dragEffect, elementRegion, handleAt, hitsElement } from './geometry';
+import { dragEffect, elementRegion, handleAt, hitsElement, moveElement } from './geometry';
 
 const project: Project = {
   name: 'geometry',
@@ -343,5 +343,45 @@ describe('the edit declarations', () => {
     for (const type of notOnCanvas) {
       expect(getComponent(type as ElementType)?.edit, `${type} declares an edit model`).toBeUndefined();
     }
+  });
+});
+
+describe('moveElement', () => {
+  it('moves a box element by its anchor', () => {
+    const clip = makeClip('shape', { x: 400, y: 300, width: 200, height: 100 });
+    const region = regionOf(clip);
+
+    const patch = moveElement(clip, region, { x: 25, y: -10 });
+
+    expect(patch).toEqual({ x: 425, y: 290 });
+  });
+
+  it('moves a line by its points, and does not give it an anchor', () => {
+    const clip = makeClip(
+      'trendline',
+      { points: { start: { x: 100, y: 100 }, end: { x: 300, y: 200 } } },
+      3,
+    );
+    const region = regionOf(clip);
+
+    const patch = moveElement(clip, region, { x: 40, y: 15 });
+
+    expect(patch?.points).toEqual({
+      start: { x: 140, y: 115 },
+      end: { x: 340, y: 215 },
+    });
+    expect(patch?.x).toBeUndefined();
+    expect(patch?.y).toBeUndefined();
+  });
+});
+
+describe('the measured box', () => {
+  it('is used for an element instead of the estimate', () => {
+    const clip = makeClip('text', { x: 500, y: 300, fontSize: 90, text: 'Hello' });
+    const measured = { left: 0, top: 0, width: 320, height: 110 };
+    const region = elementRegion(clip, project, measured);
+
+    expect(region?.box?.width).toBe(320);
+    expect(region?.box?.height).toBe(110);
   });
 });

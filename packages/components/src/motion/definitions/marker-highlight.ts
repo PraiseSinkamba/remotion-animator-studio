@@ -57,6 +57,7 @@ export const remocnMarkerHighlightDefinition: VideoComponentDefinition = {
     { key: 'baseColor', label: 'Text colour', kind: 'color' },
     { key: 'highlightedTextColor', label: 'Highlighted text colour', kind: 'color' },
     { key: 'fontSize', label: 'Font size', kind: 'number', min: 8, max: 600, step: 1 },
+    { key: 'maxWidth', label: 'Wrap width', kind: 'number' as const, min: 0, max: 8000, step: 10 },
     { key: 'fontWeight', label: 'Font weight', kind: 'number', min: 100, max: 900, step: 100 },
     { key: 'speed', label: 'Speed', kind: 'number', min: 0.1, max: 5, step: 0.1 },
     ...POSITION_PARAMS,

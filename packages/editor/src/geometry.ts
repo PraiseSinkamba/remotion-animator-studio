@@ -208,8 +208,12 @@ const frameFor = (
   edit: { pick: PickKind; handles: ElementHandle[] },
   anchor: Point,
   project: Project,
+  measured?: Box | null,
 ): Box | null => {
   if (edit.pick === 'point') return null;
+  // A measured box is the element's own size, read from the rendered frame:
+  // it beats any estimate the props can offer.
+  if (measured) return measured;
   const scale = edit.handles.find((handle) => handle.effect === 'scale');
   if (scale) {
     const span = spanFromHandle(props, scale);
@@ -291,7 +295,11 @@ const distanceToSegment = (point: Point, a: Point, b: Point): number => {
  * `null` when the element declares no edit model — it is not picked on the
  * canvas (audio and background).
  */
-export const elementRegion = (clip: Clip, project: Project): Region | null => {
+export const elementRegion = (
+  clip: Clip,
+  project: Project,
+  measured?: Box | null,
+): Region | null => {
   const definition = getComponent(clip.element);
   const edit = definition?.edit;
   if (!definition || !edit) return null;
@@ -300,7 +308,7 @@ export const elementRegion = (clip: Clip, project: Project): Region | null => {
   const anchor: Point = { x: num(props.x) ?? 0, y: num(props.y) ?? 0 };
   const version = clip.propsVersion ?? definition.propsVersion ?? 1;
   const pointsAreAbsolute = version >= ABSOLUTE_POINTS_PROPS_VERSION;
-  const frame = frameFor(props, edit, anchor, project);
+  const frame = frameFor(props, edit, anchor, project, measured);
 
   const points: Record<string, Point> = {};
   for (const handle of edit.handles) {
@@ -556,4 +564,43 @@ export const dragEffect = (
     default:
       return null;
   }
+};
+
+/**
+ * Moves the whole element by a delta.
+ *
+ * The element's own points move with it — a line is its points, and a
+ * position tool's levels sit inside its box — and a box element moves by its
+ * anchor. An element with points and no box does not gain one: it has
+ * nothing to move but its points.
+ */
+export const moveElement = (
+  clip: Clip,
+  region: Region,
+  delta: Point,
+): Record<string, unknown> | null => {
+  const edit = getComponent(clip.element)?.edit;
+  if (!edit) return null;
+  const props = mergedProps(clip);
+  const patch: Record<string, unknown> = {};
+
+  const moved = Object.entries(region.points);
+  if (moved.length > 0) {
+    const points = { ...rawPoints(props) };
+    for (const [key, point] of moved) {
+      points[key] = toStoredPoint(
+        { x: point.x + delta.x, y: point.y + delta.y },
+        region.frame,
+        region.pointsAreAbsolute,
+      );
+    }
+    patch.points = points;
+  }
+
+  // A line is its points: it has no anchor to move.
+  if (edit.pick !== 'segment' || moved.length === 0) {
+    patch.x = round(region.anchor.x + delta.x);
+    patch.y = round(region.anchor.y + delta.y);
+  }
+  return patch;
 };

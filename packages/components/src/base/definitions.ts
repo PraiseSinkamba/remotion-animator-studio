@@ -79,6 +79,7 @@ const definitions: VideoComponentDefinition[] = [
     params: [
       { key: 'text', label: 'Text', kind: 'text' },
       { key: 'fontSize', label: 'Font size', kind: 'number', min: 8, max: 600, step: 1 },
+    { key: 'maxWidth', label: 'Wrap width', kind: 'number' as const, min: 0, max: 8000, step: 10 },
       { key: 'color', label: 'Color', kind: 'color' },
       { key: 'fontFamily', label: 'Font', kind: 'select', options: FONTS },
       { key: 'fontWeight', label: 'Weight', kind: 'select', options: ['300', '400', '500', '700', '900'] },
