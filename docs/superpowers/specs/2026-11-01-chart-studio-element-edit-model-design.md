@@ -208,6 +208,22 @@ long one wraps at your width.
 
 **Dragging a line's body shifts both endpoints.** Only the endpoint handles change a line's shape.
 
+## 6a. Several elements selected
+
+The editor already allows a multi-selection, and the new model has to say what the overlay shows and
+what a drag means, because the handles are now per-element.
+
+- **Every selected element shows its own control points**, drawn in the one style. A selection of three
+  trend lines shows six endpoints, not three boxes.
+- **A handle drag acts on the element it belongs to.** You grab one line's endpoint and that endpoint
+  moves; the other lines do not. The element you grabbed decides, which is what every editor does.
+- **A body drag still moves the whole selection.** Dragging the body of one of three selected elements
+  moves all three, exactly as it does today — the grouping and the multi-selection are separate
+  mechanisms, and grouping is what makes a set move as one.
+- **A handle drag moves only its own element, even when the selection is grouped.** A grouped set that
+  moves together when you drag its body would separate if you dragged one member's handle. That is
+  intended: the handle is a precise edit to one element, and the group is a coarse one.
+
 ## 7. The data model
 
 | Drawing | Now (v3) | After (v4) |
