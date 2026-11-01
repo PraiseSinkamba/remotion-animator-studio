@@ -345,7 +345,8 @@ describe('candlestick chart — project round-trip', () => {
     // chart's v2 props. The bars themselves stay on the clip as an inert
     // compatibility key, so the renderer keeps reading them unchanged. Their
     // prices are untouched; only the id becomes the series-scoped one.
-    expect(migrated.schemaVersion).toBe(3);
+    // The project schema is now version 4: the drawings became the shapes they are.
+    expect(migrated.schemaVersion).toBe(4);
     const migratedBars = migrated.tracks[0].clips[0].props.bars as OhlcBar[];
     expect(migratedBars.map((b: OhlcBar) => [b.t, b.o, b.h, b.l, b.c])).toEqual(
       props.bars.map((b: OhlcBar) => [b.t, b.o, b.h, b.l, b.c]),
