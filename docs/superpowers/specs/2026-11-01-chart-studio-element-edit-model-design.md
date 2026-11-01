@@ -208,6 +208,19 @@ long one wraps at your width.
 
 **Dragging a line's body shifts both endpoints.** Only the endpoint handles change a line's shape.
 
+## 5a. The authoring sessions are not edit models
+
+Two overlays on the canvas are **not** an element's control points, and this design does not change them:
+
+- The **swing path's anchors** are an authoring session — the creator is drawing a path on a chart, and
+  the anchors belong to that session, not to a clip's edit model. They keep their own overlay and their
+  own hit test.
+- The **drawing path's stroke** is the same: a session that becomes an effect when it is finished.
+
+They are worth naming because the editor currently has **three** overlays — the selection box, the
+drawings' points, and the swing path's anchors — and this design merges the first two. The authoring
+sessions stay separate, because they answer a different question: *what are you drawing right now?*
+
 ## 6a. Several elements selected
 
 The editor already allows a multi-selection, and the new model has to say what the overlay shows and
