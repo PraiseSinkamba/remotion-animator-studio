@@ -18,7 +18,7 @@ export const authoredPathProject: Project = {
   fps: 30,
   durationInFrames: 180,
   backgroundColor: '#0d0d14',
-  schemaVersion: 2,
+  schemaVersion: 3,
   series: [
     {
       id: AUTHORED_SERIES_ID,
@@ -151,28 +151,24 @@ export const authoredPathProject: Project = {
           effects: [],
         },
         {
-          id: 'c-price-line',
-          name: 'Price Line',
-          element: 'priceLine',
+          id: 'c-horizontal-line',
+          name: 'Horizontal Line',
+          element: 'horizontalLine',
           from: 0,
           durationInFrames: 180,
           props: {
-            chartClipId: 'c-authored',
-            paneId: 'pane-0',
-            // A price, not a pixel: the line stays on its level when the chart
-            // is resized.
-            anchors: { price: { kind: 'price', price: 100.5 } },
-            in: 0,
-            out: 180,
+            // The line owns its box: it reads no chart and no market. The
+            // creator's own figure rides along as the caption.
+            caption: '100.5',
             opacity: 1,
             style: { color: '#6ee7a8', lineWidth: 1.5 },
             x: 960,
             y: 690,
-            width: 1100,
-            height: 560,
+            width: 1020,
+            height: 24,
           },
           effects: [],
-          propsVersion: 1,
+          propsVersion: 2,
         },
         {
           id: 'c-trendline',
@@ -181,25 +177,22 @@ export const authoredPathProject: Project = {
           from: 0,
           durationInFrames: 180,
           props: {
-            chartClipId: 'c-authored',
-            paneId: 'pane-0',
-            anchors: {
-              // The far end is a bar the pane has not revealed yet at the
-              // early frames, so the trendline stays hidden until it is.
-              start: { kind: 'point', barId: `${AUTHORED_SERIES_ID}:0`, price: 100 },
-              end: { kind: 'point', barId: `${AUTHORED_SERIES_ID}:5`, price: 101.71 },
+            // Two points inside its own box: the far end is a bar the pane
+            // has not revealed yet, so the line runs ahead of the market.
+            points: {
+              start: { x: 0.05, y: 0.95 },
+              end: { x: 0.15, y: 0.93 },
             },
-            in: 0,
-            out: 180,
+            trendline: { ray: 'none' },
             opacity: 1,
             style: { color: '#7c5cff', lineWidth: 1.5 },
             x: 960,
             y: 690,
-            width: 1100,
-            height: 560,
+            width: 1020,
+            height: 508,
           },
           effects: [],
-          propsVersion: 1,
+          propsVersion: 2,
         },
       ],
       transitions: [

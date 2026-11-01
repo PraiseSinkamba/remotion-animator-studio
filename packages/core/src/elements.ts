@@ -167,65 +167,13 @@ export type PaneRelation =
       timeframeId: TimeframeId;
     };
 
-/** A market anchor: the only way a drawing refers to the market. */
-export type MarketAnchor =
-  /** An explicit level. */
-  | { kind: 'price'; price: number }
-  /** A candle extreme. */
-  | { kind: 'candle'; barId: string; side: 'high' | 'low' | 'close' }
-  /** A bar's time. */
-  | { kind: 'time'; barId: string }
-  /** A price at a bar. */
-  | { kind: 'point'; barId: string; price: number };
-
-/** The drawing tools the product offers. */
-export type DrawingKind =
-  | 'priceLine'
-  | 'highLowLine'
-  | 'verticalLine'
-  | 'trendline'
-  | 'priceZone'
-  | 'textLabel'
-  | 'arrow'
-  | 'position';
-
-/** A market-linked drawing. */
-export interface DrawingSpec {
-  id: ElementId;
-  kind: DrawingKind;
-  name: string;
-  /** The chart clip this drawing is attached to. */
-  chartClipId: string;
-  /** The pane inside that chart whose scale and time the anchor resolves against. */
-  paneId: ElementId;
-  anchors: Record<string, MarketAnchor>;
-  /** Lifecycle relative to the chart clip. */
-  in: number;
-  out: number;
-  opacity: number;
-  curve?: Curve;
-  style?: Record<string, string | number | boolean>;
-  /** Position tool specifics. */
-  position?: {
-    direction: 'long' | 'short';
-    entry: number;
-    stop: number;
-    target: number;
-    showRiskReward?: boolean;
-  };
-  /** Zone specifics. */
-  zone?: { extendRight?: boolean };
-  /** Label specifics. */
-  label?: { text: string };
-}
-
 /**
- * The drawing kinds of the independent drawing model.
+ * The drawing tools the product offers.
  *
  * A drawing of this model is pure geometry: its own box, its own points and
  * its own caption. It never names a market value.
  */
-export type IndependentDrawingKind =
+export type DrawingKind =
   | 'horizontalLine'
   | 'verticalLine'
   | 'trendline'
@@ -235,8 +183,8 @@ export type IndependentDrawingKind =
   | 'arrow'
   | 'position';
 
-/** Every independent drawing kind, in the order the tools offer them. */
-export const INDEPENDENT_DRAWING_KINDS: readonly IndependentDrawingKind[] = [
+/** Every drawing kind, in the order the tools offer them. */
+export const INDEPENDENT_DRAWING_KINDS: readonly DrawingKind[] = [
   'horizontalLine',
   'verticalLine',
   'trendline',

@@ -34,12 +34,12 @@ export type ElementType =
   | 'remocnSoftBlurIn'
   /** Source-owned Remocn motion component adapted to the registry. */
   | 'remocnTypewriter'
-  /** Market-linked drawing tools (Chart Studio). */
-  | 'priceLine'
+  /** Independent drawing tools (Chart Studio). */
+  | 'horizontalLine'
   | 'highLowLine'
   | 'verticalLine'
   | 'trendline'
-  | 'priceZone'
+  | 'rectangle'
   | 'textLabel'
   | 'arrow'
   | 'position'

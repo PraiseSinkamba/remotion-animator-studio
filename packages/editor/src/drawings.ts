@@ -1,11 +1,12 @@
 /**
- * The drawing tools, and how a click on the canvas becomes a market anchor.
+ * The drawing tools, and how a click on the canvas becomes a drawing.
  *
- * A drawing names the market, never a pixel: the anchors here are prices,
- * bars and sides, and they resolve against the pane's scale at render time.
+ * A drawing is an ordinary clip: its own box, its own frame range and its
+ * own points. It never names a market value, so it needs no chart, no pane
+ * and no anchor resolution.
  */
 import type { ChartPaneEvaluation, CandlestickChartProps } from '@chart-studio/components';
-import type { Clip, DrawingKind, MarketAnchor, PaneSpec } from '@chart-studio/core';
+import type { Clip, DrawingKind, DrawingPoint, DrawingStyle } from '@chart-studio/core';
 
 /** One of the drawing tools, and how many clicks it takes to place it. */
 export interface DrawingTool {
@@ -14,26 +15,52 @@ export interface DrawingTool {
   icon: string;
   /** How many clicks the creator makes: the first click starts the drawing. */
   clicks: number;
+  /** The box a new drawing of this kind starts with. */
+  width: number;
+  height: number;
 }
 
 /** The drawing tools the editor offers, in the order the rail shows them. */
 export const DRAWING_TOOLS: DrawingTool[] = [
-  { kind: 'priceLine', label: 'Price Line', icon: '─', clicks: 1 },
-  { kind: 'highLowLine', label: 'High/Low Line', icon: '↕', clicks: 1 },
-  { kind: 'verticalLine', label: 'Vertical Line', icon: '│', clicks: 1 },
-  { kind: 'trendline', label: 'Trendline', icon: '╱', clicks: 2 },
-  { kind: 'priceZone', label: 'Price Zone', icon: '▬', clicks: 2 },
-  { kind: 'textLabel', label: 'Text Label', icon: 'T', clicks: 1 },
-  { kind: 'arrow', label: 'Arrow', icon: '→', clicks: 2 },
-  { kind: 'position', label: 'Position', icon: '⇅', clicks: 3 },
+  { kind: 'horizontalLine', label: 'Horizontal Line', icon: '─', clicks: 1, width: 480, height: 24 },
+  { kind: 'verticalLine', label: 'Vertical Line', icon: '│', clicks: 1, width: 24, height: 320 },
+  { kind: 'textLabel', label: 'Text Label', icon: 'T', clicks: 1, width: 200, height: 40 },
+  { kind: 'position', label: 'Position', icon: '⇅', clicks: 1, width: 320, height: 240 },
+  { kind: 'rectangle', label: 'Rectangle', icon: '▬', clicks: 1, width: 320, height: 180 },
+  { kind: 'highLowLine', label: 'High/Low Line', icon: '↕', clicks: 2, width: 24, height: 320 },
+  { kind: 'trendline', label: 'Trendline', icon: '╱', clicks: 2, width: 320, height: 180 },
+  { kind: 'arrow', label: 'Arrow', icon: '→', clicks: 2, width: 320, height: 180 },
 ];
 
-/** What one click on the canvas gives the tool. */
-export interface DrawingPick {
-  /** The slot the pointer was over, in the pane's own bar order. */
-  barIndex: number;
-  /** The price under the pointer. */
-  price: number;
+/** A click on the canvas, in composition pixels. */
+export interface DrawingClick {
+  x: number;
+  y: number;
+}
+
+/**
+ * What a new drawing needs: its own box, its own points and its own frame
+ * range. The definition's defaults fill in the rest.
+ */
+export interface DrawingDraft {
+  /** The box's centre, in composition pixels. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The drawing's points, as 0..1 fractions of its own box. */
+  points?: Record<string, DrawingPoint>;
+  caption?: string;
+  position?: { direction: 'long' | 'short'; showRiskReward?: boolean };
+  label?: { text?: string };
+  trendline?: { ray?: 'none' | 'left' | 'right' | 'both' };
+  style?: DrawingStyle;
+  opacity?: number;
+  /** The drawing's own frame range. */
+  from?: number;
+  durationInFrames?: number;
+  /** The track the drawing lands on. */
+  trackId?: string;
 }
 
 /** True when the element type is one of the drawing tools. */
@@ -41,73 +68,60 @@ export const isDrawingKind = (type: string): type is DrawingKind =>
   DRAWING_TOOLS.some((tool) => tool.kind === type);
 
 /**
- * The id of the bar in a slot.
+ * The draft a set of clicks makes.
  *
- * The ids are the ones `materialiseSeries` stamps: a pane that shows the
- * source bars unchanged carries the source bar's id, and a pane that buckets
- * them carries the bucket's id (`${pane.id}:${bucket}`). An anchor that names a
- * bar the pane has not revealed yet simply stays unresolved until it is.
+ * One click centres the tool's own box on the click. Two clicks bound the
+ * drawing: the box is the rectangle between them and the points are the
+ * clicks' own places inside it.
  */
-export const drawingBarId = (pane: PaneSpec, slot: number): string => {
-  const factor = Math.max(1, Math.floor(pane.aggregation?.factor ?? 1));
-  if (factor === 1) return `${pane.seriesId}:${slot}`;
-  return `${pane.id}:${slot}`;
-};
-
-/**
- * Builds the anchors of a drawing from the clicks that placed it.
- *
- * Each tool names its own anchors; a tool that takes one click produces one
- * anchor, and a tool that takes several produces one per click. The anchors
- * are market facts, so a drawing drawn at a price stays at that price when the
- * chart is resized.
- */
-export const buildDrawingAnchors = (
+export const drawingDraftFromClicks = (
   kind: DrawingKind,
-  picks: DrawingPick[],
-  pane: PaneSpec,
-): Record<string, MarketAnchor> => {
-  const barId = (pick: DrawingPick) => drawingBarId(pane, pick.barIndex);
+  clicks: readonly DrawingClick[],
+): DrawingDraft => {
+  const tool = DRAWING_TOOLS.find((entry) => entry.kind === kind);
+  const width = tool?.width ?? 320;
+  const height = tool?.height ?? 180;
 
-  switch (kind) {
-    case 'priceLine':
-      return { price: { kind: 'price', price: picks[0].price } };
-    case 'highLowLine':
-      return {
-        high: { kind: 'candle', barId: barId(picks[0]), side: 'high' },
-        low: { kind: 'candle', barId: barId(picks[0]), side: 'low' },
-      };
-    case 'verticalLine':
-      return { bar: { kind: 'time', barId: barId(picks[0]) } };
-    case 'trendline':
-      return {
-        start: { kind: 'point', barId: barId(picks[0]), price: picks[0].price },
-        end: { kind: 'point', barId: barId(picks[1]), price: picks[1].price },
-      };
-    case 'priceZone': {
-      // The top of the band is the higher of the two clicks, so the creator
-      // can drag either way and the zone still reads as a zone.
-      const top = Math.max(picks[0].price, picks[1].price);
-      const bottom = Math.min(picks[0].price, picks[1].price);
-      return {
-        top: { kind: 'price', price: top },
-        bottom: { kind: 'price', price: bottom },
-      };
-    }
-    case 'textLabel':
-      return { at: { kind: 'point', barId: barId(picks[0]), price: picks[0].price } };
-    case 'arrow':
-      return {
-        from: { kind: 'point', barId: barId(picks[0]), price: picks[0].price },
-        to: { kind: 'point', barId: barId(picks[1]), price: picks[1].price },
-      };
-    case 'position':
-      return {
-        entry: { kind: 'price', price: picks[0].price },
-        stop: { kind: 'price', price: picks[1].price },
-        target: { kind: 'price', price: picks[2].price },
-      };
+  const first = clicks[0];
+  if (!first) return { x: 0, y: 0, width, height };
+  if (clicks.length < 2) return { x: first.x, y: first.y, width, height };
+
+  const second = clicks[1];
+  if (kind === 'highLowLine') {
+    // A high/low line is a vertical segment: the first click sets its x, the
+    // two clicks set its top and bottom.
+    const top = Math.min(first.y, second.y);
+    const bottom = Math.max(first.y, second.y);
+    return {
+      x: first.x,
+      y: (top + bottom) / 2,
+      width,
+      height: Math.max(1, bottom - top),
+      points: { top: { x: 0.5, y: 0 }, bottom: { x: 0.5, y: 1 } },
+    };
   }
+
+  const left = Math.min(first.x, second.x);
+  const right = Math.max(first.x, second.x);
+  const top = Math.min(first.y, second.y);
+  const bottom = Math.max(first.y, second.y);
+  const boxWidth = Math.max(1, right - left);
+  const boxHeight = Math.max(1, bottom - top);
+  const fx = (click: DrawingClick) => (click.x - left) / boxWidth;
+  const fy = (click: DrawingClick) => (click.y - top) / boxHeight;
+
+  const points: Record<string, DrawingPoint> =
+    kind === 'trendline'
+      ? { start: { x: fx(first), y: fy(first) }, end: { x: fx(second), y: fy(second) } }
+      : { from: { x: fx(first), y: fy(first) }, to: { x: fx(second), y: fy(second) } };
+
+  return {
+    x: left + boxWidth / 2,
+    y: top + boxHeight / 2,
+    width: boxWidth,
+    height: boxHeight,
+    points,
+  };
 };
 
 /**
@@ -116,10 +130,10 @@ export const buildDrawingAnchors = (
 export interface DrawingTarget {
   /** The chart clip, with the market it needs to resolve against. */
   chart: Clip;
-  /** The pane the anchors resolve against. */
+  /** The pane the drawing would use. */
   paneId: string;
   /** That pane's state at the current frame. */
   pane: ChartPaneEvaluation;
-  /** The chart's props, for the geometry the anchors are measured in. */
+  /** The chart's props, for the geometry the pane is measured in. */
   props: CandlestickChartProps;
 }

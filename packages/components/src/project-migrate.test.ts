@@ -22,6 +22,7 @@ interface TestDoc {
   durationInFrames: number;
   backgroundColor: string;
   schemaVersion?: number;
+  series?: unknown[];
   tracks: Array<{ id: string; name: string; clips: TestClip[] }>;
 }
 
@@ -54,14 +55,14 @@ const legacyProject = (): TestDoc => ({
 describe('migrateProject', () => {
   it('treats a missing schemaVersion as the legacy version', () => {
     const migrated = migrateProject(legacyProject());
-    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(2);
-    expect(migrated.schemaVersion).toBe(2);
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(3);
+    expect(migrated.schemaVersion).toBe(3);
     expect(migrated.tracks[0].clips[0].element).toBe('text');
     expect(migrated.tracks[0].clips[0].props).toEqual({ text: 'Hi' });
   });
 
   it('rejects a newer schema version by name', () => {
-    expect(() => migrateProject({ ...legacyProject(), schemaVersion: 3 })).toThrow(/3/);
+    expect(() => migrateProject({ ...legacyProject(), schemaVersion: 4 })).toThrow(/4/);
   });
 
   it('rejects a malformed document', () => {
@@ -215,5 +216,370 @@ describe('migrateProject — the v1 to v2 conversion', () => {
     const once = migrateProject(chartProject(BARS));
     const twice = migrateProject(once);
     expect(twice).toEqual(once);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* the v2 to v3 conversion                                              */
+/* ------------------------------------------------------------------ */
+
+describe('migrateProject — the v2 to v3 conversion', () => {
+  const SERIES_ID = 'series-a';
+  const CHART_ID = 'c-chart';
+  const PANE_ID = 'pane-0';
+
+  /** Four bars whose full-series range is 4000 to 4500. */
+  const BARS = [
+    { t: 0, o: 4050, h: 4100, l: 4000, c: 4080 },
+    { t: 60_000, o: 4080, h: 4200, l: 4050, c: 4150 },
+    { t: 120_000, o: 4150, h: 4400, l: 4120, c: 4300 },
+    { t: 180_000, o: 4300, h: 4500, l: 4250, c: 4400 },
+  ];
+
+  const chartClip = (overrides: Partial<TestClip> = {}): TestClip => ({
+    id: CHART_ID,
+    name: 'Candlestick Chart',
+    element: 'candlestickChart',
+    from: 100,
+    durationInFrames: 300,
+    props: {
+      seriesId: SERIES_ID,
+      panes: [
+        {
+          id: PANE_ID,
+          seriesId: SERIES_ID,
+          aggregation: { factor: 1 },
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+          in: 0,
+          out: 300,
+          opacity: 1,
+          clock: { kind: 'reference' },
+          priceRange: { mode: 'auto' },
+        },
+      ],
+      clock: {
+        id: 'clock-1',
+        unit: 'logical',
+        referenceSeriesId: SERIES_ID,
+        stepBars: 1,
+        framesPerStep: 15,
+      },
+      width: 1100,
+      height: 560,
+      x: 960,
+      y: 690,
+    },
+    effects: [],
+    ...overrides,
+  });
+
+  /** A version 2 drawing, anchored to the chart above. */
+  const drawingClip = (
+    element: ElementType,
+    props: Record<string, unknown>,
+    overrides: Partial<TestClip> = {},
+  ): TestClip => ({
+    id: `c-${element}`,
+    name: element,
+    element,
+    from: 100,
+    durationInFrames: 300,
+    props: {
+      chartClipId: CHART_ID,
+      paneId: PANE_ID,
+      anchors: {},
+      in: 0,
+      out: 0,
+      opacity: 1,
+      style: { color: '#e8eaf0', lineWidth: 1.5 },
+      x: 960,
+      y: 690,
+      width: 1100,
+      height: 560,
+      ...props,
+    },
+    effects: [],
+    propsVersion: 1,
+    ...overrides,
+  });
+
+  const v2Document = (drawings: TestClip[], chartOverrides: Partial<TestClip> = {}): TestDoc => ({
+    name: 'V2',
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    durationInFrames: 600,
+    backgroundColor: '#000000',
+    schemaVersion: 2,
+    series: [
+      {
+        id: SERIES_ID,
+        origin: 'manual',
+        label: 'Series A',
+        timeBasis: 'logical',
+        bars: BARS,
+      },
+    ],
+    tracks: [
+      {
+        id: 't1',
+        name: 'Track 1',
+        clips: [chartClip(chartOverrides), ...drawings],
+      },
+    ],
+  });
+
+  /** The migrated drawing clip of a document. */
+  const migratedDrawing = (doc: TestDoc, id: string) => {
+    const migrated = migrateProject(doc);
+    const clip = migrated.tracks
+      .flatMap((track) => track.clips)
+      .find((entry) => entry.id === id);
+    if (!clip) throw new Error(`no clip ${id} in the migrated document`);
+    return clip;
+  };
+
+  it('migrates a v2 document to v3', () => {
+    const migrated = migrateProject(v2Document([]));
+    expect(migrated.schemaVersion).toBe(3);
+  });
+
+  it('maps a migrated price line to a horizontal line', () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceLine' as ElementType, { anchors: { price: { kind: 'price', price: 4200 } } }),
+      ]),
+      'c-priceLine',
+    );
+    expect(clip.element).toBe('horizontalLine');
+  });
+
+  it('maps a migrated price zone to a rectangle', () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceZone' as ElementType, {
+          anchors: {
+            top: { kind: 'price', price: 4400 },
+            bottom: { kind: 'price', price: 4100 },
+          },
+        }),
+      ]),
+      'c-priceZone',
+    );
+    expect(clip.element).toBe('rectangle');
+  });
+
+  it("keeps the other six drawing kinds' names", () => {
+    const kinds: ElementType[] = [
+      'highLowLine',
+      'verticalLine',
+      'trendline',
+      'textLabel',
+      'arrow',
+      'position',
+    ];
+    const doc = v2Document(
+      kinds.map((kind) =>
+        drawingClip(kind, {
+          anchors: {
+            high: { kind: 'candle', barId: `${SERIES_ID}:1`, side: 'high' },
+            low: { kind: 'candle', barId: `${SERIES_ID}:1`, side: 'low' },
+            bar: { kind: 'time', barId: `${SERIES_ID}:1` },
+            start: { kind: 'point', barId: `${SERIES_ID}:0`, price: 4000 },
+            end: { kind: 'point', barId: `${SERIES_ID}:3`, price: 4500 },
+            at: { kind: 'point', barId: `${SERIES_ID}:1`, price: 4200 },
+            from: { kind: 'point', barId: `${SERIES_ID}:0`, price: 4000 },
+            to: { kind: 'point', barId: `${SERIES_ID}:3`, price: 4500 },
+            entry: { kind: 'price', price: 4100 },
+            stop: { kind: 'price', price: 4000 },
+            target: { kind: 'price', price: 4500 },
+          },
+        }),
+      ),
+    );
+    const migrated = migrateProject(doc);
+    const names = migrated.tracks
+      .flatMap((track) => track.clips)
+      .filter((clip) => clip.element !== 'candlestickChart')
+      .map((clip) => clip.element);
+    expect(names).toEqual(kinds);
+  });
+
+  it("keeps a migrated price line's price as its caption", () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceLine' as ElementType, { anchors: { price: { kind: 'price', price: 4200 } } }),
+      ]),
+      'c-priceLine',
+    );
+    expect(clip.props.caption).toBe('4200');
+  });
+
+  it("places a migrated drawing using the chart's plot area and the full-series price range", () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceLine' as ElementType, { anchors: { price: { kind: 'price', price: 4200 } } }),
+      ]),
+      'c-priceLine',
+    );
+    // The chart sits at (960, 690) with a 1100×560 box, so its plot area runs
+    // from (418, 438) to (1438, 946) in composition pixels. The price 4200
+    // is 40% up the full-series range 4000–4500, so it lands at y 742.8.
+    expect(clip.props.x).toBeCloseTo(928, 6);
+    expect(clip.props.y).toBeCloseTo(742.8, 6);
+    expect(clip.props.width).toBe(1020);
+    expect(clip.props.height).toBe(24);
+  });
+
+  it("converts a chart-relative lifecycle into the drawing's own frame range", () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceLine' as ElementType, {
+          anchors: { price: { kind: 'price', price: 4200 } },
+          in: 10,
+          out: 40,
+        }),
+      ]),
+      'c-priceLine',
+    );
+    expect(clip.from).toBe(110);
+    expect(clip.durationInFrames).toBe(30);
+  });
+
+  it('treats an out of zero as an open-ended range', () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceLine' as ElementType, {
+          anchors: { price: { kind: 'price', price: 4200 } },
+          in: 0,
+          out: 0,
+        }),
+      ]),
+      'c-priceLine',
+    );
+    expect(clip.from).toBe(100);
+    expect(clip.durationInFrames).toBe(300);
+  });
+
+  it('falls back to the stored box when the chart is missing', () => {
+    const doc = v2Document([
+      drawingClip('priceLine' as ElementType, {
+        chartClipId: 'c-missing',
+        anchors: { price: { kind: 'price', price: 4200 } },
+        x: 100,
+        y: 200,
+        width: 300,
+        height: 40,
+      }),
+    ]);
+    const clip = migratedDrawing(doc, 'c-priceLine');
+    expect(clip.props.x).toBe(100);
+    expect(clip.props.y).toBe(200);
+    expect(clip.props.width).toBe(300);
+    expect(clip.props.height).toBe(40);
+    expect(clip.props.caption).toBe('4200');
+  });
+
+  it('falls back to the stored box when the pane is missing', () => {
+    const doc = v2Document([
+      drawingClip('priceLine' as ElementType, {
+        paneId: 'pane-missing',
+        anchors: { price: { kind: 'price', price: 4200 } },
+        x: 100,
+        y: 200,
+        width: 300,
+        height: 40,
+      }),
+    ]);
+    const clip = migratedDrawing(doc, 'c-priceLine');
+    expect(clip.props.x).toBe(100);
+    expect(clip.props.y).toBe(200);
+    expect(clip.props.width).toBe(300);
+    expect(clip.props.height).toBe(40);
+  });
+
+  it('leaves no chart-anchor props on a migrated drawing', () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('priceLine' as ElementType, { anchors: { price: { kind: 'price', price: 4200 } } }),
+      ]),
+      'c-priceLine',
+    );
+    expect(clip.props.chartClipId).toBeUndefined();
+    expect(clip.props.paneId).toBeUndefined();
+    expect(clip.props.anchors).toBeUndefined();
+    expect(clip.props.in).toBeUndefined();
+    expect(clip.props.out).toBeUndefined();
+  });
+
+  it('leaves no retired market number on a migrated drawing', () => {
+    const clip = migratedDrawing(
+      v2Document([
+        drawingClip('position' as ElementType, {
+          anchors: {
+            entry: { kind: 'price', price: 4100 },
+            stop: { kind: 'price', price: 4000 },
+            target: { kind: 'price', price: 4500 },
+          },
+          position: { direction: 'long', showRiskReward: true },
+        }),
+      ]),
+      'c-position',
+    );
+    expect(clip.props.price).toBeUndefined();
+    const position = clip.props.position as Record<string, unknown>;
+    expect(position.entry).toBeUndefined();
+    expect(position.stop).toBeUndefined();
+    expect(position.target).toBeUndefined();
+    expect(position.direction).toBe('long');
+  });
+
+  it('is idempotent', () => {
+    const once = migrateProject(
+      v2Document([
+        drawingClip('priceLine' as ElementType, { anchors: { price: { kind: 'price', price: 4200 } } }),
+      ]),
+    );
+    const twice = migrateProject(once);
+    expect(twice).toEqual(once);
+  });
+
+  it('leaves a v3 document unchanged', () => {
+    const doc: TestDoc = {
+      name: 'V3',
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      durationInFrames: 600,
+      backgroundColor: '#000000',
+      schemaVersion: 3,
+      tracks: [
+        {
+          id: 't1',
+          name: 'Track 1',
+          clips: [
+            {
+              id: 'c-line',
+              name: 'Horizontal Line',
+              element: 'horizontalLine' as ElementType,
+              from: 0,
+              durationInFrames: 90,
+              props: {
+                x: 960,
+                y: 540,
+                width: 480,
+                height: 24,
+                opacity: 1,
+                style: { color: '#e8eaf0', lineWidth: 1.5 },
+                caption: '4200',
+              },
+              effects: [],
+              propsVersion: 2,
+            },
+          ],
+        },
+      ],
+    };
+    expect(migrateProject(doc)).toEqual(doc);
   });
 });

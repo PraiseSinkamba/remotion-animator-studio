@@ -13,7 +13,7 @@ import type { Project } from './schemas';
 import type {
   ChartGroupSpec,
   ChartProps,
-  IndependentDrawingKind,
+  DrawingKind,
   IndependentDrawingProps,
 } from './elements';
 import { TIMEFRAME_BASE_UNITS } from './elements';
@@ -557,7 +557,7 @@ const drawingPointSchema = z.object({
 });
 
 /** The kinds whose rule sits at the box's own centre and carry no points. */
-const POINT_FREE_DRAWING_KINDS: readonly IndependentDrawingKind[] = [
+const POINT_FREE_DRAWING_KINDS: readonly DrawingKind[] = [
   'horizontalLine',
   'rectangle',
 ];
@@ -600,7 +600,7 @@ const drawingBaseShape = {
   price: z.never().optional(),
 };
 
-const drawingSchemaFor = (kind: IndependentDrawingKind) =>
+const drawingSchemaFor = (kind: DrawingKind) =>
   z.object({
     ...drawingBaseShape,
     points: POINT_FREE_DRAWING_KINDS.includes(kind)
@@ -617,7 +617,7 @@ const drawingSchemaFor = (kind: IndependentDrawingKind) =>
  * the box it belongs to.
  */
 export const validateDrawingProps = (
-  kind: IndependentDrawingKind,
+  kind: DrawingKind,
   props: unknown,
 ): ValidationResult<IndependentDrawingProps> =>
   toResult(

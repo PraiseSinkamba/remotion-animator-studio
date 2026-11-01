@@ -6,7 +6,6 @@ export * from './base/transitions';
 export * from './trading/definitions/candlestick-chart';
 export * from './trading/inspectors/candlestick-chart';
 export * from './trading/inspectors/pane-relations';
-export * from './trading/drawings/anchors';
 export * from './trading/drawings/adapters';
 export * from './trading/drawings/definitions';
 export * from './trading/inspectors/drawing';

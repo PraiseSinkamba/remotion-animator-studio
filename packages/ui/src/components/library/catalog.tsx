@@ -38,11 +38,11 @@ export const TABS: TabDef[] = [
     label: 'Chart',
     types: [
       'candlestickChart',
-      'priceLine',
+      'horizontalLine',
       'highLowLine',
       'verticalLine',
       'trendline',
-      'priceZone',
+      'rectangle',
       'textLabel',
       'arrow',
       'position',

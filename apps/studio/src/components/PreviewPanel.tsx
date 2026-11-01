@@ -2,8 +2,8 @@ import { Player } from '@remotion/player';
 import { ChevronsLeft, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  buildDrawingAnchors,
   DRAWING_TOOLS,
+  drawingDraftFromClicks,
   isDrawingKind,
   playerRef,
   seekTo,
@@ -24,7 +24,6 @@ import type {
   Clip,
   DrawingKind,
   ElementType,
-  PaneSpec,
   Project,
   TransportAction,
 } from '@chart-studio/core';
@@ -111,7 +110,7 @@ export const PreviewPanel: React.FC = () => {
   const swingPath = useStore((s) => s.swingPath);
   const wrapperRef = useRef<HTMLDivElement>(null);
   /** The clicks that place a drawing, until the tool has all it needs. */
-  const drawingPicks = useRef<Array<{ barIndex: number; price: number }>>([]);
+  const drawingPicks = useRef<Array<{ x: number; y: number }>>([]);
   /** The gesture in progress while a swing path is being authored. */
   const swingDrag = useRef<
     | { mode: 'anchor'; anchorId: string }
@@ -274,9 +273,10 @@ export const PreviewPanel: React.FC = () => {
   /**
    * Places a drawing from a click.
    *
-   * The click becomes a market anchor — a price and a bar — and the anchors
-   * accumulate until the tool has all the clicks it needs. A one-click tool
-   * creates its drawing at once.
+   * The click is a position in the composition: the drawing gets its own box
+   * around it, and the clicks accumulate until the tool has all it needs. The
+   * drawing takes its frame range from the chart it was drawn over — the
+   * editor gives a drawing its own range in the next slice.
    */
   const placeDrawing = (clientX: number, clientY: number) => {
     const state = useStore.getState();
@@ -287,12 +287,7 @@ export const PreviewPanel: React.FC = () => {
     const project = projectPoint(clientX, clientY);
     if (!project) return null;
 
-    const local = chartLocalPoint(target.props, project);
-    const anchor = chartPointToAnchor(target.props, target.pane, local);
-    if (!anchor) return null;
-
-    const paneSpec = (target.chart.props.panes as PaneSpec[] | undefined)?.[0];
-    const picks = [...drawingPicks.current, { barIndex: anchor.barIndex, price: anchor.price }];
+    const picks = [...drawingPicks.current, { x: project.x, y: project.y }];
     const toolSpec = DRAWING_TOOLS.find((entry) => entry.kind === tool);
 
     if (picks.length < (toolSpec?.clicks ?? 1)) {
@@ -303,15 +298,12 @@ export const PreviewPanel: React.FC = () => {
       return null;
     }
 
-    const anchors = paneSpec
-      ? buildDrawingAnchors(tool, picks, paneSpec)
-      : buildDrawingAnchors(tool, picks, {
-          id: target.paneId,
-          seriesId: String(target.chart.props.seriesId ?? ''),
-          aggregation: { factor: 1 },
-        } as PaneSpec);
-
-    const created = useStore.getState().addDrawing(tool, target.chart.id, target.paneId, anchors);
+    const draft = drawingDraftFromClicks(tool, picks);
+    const created = useStore.getState().addDrawing(tool, {
+      ...draft,
+      from: target.chart.from,
+      durationInFrames: target.chart.durationInFrames,
+    });
     drawingPicks.current = [];
     useStore.getState().setDrawingTool(null);
     useStore.getState().setNotice(null);
@@ -535,7 +527,8 @@ export const PreviewPanel: React.FC = () => {
     const s = useStore.getState();
     const before = new Set(projectClips(s.project).map((c) => c.id));
     if (element && isDrawingKind(element)) {
-      // A drawing names a market, so it can only land on a chart.
+      // The tool rail still belongs to a chart, so a drawing dropped on the
+      // canvas lands on the chart under the pointer.
       const chart = chartAt(point);
       if (!chart) {
         s.setNotice('A drawing needs a chart — drop it on one, or select a chart and use the tool rail.');
@@ -546,40 +539,27 @@ export const PreviewPanel: React.FC = () => {
         s.setNotice('That chart has no market yet.');
         return;
       }
-      const anchor = chartPointToAnchor(
-        target.props,
-        target.pane,
-        chartLocalPoint(target.props, point),
-      );
-      if (!anchor) {
-        s.setNotice('That point is not on the chart.');
-        return;
-      }
       const kind: DrawingKind = element;
       const toolSpec = DRAWING_TOOLS.find((tool) => tool.kind === kind);
       const clicks = toolSpec?.clicks ?? 1;
       if (clicks > 1) {
         // The drop is the first point; the creator finishes with clicks.
         // The chart is selected so the follow-up clicks land on this chart.
-        drawingPicks.current = [{ barIndex: anchor.barIndex, price: anchor.price }];
+        drawingPicks.current = [{ x: point.x, y: point.y }];
         s.selectClip(chart.id);
         s.setDrawingTool(kind);
         s.setNotice(drawingPendingNotice(kind, clicks - 1));
         return;
       }
-      const paneSpec = (target.chart.props.panes as PaneSpec[] | undefined)?.[0];
       drawingPicks.current = []; // a one-click drawing leaves no clicks pending
-      const anchors = buildDrawingAnchors(
-        kind,
-        [{ barIndex: anchor.barIndex, price: anchor.price }],
-        paneSpec ??
-          ({
-            id: target.paneId,
-            seriesId: String(target.chart.props.seriesId ?? ''),
-            aggregation: { factor: 1 },
-          } as PaneSpec),
-      );
-      useStore.getState().addDrawing(kind, target.chart.id, target.paneId, anchors);
+      const draft = drawingDraftFromClicks(kind, [{ x: point.x, y: point.y }]);
+      useStore.getState().addDrawing(kind, {
+        ...draft,
+        from: target.chart.from,
+        durationInFrames: target.chart.durationInFrames,
+        trackId: s.project.tracks.find((track) => track.clips.some((clip) => clip.id === chart.id))
+          ?.id,
+      });
       s.setNotice(null);
       return;
     }

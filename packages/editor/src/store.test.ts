@@ -213,33 +213,39 @@ describe('store — the drawing tools', () => {
     });
   });
 
-  it('creates a price line as a clip anchored to a chart and a pane', () => {
+  it('creates a horizontal line as an independent clip', () => {
     chartProject();
-    const chart = chartClip();
-    useStore.getState().ensureChartMarket(chart.id);
+    useStore.getState().ensureChartMarket(chartClip().id);
 
-    const id = useStore
-      .getState()
-      .addDrawing('priceLine', chart.id, `${chart.id}-pane-0`, {
-        price: { kind: 'price', price: 4200 },
-      });
+    const id = useStore.getState().addDrawing('horizontalLine', {
+      x: 500,
+      y: 300,
+      width: 480,
+      height: 24,
+    });
 
     const clip = useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id);
-    expect(clip?.element).toBe('priceLine');
-    expect(clip?.props.chartClipId).toBe(chart.id);
-    expect(clip?.props.paneId).toBe(`${chart.id}-pane-0`);
-    expect(clip?.props.anchors).toEqual({ price: { kind: 'price', price: 4200 } });
+    expect(clip?.element).toBe('horizontalLine');
+    // The drawing owns its box: no chart, no pane, no anchors.
+    expect(clip?.props.x).toBe(500);
+    expect(clip?.props.y).toBe(300);
+    expect(clip?.props.width).toBe(480);
+    expect(clip?.props.height).toBe(24);
+    expect(clip?.props.chartClipId).toBeUndefined();
+    expect(clip?.props.paneId).toBeUndefined();
+    expect(clip?.props.anchors).toBeUndefined();
   });
 
-  it('duplicates a drawing without sharing its anchors', () => {
+  it('duplicates a drawing without sharing its points', () => {
     chartProject();
-    const chart = chartClip();
-    useStore.getState().ensureChartMarket(chart.id);
-    const id = useStore
-      .getState()
-      .addDrawing('priceLine', chart.id, `${chart.id}-pane-0`, {
-        price: { kind: 'price', price: 4200 },
-      });
+    useStore.getState().ensureChartMarket(chartClip().id);
+    const id = useStore.getState().addDrawing('trendline', {
+      x: 500,
+      y: 300,
+      width: 320,
+      height: 180,
+      points: { start: { x: 0.1, y: 0.2 }, end: { x: 0.8, y: 0.9 } },
+    });
 
     useStore.setState({ selectedClipIds: [id] });
     useStore.getState().duplicateSelection();
@@ -247,24 +253,40 @@ describe('store — the drawing tools', () => {
     const drawings = useStore
       .getState()
       .project.tracks.flatMap((t) => t.clips)
-      .filter((c) => c.element === 'priceLine');
+      .filter((c) => c.element === 'trendline');
     expect(drawings).toHaveLength(2);
 
     const original = drawings.find((c) => c.id === id)!;
     const copy = drawings.find((c) => c.id !== id)!;
-    expect(copy.props.anchors).toEqual(original.props.anchors);
-    expect(copy.props.anchors).not.toBe(original.props.anchors);
+    expect(copy.props.points).toEqual(original.props.points);
+    expect(copy.props.points).not.toBe(original.props.points);
+    expect(copy.props.points.start).not.toBe(original.props.points.start);
+  });
+
+  it('gives a new drawing its own frame range', () => {
+    chartProject();
+    const id = useStore.getState().addDrawing('horizontalLine', {
+      x: 500,
+      y: 300,
+      width: 480,
+      height: 24,
+      from: 40,
+      durationInFrames: 60,
+    });
+
+    const clip = useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id);
+    expect(clip?.from).toBe(40);
+    expect(clip?.durationInFrames).toBe(60);
   });
 
   it('locks and hides a drawing', () => {
     chartProject();
-    const chart = chartClip();
-    useStore.getState().ensureChartMarket(chart.id);
-    const id = useStore
-      .getState()
-      .addDrawing('priceLine', chart.id, `${chart.id}-pane-0`, {
-        price: { kind: 'price', price: 4200 },
-      });
+    const id = useStore.getState().addDrawing('horizontalLine', {
+      x: 500,
+      y: 300,
+      width: 480,
+      height: 24,
+    });
 
     useStore.getState().setDrawingLocked(id, true);
     useStore.getState().setDrawingHidden(id, true);
@@ -276,13 +298,12 @@ describe('store — the drawing tools', () => {
 
   it('undoes a drawing deletion', () => {
     chartProject();
-    const chart = chartClip();
-    useStore.getState().ensureChartMarket(chart.id);
-    const id = useStore
-      .getState()
-      .addDrawing('priceLine', chart.id, `${chart.id}-pane-0`, {
-        price: { kind: 'price', price: 4200 },
-      });
+    const id = useStore.getState().addDrawing('horizontalLine', {
+      x: 500,
+      y: 300,
+      width: 480,
+      height: 24,
+    });
 
     useStore.setState({ selectedClipIds: [id] });
     useStore.getState().removeClips([id]);
@@ -290,14 +311,14 @@ describe('store — the drawing tools', () => {
     const drawings = useStore
       .getState()
       .project.tracks.flatMap((t) => t.clips)
-      .filter((c) => c.element === 'priceLine');
+      .filter((c) => c.element === 'horizontalLine');
     expect(drawings).toHaveLength(0);
 
     useStore.getState().undo();
     const restored = useStore
       .getState()
       .project.tracks.flatMap((t) => t.clips)
-      .filter((c) => c.element === 'priceLine');
+      .filter((c) => c.element === 'horizontalLine');
     expect(restored).toHaveLength(1);
   });
 });
@@ -537,21 +558,21 @@ describe('store — placing a drawing on a chart', () => {
     expect(target!.pane.bars.length).toBeGreaterThan(0);
   });
 
-  it('creates a drawing that the chart can resolve', () => {
+  it('creates a drawing that needs no chart to resolve', () => {
     useStore.getState().addClip('candlestickChart', 't-empty', 0);
     const chart = useStore.getState().project.tracks[0].clips[0];
 
-    const target = useStore.getState().resolveDrawingTarget(chart.id)!;
-    const id = useStore
-      .getState()
-      .addDrawing('priceLine', chart.id, target.paneId, {
-        price: { kind: 'price', price: 100 },
-      });
+    const id = useStore.getState().addDrawing('horizontalLine', {
+      x: 960,
+      y: 540,
+      width: 480,
+      height: 24,
+    });
 
     expect(id).not.toBe('');
     const drawing = useStore.getState().project.tracks[0].clips.find((c) => c.id === id);
-    expect(drawing?.element).toBe('priceLine');
-    expect(drawing?.props.chartClipId).toBe(chart.id);
-    expect(drawing?.props.paneId).toBe(target.paneId);
+    expect(drawing?.element).toBe('horizontalLine');
+    expect(drawing?.props.chartClipId).toBeUndefined();
+    expect(drawing?.props.width).toBe(480);
   });
 });

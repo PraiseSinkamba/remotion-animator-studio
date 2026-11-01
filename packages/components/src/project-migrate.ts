@@ -15,11 +15,22 @@
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
 import { getComponent } from './registry';
-import { validateProjectScalars } from '@chart-studio/core';
-import type { Clip, ElementType, OhlcBar, Project, SeriesSpec, Track } from '@chart-studio/core';
+import { computePriceRange, materialiseSeries, validateProjectScalars } from '@chart-studio/core';
+import type {
+  Clip,
+  DrawingKind,
+  ElementType,
+  OhlcBar,
+  Project,
+  SeriesSpec,
+  Track,
+} from '@chart-studio/core';
+import { candlestickChartDefinition } from './trading/definitions/candlestick-chart';
+import { chartGeometry, priceToY } from './trading/chart';
+import { DEFAULT_DRAWING_POINTS } from './trading/drawings/definitions';
 
 /** Schema version this build writes and understands. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 2;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 3;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -183,6 +194,419 @@ const migrateV1ToV2 = (
   };
 };
 
+/* ------------------------------------------------------------------ */
+/* the v2 to v3 conversion                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The two renamed kinds.
+ *
+ * A line that keeps the name `priceLine` while holding no price is a false
+ * label, so the kind is renamed and the migration carries the rename
+ * (ADR-009, decision 9). There is no alias for the old names.
+ */
+const LEGACY_ELEMENT_NAMES: Record<string, string> = {
+  priceLine: 'horizontalLine',
+  priceZone: 'rectangle',
+};
+
+/** The eight independent drawing kinds, as element names. */
+const DRAWING_ELEMENTS: readonly string[] = [
+  'horizontalLine',
+  'verticalLine',
+  'trendline',
+  'highLowLine',
+  'rectangle',
+  'textLabel',
+  'arrow',
+  'position',
+];
+
+/**
+ * The market anchors a version 2 drawing stored.
+ *
+ * The type is read here and nowhere else: `MarketAnchor` is retired from
+ * core, and the migration is the only thing that still speaks the old
+ * vocabulary.
+ */
+type LegacyAnchor =
+  | { kind: 'price'; price: number }
+  | { kind: 'candle'; barId: string; side: 'high' | 'low' | 'close' }
+  | { kind: 'time'; barId: string }
+  | { kind: 'point'; barId: string; price: number };
+
+/** One bar of the pane's own series, with the id a version 2 anchor would name. */
+interface PaneBar {
+  id: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+}
+
+/**
+ * The pane's bars, bucketed by the pane's factor.
+ *
+ * The ids are the ones a version 2 anchor named: a pane that shows the
+ * source bars unchanged carries the source bar's id, and a pane that buckets
+ * them carries the bucket's id (`${pane.id}:${bucket}`).
+ */
+const paneBars = (bars: readonly OhlcBar[], paneId: string, factor: number): PaneBar[] => {
+  if (factor <= 1) {
+    return bars.map((bar) => ({ id: bar.id, o: bar.o, h: bar.h, l: bar.l, c: bar.c }));
+  }
+  const buckets: PaneBar[] = [];
+  for (let start = 0, bucket = 0; start < bars.length; start += factor, bucket += 1) {
+    const constituents = bars.slice(start, start + factor);
+    const first = constituents[0];
+    const last = constituents[constituents.length - 1];
+    buckets.push({
+      id: `${paneId}:${bucket}`,
+      o: first.o,
+      h: Math.max(...constituents.map((bar) => bar.h)),
+      l: Math.min(...constituents.map((bar) => bar.l)),
+      c: last.c,
+    });
+  }
+  return buckets;
+};
+
+/** The legacy anchors of a drawing's props. */
+const legacyAnchors = (props: Record<string, unknown>): Record<string, LegacyAnchor> => {
+  const anchors = props.anchors;
+  if (typeof anchors !== 'object' || anchors === null) return {};
+  return anchors as Record<string, LegacyAnchor>;
+};
+
+/** The element remap, applied to the raw document before the clips are read. */
+const renameLegacyElements = (doc: Record<string, unknown>): Record<string, unknown> => {
+  const tracks = doc.tracks;
+  if (!Array.isArray(tracks)) return doc;
+  return {
+    ...doc,
+    tracks: tracks.map((track) => {
+      const raw = track as Record<string, unknown>;
+      if (!Array.isArray(raw.clips)) return track;
+      return {
+        ...raw,
+        clips: raw.clips.map((clip) => {
+          const rawClip = clip as Record<string, unknown>;
+          const element = rawClip.element;
+          if (typeof element !== 'string') return clip;
+          const mapped = LEGACY_ELEMENT_NAMES[element];
+          return mapped ? { ...rawClip, element: mapped } : clip;
+        }),
+      };
+    }),
+  };
+};
+
+/** The props a migrated drawing keeps when the chart cannot be resolved. */
+const fallbackProps = (
+  kind: DrawingKind,
+  props: Record<string, unknown>,
+): Record<string, unknown> => {
+  const next: Record<string, unknown> = { ...props };
+  delete next.chartClipId;
+  delete next.paneId;
+  delete next.anchors;
+  delete next.in;
+  delete next.out;
+  delete next.price;
+  delete next.zone;
+
+  const defaults = DEFAULT_DRAWING_POINTS[kind];
+  if (Object.keys(defaults).length > 0) next.points = defaults;
+
+  // The caption is the creator's own figure: keep it when it can be read.
+  if (typeof props.caption === 'string') next.caption = props.caption;
+  else {
+    const anchors = legacyAnchors(props);
+    const price = anchors.price;
+    if (price && price.kind === 'price') next.caption = String(price.price);
+  }
+
+  const position = props.position as Record<string, unknown> | undefined;
+  if (position) {
+    next.position = {
+      direction:
+        position.direction === 'short' || position.direction === 'long'
+          ? position.direction
+          : 'long',
+      ...(typeof position.showRiskReward === 'boolean'
+        ? { showRiskReward: position.showRiskReward }
+        : {}),
+    };
+  }
+
+  return next;
+};
+
+/**
+ * Migrates one drawing clip to the independent model.
+ *
+ * The placement uses the chart's plot area and the chart's **full-series**
+ * price range, so it is an approximation at the last frame — the comment
+ * says so in the same words.
+ */
+const migrateDrawingClip = (
+  clip: Clip,
+  chartClips: Map<string, Clip>,
+  series: readonly SeriesSpec[],
+): Clip => {
+  const kind = clip.element as DrawingKind;
+  const props = clip.props as Record<string, unknown>;
+  const anchors = legacyAnchors(props);
+
+  const chart = typeof props.chartClipId === 'string' ? chartClips.get(props.chartClipId) : undefined;
+  const panes = (chart?.props as { panes?: { id?: string; seriesId?: string; aggregation?: { factor?: number }; rect?: { x: number; y: number; width: number; height: number } }[] } | undefined)
+    ?.panes;
+  const pane = panes?.find((entry) => entry.id === props.paneId);
+  const paneSpec = series.find((entry) => entry.id === pane?.seriesId);
+
+  // The fallback path: no chart, no pane or no series means the drawing keeps
+  // the box it already had. It is never left half-converted.
+  if (!chart || !pane || !paneSpec) {
+    return {
+      ...clip,
+      props: fallbackProps(kind, props),
+      propsVersion: 2,
+    };
+  }
+
+  const datasource = materialiseSeries(paneSpec);
+  const factor = Math.max(1, Math.floor(pane.aggregation?.factor ?? 1));
+  const bars = paneBars(datasource.bars, pane.id ?? 'pane', factor);
+  if (bars.length === 0) {
+    return {
+      ...clip,
+      props: fallbackProps(kind, props),
+      propsVersion: 2,
+    };
+  }
+
+  // The full-series range, not the revealed subset: the drawing keeps the
+  // level it was drawn at.
+  const range = computePriceRange(bars.map((bar) => ({ l: bar.l, h: bar.h })));
+
+  const chartProps = {
+    ...candlestickChartDefinition.defaults,
+    ...(chart.props as Record<string, unknown>),
+  } as unknown as Parameters<typeof chartGeometry>[0];
+  const geometry = chartGeometry(chartProps, bars.length, pane.rect);
+
+  // The chart's own box, in composition pixels.
+  const chartLeft = chartProps.x - chartProps.width / 2;
+  const chartTop = chartProps.y - chartProps.height / 2;
+  const plotLeft = chartLeft + geometry.plotLeft;
+  const plotTop = chartTop + geometry.plotTop;
+
+  const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
+  const fractionX = (localX: number): number =>
+    clamp01((localX - geometry.plotLeft) / geometry.plotWidth);
+  const fractionY = (localY: number): number =>
+    clamp01((localY - geometry.plotTop) / geometry.plotHeight);
+  const priceY = (price: number): number =>
+    priceToY(price, range.min, range.max, geometry);
+
+  /** The slot centre of the bar an anchor names, or null when it names none. */
+  const slotX = (barId: string): number | null => {
+    const index = bars.findIndex((bar) => bar.id === barId);
+    if (index < 0) return null;
+    return geometry.plotLeft + (index + 0.5) * geometry.slotWidth;
+  };
+
+  /** The price a candle anchor names. */
+  const candlePrice = (anchor: LegacyAnchor): number | null => {
+    if (anchor.kind !== 'candle') return null;
+    const bar = bars.find((entry) => entry.id === anchor.barId);
+    if (!bar) return null;
+    return anchor.side === 'high' ? bar.h : anchor.side === 'low' ? bar.l : bar.c;
+  };
+
+  /** A point anchor's own price, or the price it names at its bar. */
+  const pointPrice = (anchor: LegacyAnchor): number | null => {
+    if (anchor.kind === 'price') return anchor.price;
+    if (anchor.kind === 'point') return anchor.price;
+    return candlePrice(anchor);
+  };
+
+  const box = { x: plotLeft + geometry.plotWidth / 2, y: plotTop + geometry.plotHeight / 2, width: geometry.plotWidth, height: geometry.plotHeight };
+  let points: Record<string, { x: number; y: number }> = {};
+  let boxOverride = box;
+
+  const priceAnchor = anchors.price;
+  const price = priceAnchor && priceAnchor.kind === 'price' ? priceAnchor.price : undefined;
+
+  switch (kind) {
+    case 'horizontalLine': {
+      if (price === undefined) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+      // The band is the plot area's width, 24 px tall, centred on the price.
+      boxOverride = {
+        x: plotLeft + geometry.plotWidth / 2,
+        y: chartTop + priceY(price),
+        width: geometry.plotWidth,
+        height: 24,
+      };
+      break;
+    }
+    case 'rectangle': {
+      // The zone's two edge prices are not carried over — they were
+      // market-derived clicks. An extend-right zone's box is widened to the
+      // chart's right edge.
+      const zone = props.zone as { extendRight?: boolean } | undefined;
+      if (zone?.extendRight) {
+        const right = chartLeft + chartProps.width;
+        boxOverride = {
+          x: plotLeft + (right - plotLeft) / 2,
+          y: box.y,
+          width: right - plotLeft,
+          height: box.height,
+        };
+      }
+      break;
+    }
+    case 'verticalLine': {
+      const anchor = anchors.bar;
+      const x = anchor && 'barId' in anchor ? slotX(anchor.barId) : null;
+      if (x === null) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+      points = { at: { x: fractionX(x), y: 0.5 } };
+      break;
+    }
+    case 'highLowLine': {
+      const high = anchors.high;
+      const low = anchors.low;
+      if (!high || !low) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+      const highX = 'barId' in high ? slotX(high.barId) : null;
+      const lowX = 'barId' in low ? slotX(low.barId) : null;
+      const highPrice = candlePrice(high);
+      const lowPrice = candlePrice(low);
+      if (highX === null || lowX === null || highPrice === null || lowPrice === null) {
+        return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+      }
+      points = {
+        top: { x: fractionX(highX), y: fractionY(priceY(highPrice)) },
+        bottom: { x: fractionX(lowX), y: fractionY(priceY(lowPrice)) },
+      };
+      break;
+    }
+    case 'trendline':
+    case 'arrow':
+    case 'textLabel': {
+      const keys =
+        kind === 'trendline'
+          ? ['start', 'end']
+          : kind === 'arrow'
+            ? ['from', 'to']
+            : ['at'];
+      for (const key of keys) {
+        const anchor = anchors[key];
+        if (!anchor) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+        const barId = 'barId' in anchor ? anchor.barId : null;
+        const x = barId === null ? null : slotX(barId);
+        const anchorPrice = pointPrice(anchor);
+        if (x === null || anchorPrice === null) {
+          return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+        }
+        points[key] = { x: fractionX(x), y: fractionY(priceY(anchorPrice)) };
+      }
+      break;
+    }
+    case 'position': {
+      const levels = props.position as Record<string, unknown> | undefined;
+      for (const key of ['entry', 'stop', 'target']) {
+        const anchor = anchors[key];
+        const level =
+          anchor && (anchor.kind === 'price' || anchor.kind === 'point')
+            ? anchor.price
+            : typeof levels?.[key] === 'number'
+              ? (levels[key] as number)
+              : null;
+        if (level === null) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
+        points[key] = { x: 0, y: fractionY(priceY(level)) };
+      }
+      break;
+    }
+  }
+
+  const next: Record<string, unknown> = { ...props };
+  delete next.chartClipId;
+  delete next.paneId;
+  delete next.anchors;
+  delete next.in;
+  delete next.out;
+  delete next.price;
+  delete next.zone;
+
+  next.x = boxOverride.x;
+  next.y = boxOverride.y;
+  next.width = boxOverride.width;
+  next.height = boxOverride.height;
+  if (Object.keys(points).length > 0) next.points = points;
+
+  // The creator's own figure survives as the caption: a price line's price
+  // is exactly the number the creator saw.
+  if (typeof props.caption === 'string') {
+    next.caption = props.caption;
+  } else if (price !== undefined) {
+    next.caption = String(price);
+  }
+
+  const position = props.position as Record<string, unknown> | undefined;
+  if (position) {
+    next.position = {
+      ...(typeof position.direction === 'string' ? { direction: position.direction } : {}),
+      ...(typeof position.showRiskReward === 'boolean'
+        ? { showRiskReward: position.showRiskReward }
+        : {}),
+    };
+  }
+
+  // The lifecycle becomes the drawing's own: the chart's range, measured
+  // from the chart's own start.
+  const chartFrom = chart.from;
+  const chartDuration = chart.durationInFrames;
+  const inFrame = typeof props.in === 'number' ? props.in : 0;
+  const outFrame = typeof props.out === 'number' ? props.out : 0;
+  const duration = (outFrame > inFrame ? outFrame : chartDuration) - inFrame;
+
+  return {
+    ...clip,
+    from: chartFrom + inFrame,
+    durationInFrames: Math.max(1, duration),
+    props: next,
+    propsVersion: 2,
+  };
+};
+
+/**
+ * The v2 → v3 conversion.
+ *
+ * The two renamed kinds are mapped first, and every drawing becomes an
+ * independent element: its own box, its own frame range and its own points.
+ */
+const migrateV2ToV3 = (
+  doc: Record<string, unknown>,
+  tracks: Track[],
+): { doc: Record<string, unknown>; tracks: Track[] } => {
+  const series = Array.isArray(doc.series) ? (doc.series as SeriesSpec[]) : [];
+  const chartClips = new Map<string, Clip>();
+  for (const track of tracks) {
+    for (const clip of track.clips) chartClips.set(clip.id, clip);
+  }
+
+  const nextTracks = tracks.map((track) => ({
+    ...track,
+    clips: track.clips.map((clip) =>
+      DRAWING_ELEMENTS.includes(clip.element)
+        ? migrateDrawingClip(clip, chartClips, series)
+        : clip,
+    ),
+  }));
+
+  return { doc, tracks: nextTracks };
+};
+
 /**
  * Validate and upgrade a project document.
  *
@@ -194,7 +618,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     fail('Invalid project file: expected a JSON object.');
   }
-  const doc = raw as Record<string, unknown>;
+  let doc = raw as Record<string, unknown>;
 
   const version = doc.schemaVersion === undefined ? 1 : doc.schemaVersion;
   if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
@@ -221,9 +645,15 @@ export const migrateProject = (raw: unknown): Project => {
   const backgroundColor =
     typeof doc.backgroundColor === 'string' ? doc.backgroundColor : '#0d0d14';
 
+  // The two renamed kinds are mapped before the clips are read, so a version 2
+  // document opens with its price lines as horizontal lines and its price
+  // zones as rectangles.
+  if (version < 3) doc = renameLegacyElements(doc);
+
   const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index));
 
-  const migrated = version < 2 ? migrateV1ToV2(doc, tracks) : { doc, tracks };
+  const v2 = version < 2 ? migrateV1ToV2(doc, tracks) : { doc, tracks };
+  const migrated = version < 3 ? migrateV2ToV3(v2.doc, v2.tracks) : v2;
 
   return {
     ...(migrated.doc as unknown as Project),

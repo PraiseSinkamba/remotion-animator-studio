@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
 import type { CandlestickChartProps, ChartEvaluation } from '@chart-studio/components';
-import type { DrawingTarget } from './drawings';
+import type { DrawingDraft, DrawingTarget } from './drawings';
 import { buildPresetClips, PRESETS } from './presets';
 import { buildChartGroup, relayoutChartGroup, withChartMarket } from './chartGroup';
 import { sampleProject } from '@chart-studio/core';
@@ -13,7 +13,6 @@ import {
   removeSwingAnchor,
   type AnchorRegime,
   type DrawingKind,
-  type MarketAnchor,
   type SwingPath,
 } from '@chart-studio/core';
 import type {
@@ -160,13 +159,8 @@ interface EditorState {
    * its market first, so a drawing works on any chart the creator picks.
    */
   resolveDrawingTarget: (clipId: string) => DrawingTarget | null;
-  /** Creates a drawing on a chart, anchored to one of its panes. */
-  addDrawing: (
-    kind: DrawingKind,
-    chartClipId: string,
-    paneId: string,
-    anchors: Record<string, MarketAnchor>,
-  ) => string;
+  /** Creates a drawing: an independent clip with its own box and frame range. */
+  addDrawing: (kind: DrawingKind, draft: DrawingDraft) => string;
   /** Changes a drawing's props. The caller commits at the start of a gesture. */
   updateDrawing: (clipId: string, patch: Record<string, any>) => void;
   setDrawingLocked: (clipId: string, locked: boolean) => void;
@@ -249,13 +243,13 @@ const findTrackOf = (project: Project, clipId: string): Track | null =>
  * edit each other.
  */
 const copyClipProps = (props: Record<string, any>): Record<string, any> => {
-  const anchors = props.anchors;
-  if (!anchors || typeof anchors !== 'object') return { ...props };
-  const copiedAnchors: Record<string, any> = {};
-  for (const [key, anchor] of Object.entries(anchors as Record<string, any>)) {
-    copiedAnchors[key] = anchor && typeof anchor === 'object' ? { ...anchor } : anchor;
+  const points = props.points;
+  if (!points || typeof points !== 'object') return { ...props };
+  const copiedPoints: Record<string, any> = {};
+  for (const [key, point] of Object.entries(points as Record<string, any>)) {
+    copiedPoints[key] = point && typeof point === 'object' ? { ...point } : point;
   }
-  return { ...props, anchors: copiedAnchors };
+  return { ...props, points: copiedPoints };
 };
 
 /** The duration a new transition asks for, before the clips clamp it. */
@@ -915,35 +909,30 @@ export const useStore = create<EditorState>((set, get) => ({
     };
   },
 
-  addDrawing: (kind, chartClipId, paneId, anchors) => {
+  addDrawing: (kind, draft) => {
     const s = get();
-    const chart = findClip(s.project, chartClipId);
-    if (!chart) return '';
-    const track = findTrackOf(s.project, chartClipId);
-    if (!track) return '';
-
     const definition = getComponent(kind as ElementType);
     const defaults = definition?.defaults ?? {};
+
+    // The track the drawing lands on: the one the draft names, else the one
+    // the selected clip is on, else the first track.
+    const track =
+      (draft.trackId ? s.project.tracks.find((t) => t.id === draft.trackId) : null) ??
+      (s.selectedClipIds[0] ? findTrackOf(s.project, s.selectedClipIds[0]) : null) ??
+      s.project.tracks[0];
+    if (!track) return '';
+
+    const { from, durationInFrames, trackId: _trackId, ...rest } = draft;
     const id = uid('c');
     const clip: Clip = {
       id,
       name: definition?.label ?? kind,
       element: kind as ElementType,
-      from: chart.from,
-      durationInFrames: chart.durationInFrames,
+      from: from ?? 0,
+      durationInFrames: durationInFrames ?? 90,
       props: {
         ...defaults,
-        chartClipId,
-        paneId,
-        anchors,
-        in: 0,
-        out: chart.durationInFrames,
-        // The drawing draws inside the chart's box; these are only the
-        // fallback for the timeline and the selection box.
-        x: chart.props.x,
-        y: chart.props.y,
-        width: chart.props.width,
-        height: chart.props.height,
+        ...rest,
       },
       effects: [],
       propsVersion: definition?.propsVersion ?? 1,

@@ -1,20 +1,19 @@
 /**
- * The numeric inspector for the market-linked drawing tools.
+ * The inspector for the independent drawing tools.
  *
- * One panel serves all eight kinds: it edits the *numbers* a drawing carries —
- * the price of each anchor that has one — plus the per-kind extras (the label
- * text, the zone's extend-right flag, the position's direction and its
- * risk/reward label).
+ * One panel serves all eight kinds: it edits the **caption** — a text field
+ * on every kind — the style, and the per-kind extras (the trend line's ray,
+ * the label's text, the position tool's direction and its risk/reward label).
  *
- * The anchors are the source of truth. This panel replaces the whole `anchors`
- * object on every edit, because the store merges props one level deep and the
- * anchors live one level down.
+ * There is no number field for a price or for the position tool's levels,
+ * because there are no numbers: a drawing holds no market value. The levels
+ * are dragged on the canvas.
  *
- * The bar an anchor names is not editable here: a bar is a market fact, and
- * the canvas handles are where a bar is chosen.
+ * The panel writes through `onChange` with the same commit-first discipline
+ * the current panel uses.
  */
 import React from 'react';
-import type { ComponentInspectorContext, DrawingKind, MarketAnchor } from '@chart-studio/core';
+import type { ComponentInspectorContext, DrawingKind } from '@chart-studio/core';
 
 interface DrawingOption {
   key: string;
@@ -25,11 +24,11 @@ interface DrawingOption {
 
 /** The per-kind extras this panel edits. */
 const KIND_OPTIONS: Record<DrawingKind, DrawingOption[]> = {
-  priceLine: [],
-  highLowLine: [],
+  horizontalLine: [],
   verticalLine: [],
   trendline: [{ key: 'ray', label: 'Ray', kind: 'select', options: ['none', 'left', 'right', 'both'] }],
-  priceZone: [{ key: 'extendRight', label: 'Extend right', kind: 'boolean' }],
+  highLowLine: [],
+  rectangle: [],
   textLabel: [{ key: 'text', label: 'Text', kind: 'text' }],
   arrow: [],
   position: [
@@ -38,22 +37,6 @@ const KIND_OPTIONS: Record<DrawingKind, DrawingOption[]> = {
   ],
 };
 
-/** The anchors that carry a level: an explicit price, or a price at a bar. */
-type PriceAnchor =
-  | { kind: 'price'; price: number }
-  | { kind: 'point'; barId: string; price: number };
-
-const isPriceAnchor = (anchor: MarketAnchor): anchor is PriceAnchor =>
-  anchor.kind === 'price' || anchor.kind === 'point';
-
-/** The anchor's price, or null when it names a bar rather than a level. */
-const anchorPrice = (anchor: MarketAnchor): number | null =>
-  isPriceAnchor(anchor) ? anchor.price : null;
-
-/** The bar an anchor names, or null when it carries a level instead. */
-const anchorBarId = (anchor: MarketAnchor): string | null =>
-  'barId' in anchor ? anchor.barId : null;
-
 export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
   clip,
   props,
@@ -61,22 +44,8 @@ export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
   commit,
 }) => {
   const kind = clip.element as DrawingKind;
-  const anchors = (props.anchors ?? {}) as Record<string, MarketAnchor>;
   const style = (props.style ?? {}) as Record<string, unknown>;
   const options = KIND_OPTIONS[kind] ?? [];
-
-  const editAnchors = (next: Record<string, MarketAnchor>) => {
-    commit();
-    onChange({ anchors: next });
-  };
-
-  const editPrice = (key: string, raw: string) => {
-    const value = Number(raw);
-    if (!Number.isFinite(value)) return;
-    const anchor = anchors[key];
-    if (!anchor || !isPriceAnchor(anchor)) return;
-    editAnchors({ ...anchors, [key]: { ...anchor, price: value } });
-  };
 
   const editStyle = (key: string, value: string | number) => {
     commit();
@@ -85,10 +54,6 @@ export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
 
   const editOption = (option: DrawingOption, value: string | boolean) => {
     commit();
-    if (option.key === 'extendRight') {
-      onChange({ zone: { ...(props.zone ?? {}), extendRight: Boolean(value) } });
-      return;
-    }
     if (option.key === 'ray') {
       onChange({ trendline: { ...(props.trendline ?? {}), ray: String(value) } });
       return;
@@ -104,35 +69,21 @@ export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
     onChange({ position: { ...(props.position ?? {}), showRiskReward: Boolean(value) } });
   };
 
-  const priceKeys = Object.keys(anchors).filter((key) => anchorPrice(anchors[key]) !== null);
-  const barKeys = Object.keys(anchors).filter((key) => anchorPrice(anchors[key]) === null);
-
   return (
     <div className="chart-inspector">
-      <div className="section-title">Anchors</div>
-      {priceKeys.length === 0 && barKeys.length === 0 ? (
-        <div className="chart-length-hint">No anchors yet — draw on the chart.</div>
-      ) : null}
-
-      {priceKeys.map((key) => (
-        <div className="param-row" key={key}>
-          <label>{key}</label>
-          <input
-            type="number"
-            step={0.01}
-            aria-label={`${key} price`}
-            value={anchorPrice(anchors[key]) ?? 0}
-            onChange={(event) => editPrice(key, event.target.value)}
-          />
-        </div>
-      ))}
-
-      {barKeys.map((key) => (
-        <div className="param-row" key={key}>
-          <label>{key}</label>
-          <span className="chart-length-hint">{anchorBarId(anchors[key])}</span>
-        </div>
-      ))}
+      <div className="section-title">Caption</div>
+      <div className="param-row">
+        <label>Caption</label>
+        <input
+          type="text"
+          aria-label="Drawing caption"
+          value={String(props.caption ?? '')}
+          onChange={(event) => {
+            commit();
+            onChange({ caption: event.target.value });
+          }}
+        />
+      </div>
 
       <div className="section-title">Style</div>
       <div className="param-row">
@@ -155,16 +106,38 @@ export const DrawingInspector: React.FC<ComponentInspectorContext> = ({
           onChange={(event) => editStyle('lineWidth', Number(event.target.value))}
         />
       </div>
+      <div className="param-row">
+        <label>Fill opacity</label>
+        <input
+          type="number"
+          step={0.05}
+          min={0}
+          max={1}
+          aria-label="Drawing fill opacity"
+          value={Number(style.fillOpacity ?? 0.16)}
+          onChange={(event) => editStyle('fillOpacity', Number(event.target.value))}
+        />
+      </div>
+      <div className="param-row">
+        <label>Font size</label>
+        <input
+          type="number"
+          step={1}
+          min={6}
+          max={96}
+          aria-label="Drawing font size"
+          value={Number(style.fontSize ?? 12)}
+          onChange={(event) => editStyle('fontSize', Number(event.target.value))}
+        />
+      </div>
 
       {options.map((option) => {
         const source =
-          option.key === 'extendRight'
-            ? (props.zone ?? {})
-            : option.key === 'ray'
-              ? (props.trendline ?? {})
-              : option.key === 'text'
-                ? (props.label ?? {})
-                : (props.position ?? {});
+          option.key === 'ray'
+            ? (props.trendline ?? {})
+            : option.key === 'text'
+              ? (props.label ?? {})
+              : (props.position ?? {});
         const value = (source as Record<string, unknown>)[option.key];
         return (
           <div className="param-row" key={option.key}>

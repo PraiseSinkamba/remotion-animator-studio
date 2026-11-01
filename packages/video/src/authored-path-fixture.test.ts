@@ -31,4 +31,27 @@ describe('the authored path verification fixture', () => {
     // The fixture carries the fine pane and the coarser rollup pane.
     expect(clip.props.panes).toHaveLength(2);
   });
+
+  it('is a schema version 3 document', () => {
+    expect(authoredPathProject.schemaVersion).toBe(3);
+  });
+
+  it('carries the drawings as independent elements', () => {
+    const clips = authoredPathProject.tracks[0].clips;
+    const line = clips.find((clip) => clip.id === 'c-horizontal-line');
+    const trend = clips.find((clip) => clip.id === 'c-trendline');
+
+    expect(line?.element).toBe('horizontalLine');
+    expect(line?.props.caption).toBe('100.5');
+    expect(line?.props.chartClipId).toBeUndefined();
+    expect(line?.props.anchors).toBeUndefined();
+
+    expect(trend?.element).toBe('trendline');
+    expect(trend?.props.points).toEqual({
+      start: { x: 0.05, y: 0.95 },
+      end: { x: 0.15, y: 0.93 },
+    });
+    expect(trend?.props.chartClipId).toBeUndefined();
+    expect(trend?.props.anchors).toBeUndefined();
+  });
 });
