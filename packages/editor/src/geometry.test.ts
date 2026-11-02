@@ -412,3 +412,25 @@ describe('component geometry regressions',()=>{
  it('includes non-centered trail labels without recentering the wrapper origin',()=>{const r=regionOf(makeClip('nodeTrail',{x:-100,y:30,data:JSON.stringify([{x:300,y:-50,label:'Long waypoint label'},{x:600,y:100,label:'End'}])}));expect(r.origin).toEqual({x:-100,y:30});expect(r.box!.left).toBeLessThan(200);expect(r.box!.left+r.box!.width).toBeGreaterThan(500);});
  it('ignores measurements for authored size and props versions for coordinates',()=>{const c=makeClip('shape',{width:100,height:80});expect(elementRegion(c,project,{left:0,top:0,width:800,height:900})!.box?.width).toBe(100);expect(regionOf(makeClip('trendline',{points:{start:{x:-10,y:20},end:{x:40,y:50}}},1)).points.start).toEqual({x:-10,y:20});});
 });
+
+describe('review: drawing defaults and projection metadata', () => {
+  it('keeps sibling default endpoints with a partial point override', () => {
+    const defaults = getComponent('trendline')!.defaults.points;
+    const clip = makeClip('trendline', {points:{start:{x:-10,y:20,note:'authored'}}});
+    const region = regionOf(clip);
+    expect(region.points.start).toEqual({x:-10,y:20});
+    expect(region.points.end).toEqual(defaults.end);
+    expect(region.box).not.toBeNull();
+    const patch = dragEffect(clip,{id:'start',effect:'point'},region,{x:30,y:40},{x:-10,y:20});
+    expect(patch?.points).toEqual({start:{x:30,y:40,note:'authored'},end:defaults.end});
+    expect(clip.props.points).toEqual({start:{x:-10,y:20,note:'authored'}});
+  });
+  it('forwards segment origin and intrinsic rotation', () => {
+    const definition = getComponent('trendline')!;
+    const geometry = definition.geometry!;
+    try {
+      definition.geometry = props => ({...geometry(props),origin:{x:12,y:-20},rotation:35});
+      expect(regionOf(trendline())).toMatchObject({origin:{x:12,y:-20},rotation:35});
+    } finally {definition.geometry = geometry;}
+  });
+});

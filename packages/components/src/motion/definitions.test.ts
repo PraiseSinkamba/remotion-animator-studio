@@ -191,3 +191,14 @@ describe('render adapters', () => {
 });
 
 it.each([remocnSoftBlurInDefinition,remocnTypewriterDefinition])('renders supported wrap width through $type',definition=>{const props={...definition.defaults,maxWidth:120};const clip=makeClip(definition.type,props);const ui=render(createElement(definition.render,{clip,props,frame:30,fps:30}));const span=ui.container.querySelector('span')!;expect(span.style.maxWidth).toBe('120px');expect(span.style.whiteSpace).toBe('normal');});
+
+it.each([remocnSoftBlurInDefinition,remocnTypewriterDefinition])('uses only the declared text content for $type geometry', definition => {
+  const props = {...definition.defaults,text:'Short',before:'unrelated field'};
+  const withoutExtra = definition.geometry!({...props,before:undefined});
+  expect(definition.geometry!(props)).toEqual(withoutExtra);
+  const measured = definition.geometry!(props,{width:160,height:70});
+  expect(measured.box).toEqual({left:measured.anchor.x-80,top:measured.anchor.y-35,width:160,height:70});
+  const bounds = definition.bounds!(props);
+  expect(bounds.width).toBe(withoutExtra.box!.width);
+  expect(bounds.height).toBe(withoutExtra.box!.height);
+});

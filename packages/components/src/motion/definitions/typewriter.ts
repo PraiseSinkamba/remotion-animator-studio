@@ -1,3 +1,4 @@
+import { contentGeometry, geometryBounds } from './content-geometry';
 /**
  * Registry definition for the vendored Remocn "Typewriter" component.
  *
@@ -66,7 +67,7 @@ export const remocnTypewriterDefinition: VideoComponentDefinition = {
       'Vendored from Remocn (MIT, Copyright (c) 2026 Remocn). Local changes: dropped the Next.js "use client" directive; the root is a content-sized centred box instead of position:absolute/inset:0 with a hardcoded white background (the Chart Studio compositor positions the component and the composition owns the background); the font stack uses the editor stack "Helvetica, Arial, sans-serif" instead of var(--font-geist-sans); the text span does not wrap. Fifth change: the two upstream imports were repointed at the vendored local copies — "Caret" now comes from "./caret" (vendored from https://remocn.dev/r/caret.json) and "useTypewriter" from "./remocn-ui" (vendored from the upstream lib/remocn-ui timeline module). The animation maths, the props interface and the markup are unchanged. The default text and caret colours are light so the component reads on the dark composition background.',
   },
   // The component has no size of its own, so the box falls back to 320×180.
-  geometry: (props, measured) => {const x=Number(props.x),y=Number(props.y);const em=Number(props.fontSize);const text=String(props.text ?? '')+String(props.before ?? '')+String(props.highlight ?? '')+String(props.after ?? '');const width=measured?.width ?? Math.min(Number(props.maxWidth)||Infinity,Math.max(1,text.length)*em*0.6);const height=measured?.height ?? em*1.25;return {anchor:{x,y},origin:{x,y},box:{left:x-width/2,top:y-height/2,width,height}};},
+  geometry: (props, measured) => contentGeometry(props, String(props.text ?? ''), measured),
   bounds: componentBounds,
   edit: { pick: 'box', contentSized: true, coordinates: 'fractional', handles: CONTENT_HANDLES },
   // This module is a .ts file, so the adapter builds its element with
@@ -88,5 +89,5 @@ export const remocnTypewriterDefinition: VideoComponentDefinition = {
   },
 };
 
-remocnTypewriterDefinition.bounds = (props) => {const p={...remocnTypewriterDefinition.defaults,...props};const box=remocnTypewriterDefinition.geometry!(p).box!;return {x:box.left+box.width/2,y:box.top+box.height/2,width:box.width,height:box.height};};
+remocnTypewriterDefinition.bounds = (props) => geometryBounds(remocnTypewriterDefinition.geometry!({...remocnTypewriterDefinition.defaults,...props}));
 registerComponent(remocnTypewriterDefinition);

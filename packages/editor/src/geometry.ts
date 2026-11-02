@@ -78,7 +78,13 @@ const centredBox = (anchor: Point, width: number, height: number): Box => ({
 /** The element's props: the definition's defaults under the clip's own props. */
 const mergedProps = (clip: Clip): Record<string, unknown> => {
   const definition = getComponent(clip.element);
-  return { ...(definition?.defaults ?? {}), ...(clip.props ?? {}) };
+  const props = { ...(definition?.defaults ?? {}), ...(clip.props ?? {}) };
+  const defaults = definition?.defaults.points;
+  const authored = props.points;
+  if (defaults && typeof defaults === 'object' && !Array.isArray(defaults) && authored && typeof authored === 'object' && !Array.isArray(authored)) {
+    props.points = {...defaults, ...authored};
+  }
+  return props;
 };
 
 /** The element's points, read by name — never by shape. */
@@ -92,7 +98,7 @@ const rawPoints = (props: Record<string, unknown>): Record<string, Point> => {
     const x = num(point.x);
     const y = num(point.y);
     if (x === undefined || y === undefined) continue;
-    points[key] = { x, y };
+    points[key] = { ...point, x, y };
   }
   return points;
 };
@@ -205,6 +211,8 @@ export const elementRegion = (
       anchor,
       points,
       pointsAreAbsolute,
+      origin: declared?.origin ?? anchor,
+      rotation: declared?.rotation,
     };
   }
   return { pick: 'box', box: frame, frame, anchor, points, pointsAreAbsolute, origin: declared?.origin ?? anchor, rotation: declared?.rotation };
@@ -359,7 +367,7 @@ const pointDrag = (
   if (!current || !raw[handle.id]) return null;
   const target = { x: pointer.x, y: pointer.y };
   return {
-    points: { ...raw, [handle.id]: toStoredPoint(target, region.frame, region.pointsAreAbsolute) },
+    points: { ...raw, [handle.id]: {...raw[handle.id], ...toStoredPoint(target, region.frame, region.pointsAreAbsolute)} },
   };
 };
 
@@ -395,7 +403,7 @@ const moveDrag = (
   if (region.pointsAreAbsolute) {
     const moved: Record<string, Point> = {};
     for (const [key, value] of Object.entries(raw)) {
-      moved[key] = { x: round(value.x + dx), y: round(value.y + dy) };
+      moved[key] = { ...value, x: round(value.x + dx), y: round(value.y + dy) };
     }
     if (Object.keys(moved).length > 0) patch.points = moved;
   }
@@ -456,11 +464,11 @@ export const moveElement = (
   if (moved.length > 0) {
     const points = { ...rawPoints(props) };
     for (const [key, point] of moved) {
-      points[key] = toStoredPoint(
+      points[key] = {...points[key], ...toStoredPoint(
         { x: point.x + delta.x, y: point.y + delta.y },
         region.frame,
         region.pointsAreAbsolute,
-      );
+      )};
     }
     patch.points = points;
   }

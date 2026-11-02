@@ -1,3 +1,4 @@
+import { contentGeometry, geometryBounds } from './content-geometry';
 /**
  * Registry definition for the vendored Remocn "Marker Highlight" component.
  *
@@ -67,7 +68,7 @@ export const remocnMarkerHighlightDefinition: VideoComponentDefinition = {
     notes:
       'Vendored from Remocn (MIT, Copyright (c) 2026 Remocn). Local changes: dropped the Next.js "use client" directive; the root is a content-sized centred box instead of position:absolute/inset:0 with a hardcoded white background (the Chart Studio compositor positions the component and the composition owns the background); the font stack uses the editor stack "Helvetica, Arial, sans-serif" instead of var(--font-geist-sans). Animation maths, props interface and marker markup are unchanged.',
   },
-  geometry: (props, measured) => {const x=Number(props.x),y=Number(props.y),em=Number(props.fontSize);const text=String(props.before??'')+String(props.highlight??'')+String(props.after??'');const width=measured?.width??Math.min(Number(props.maxWidth)||Infinity,Math.max(1,text.length)*em*0.6);const height=measured?.height??em*1.25;return {anchor:{x,y},origin:{x,y},box:{left:x-width/2,top:y-height/2,width,height}};},
+  geometry: (props, measured) => contentGeometry(props, String(props.before ?? '') + String(props.highlight ?? '') + String(props.after ?? ''), measured),
   edit: { pick: 'box', contentSized: true, coordinates: 'fractional', handles: CONTENT_HANDLES },
   // `definition.ts` is a .ts file, so the adapter builds its element with
   // createElement instead of JSX.
@@ -89,5 +90,5 @@ export const remocnMarkerHighlightDefinition: VideoComponentDefinition = {
   },
 };
 
-remocnMarkerHighlightDefinition.bounds = (props) => {const p={...remocnMarkerHighlightDefinition.defaults,...props};const box=remocnMarkerHighlightDefinition.geometry!(p).box!;return {x:box.left+box.width/2,y:box.top+box.height/2,width:box.width,height:box.height};};
+remocnMarkerHighlightDefinition.bounds = (props) => geometryBounds(remocnMarkerHighlightDefinition.geometry!({...remocnMarkerHighlightDefinition.defaults,...props}));
 registerComponent(remocnMarkerHighlightDefinition);

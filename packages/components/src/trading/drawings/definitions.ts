@@ -151,7 +151,8 @@ const drawingDefinition = (
   defaults,
   params,
   edit: {...edit, coordinates: 'absolute', resize: 'axes'},
-  geometry: (props) => {
+  geometry: (input) => {
+    const props = {...defaults, ...input, points: {...defaults.points, ...(input.points as Record<string, unknown> | undefined)}};
     const ownShape = shape(props);
     const b = bounds(props);
     const anchor = {x: ownShape?.x ?? 0, y: ownShape?.y ?? 0};
