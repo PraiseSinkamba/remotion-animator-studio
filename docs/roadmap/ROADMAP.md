@@ -240,6 +240,16 @@ own style, and they read no chart, no pane and no market value.
   hit test, one overlay — rather than a second implementation. The element edit model later
   replaced this with the declared handles: the overlay now draws what the element declares, and a
   line's handles are its two endpoints rather than a point overlay of its own.
+- [x] Make the rendered element and the thing the creator selects the same thing.
+  — landed on 2026-11-02. The editor had four separate answers to "where is this element?" — its
+  static props, a DOM measurement, the registry's bounds and the animation pose — so the selection
+  rectangle could agree with itself and still disagree with what was drawn, and a moved element
+  could no longer be picked where it was drawn. One shared frame pose now feeds the renderer, the
+  picker and the handles; content measurement caches size only; geometry comes from the component's
+  declared capabilities rather than from coincidences in its data; locks are enforced at the mutation
+  boundary; and props are validated at load and at edit. The lesson is recorded in
+  [ADR-011](decisions/ADR-011-ONE-GEOMETRY-AUTHORITY.md) and the findings in
+  [the element system review](reviews/2026-11-02-element-system-review.md).
 - [x] Surface grouping, duplication, copy, paste, delete, rename, layer order, lock and hide on
   the canvas, where they were hard to find.
   — landed: a right-click context menu on an element, offering group, ungroup, duplicate, copy,

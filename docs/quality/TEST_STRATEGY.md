@@ -51,8 +51,8 @@ Fixtures must be generated deterministically, have metadata stating **synthetic/
 
 ## 3. What the suite covers today
 
-The suite is spread over 30 test files. Collected with `pnpm exec vitest list`, the suite holds
-**486 cases over 30 files**, and the whole workspace type-checks — 6 packages of 6 — and builds.
+The suite is spread over 30 test files. Run over the whole workspace, the suite holds
+**651 cases over 30 files**, and the whole workspace type-checks — 6 packages of 6 — and builds.
 Counted from the sources, the declared `it`/`test` cases are fewer than the collected total
 because two of them expand when they run: the reference-parity case in
 `packages/core/src/path.test.ts` runs once per entry of its six-case table, and the nine-case
@@ -156,12 +156,41 @@ stills at `[45, 100, 179]`. Its outcome is reported by whoever runs it, not clai
 
 The last observed run of the gate, after the independent drawing elements landed:
 
-- The **Main** fixture — a v1 document with no drawings — is byte-identical: `frame-0000`
-  `6a078939e3262ea891e618d0`, `frame-0045` `3993e9e8b9699ab0ad2e6a48`, `frame-0179`
-  `d123229cfc6258c2a13e247f`, and the MP4 `c96d117279856fcae39daf46`. The v1 → v2 → v3 migration is
+- The **Main** fixture — a v1 document with no drawings — now renders `frame-0000`
+  `fda853530345601ef1855dfc`, `frame-0045` `f231bf10aec625480fbfb42d`, `frame-0179`
+  `8c5d2079a5a564ed562e7150`, and the MP4 `159c660dea70f69b43b74046`. The v1 → v2 → v3 migration is
   a no-op for that document.
-- The **AuthoredPath** fixture's still sizes are unchanged by the editor work: `frame-0045` `50679`,
-  `frame-0100` `51954`, `frame-0179` `52811`.
+- **These bytes are not the ones the fixture rendered before the 2026-11-02 repair.** The repair
+  separated an element's paint placement from its transform origin, and the composition now places an
+  element by that declaration. The fixture's rendering therefore moved: the old values were
+  `frame-0000` `6a078939e3262ea891e618d0`, `frame-0045` `3993e9e8b9699ab0ad2e6a48`, `frame-0179`
+  `d123229cfc6258c2a13e247f` and the MP4 `c96d117279856fcae39daf46`. The change was inspected —
+  by the repair's own review, and again when these numbers were recorded — and the composition is the
+  single source of the rendered pose for both the editor and the export, so the editor and the video
+  now agree by construction rather than by coincidence. **The gate's purpose from here is to catch the
+  next unintended move**: a change that alters these bytes without a recorded reason is a regression.
+- The **AuthoredPath** fixture's still sizes are `frame-0045` `50459`, `frame-0100` `51570`,
+  `frame-0179` `52342`, and the MP4 is `212711` bytes.
+
+### 3.4 The element system repair surface
+
+The 2026-11-02 repair made the rendered element and the selected element the same thing. What the
+suite now pins:
+
+| Surface | What it asserts |
+|---|---|
+| the shared frame pose | a translated, scaled or rotated element is picked and edited where it is drawn, and the browser root geometry agrees with the pure projected geometry |
+| measured identity | a measurement is invalidated when the measured **element** changes, not only when the count does — the fault that left a moved element unpickable |
+| frame eligibility | picking and the overlay agree with the half-open clip lifetime: a clip is pickable at `from`, not at `from - 1`, and not at `out` |
+| lock and group | a locked element's props are unchanged by a handle drag and by a group drag that includes it |
+| gesture history | an unchanged click adds no undo entry; a changed move is one entry, and undo/redo restores the dimensions |
+| validated props | malformed structural fields are refused at load with an actionable message, and the previous state and history are retained |
+| the safe HTML subset | authored HTML is isolated from the editor origin and rendered the same way in the preview and the export |
+
+The repair's own gates are outside the suite: `scripts/verify-element-repair.mjs` and
+`scripts/verify-drawing-handles.mjs` drive the real application in Chromium and compare the preview
+against a real Remotion export. Their evidence and their limits are recorded in
+`docs/reviews/evidence/`.
 
 ### 3.3 The element edit model surface
 
@@ -188,15 +217,19 @@ migration suites. Its design is
 The render gate remains the only proof that these changes reached the video path, and it was run
 again after the element edit model landed:
 
-- The **Main** fixture — a v1 document with no drawings — is **byte-identical**: `frame-0000`
-  `6a078939e3262ea891e618d0`, `frame-0045` `3993e9e8b9699ab0ad2e6a48`, `frame-0179`
-  `d123229cfc6258c2a13e247f`, and the MP4 `c96d117279856fcae39daf46`. The v1 → v2 → v3 → v4
-  migration is a no-op for that document.
-- The **AuthoredPath** fixture's still sizes **changed**, and this is expected: its drawings became
-  endpoint-based elements, so the frames differ by a few bytes. `frame-0045` `50716` (was `50679`),
-  `frame-0100` `51985` (was `51954`), `frame-0179` `52845` (was `52811`).
+- The **Main** fixture — a v1 document with no drawings — now renders `frame-0000`
+  `fda853530345601ef1855dfc`, `frame-0045` `f231bf10aec625480fbfb42d`, `frame-0179`
+  `8c5d2079a5a564ed562e7150`, and the MP4 `159c660dea70f69b43b74046`. The v1 → v2 → v3 → v4
+  migration is a no-op for that document. These bytes moved when the 2026-11-02 repair separated an
+  element's paint placement from its transform origin; the change was inspected, and the editor and
+  the export now share one pose rather than two. The values before the repair were
+  `6a078939e3262ea891e618d0`, `3993e9e8b9699ab0ad2e6a48`, `d123229cfc6258c2a13e247f` and
+  `c96d117279856fcae39daf46`.
+- The **AuthoredPath** fixture's still sizes are `frame-0045` `50459`, `frame-0100` `51570`,
+  `frame-0179` `52342`, and its MP4 is `212711` bytes. They changed twice: when its drawings became
+  endpoint-based elements, and again with the placement work.
 
-The suite was also run over the whole workspace after the slice: **486 tests over 30 files, all
+The suite was also run over the whole workspace after the slice: **651 tests over 30 files, all
 passing**; `pnpm typecheck` reports **6 successful of 6**; and `pnpm build` succeeds, with only
 Rollup's chunk-size warnings.
 

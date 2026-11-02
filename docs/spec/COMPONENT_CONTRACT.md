@@ -10,7 +10,8 @@ Governing decisions: [ADR-003-COMPONENT-SYSTEM](../decisions/ADR-003-COMPONENT-S
 model, schema version 2 and the datasource seam),
 [ADR-009-INDEPENDENT-DRAWING-ELEMENTS](../decisions/ADR-009-INDEPENDENT-DRAWING-ELEMENTS.md)
 (drawings as independent elements, schema version 3),
-[ADR-010-ELEMENT-EDIT-MODEL](../decisions/ADR-010-ELEMENT-EDIT-MODEL.md)
+[ADR-010-ELEMENT-EDIT-MODEL](../decisions/ADR-010-ELEMENT-EDIT-MODEL.md),
+[ADR-011-ONE-GEOMETRY-AUTHORITY](../decisions/ADR-011-ONE-GEOMETRY-AUTHORITY.md)
 (the element edit model, schema version 4),
 [TECHNICAL_ARCHITECTURE](../architecture/TECHNICAL_ARCHITECTURE.md) (scene graph boundaries).
 
