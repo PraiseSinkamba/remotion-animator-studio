@@ -8,6 +8,7 @@
 import { componentBounds, getComponent } from '@chart-studio/components';
 import {
   elementRegion,
+  isClipActive,
   hitsElement,
   LINE_TOLERANCE_PX,
   POINT_TOLERANCE_PX,
@@ -108,12 +109,13 @@ export interface PickableClip {
 export const pickableClips = (
   project: Project,
   measured?: Map<string, Box>,
+  sceneFrame?: number,
 ): PickableClip[] => {
   const out: PickableClip[] = [];
   for (const clip of clipsTopDown(project)) {
     // A hidden clip is not there to be picked, and a locked one is not to be
     // moved: the timeline still shows both.
-    if (clip.hidden || clip.locked) continue;
+    if (clip.hidden || clip.locked || (sceneFrame !== undefined && !isClipActive(clip, sceneFrame))) continue;
     // The region comes from what the element declares, so a line is picked by
     // its stroke and a point by its point — not by a rectangle around them.
     const region = elementRegion(clip, project, measured?.get(clip.id) ?? null);

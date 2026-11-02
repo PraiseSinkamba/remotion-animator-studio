@@ -372,3 +372,25 @@ describe('the measured box', () => {
     expect(region?.box?.height).toBe(110);
   });
 });
+
+describe('free endpoints', () => {
+ it('does not infer a vertical constraint', () => {
+  const clip = makeClip('trendline', {points:{start:{x:100,y:100},end:{x:100,y:300}}},3);
+  const patch = dragEffect(clip,{id:'end',effect:'point'},regionOf(clip),{x:250,y:120},{x:100,y:300});
+  expect(patch?.points).toEqual({start:{x:100,y:100},end:{x:250,y:120}});
+ });
+});
+
+describe('content edit fallback', () => {
+ it('retains content picking and movement without optional edit metadata', () => {
+  const definition = getComponent('shape')!;
+  const edit = definition.edit;
+  try {
+   definition.edit = undefined;
+   const clip = makeClip('shape',{x:300,y:300,width:100,height:100});
+   const region=regionOf(clip);
+   expect(region.box?.left).toBe(250);
+   expect(moveElement(clip,region,{x:10,y:20})).toEqual({x:310,y:320});
+  } finally { definition.edit=edit; }
+ });
+});

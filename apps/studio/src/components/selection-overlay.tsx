@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getComponent } from '@chart-studio/components';
-import { dragEffect, elementRegion, handleAt, type Box, type Point, type Region } from '@chart-studio/editor';
+import { dragEffect, elementRegion, handleAt, isClipActive, type Box, type Point, type Region } from '@chart-studio/editor';
 import { findClip, useStore } from '@chart-studio/editor';
 import type { Clip, ElementHandle } from '@chart-studio/core';
 
@@ -21,6 +21,7 @@ const MIN_SIZE = 8;
 
 export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ measured }) => {
   const project = useStore((s) => s.project);
+  const currentFrame = useStore((s) => s.currentFrame);
   const selectedClipIds = useStore((s) => s.selectedClipIds);
   const drawingPath = useStore((s) => s.drawingPath);
   const updateClipProps = useStore((s) => s.updateClipProps);
@@ -37,6 +38,7 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
    * away from the pointer.
    */
   const drag = useRef<{
+    changed: boolean;
     startX: number;
     startY: number;
     handle: ElementHandle;
@@ -66,15 +68,15 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
     () =>
       selectedClipIds
         .map((id) => findClip(project, id))
-        .filter((clip): clip is NonNullable<typeof clip> => !!clip)
+        .filter((clip): clip is NonNullable<typeof clip> => !!clip && isClipActive(clip, currentFrame))
         .map((clip) => {
           const definition = getComponent(clip.element);
-          const edit = definition?.edit;
+          const edit = definition?.edit ?? (definition && (definition.renderMode === undefined || definition.renderMode === 'content') ? {pick: 'box' as const, handles: []} : undefined);
           const region = elementRegion(clip, project, measured?.get(clip.id) ?? null);
           return { clip, edit, region };
         })
         .filter((entry) => entry.edit && entry.region),
-    [project, selectedClipIds, measured],
+    [project, selectedClipIds, measured, currentFrame],
   );
 
   const scale =
@@ -110,8 +112,7 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
     // Keep the stage's move-drag from starting under the handle.
     e.stopPropagation();
     e.preventDefault();
-    commit();
-    drag.current = { startX: e.clientX, startY: e.clientY, handle, clip, region };
+    drag.current = { changed: false, startX: e.clientX, startY: e.clientY, handle, clip, region };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
@@ -125,7 +126,12 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
     // and on the geometry it had when the drag started — reading it live
     // would apply the same delta twice and the element would run away.
     const patch = dragEffect(current.clip, current.handle, current.region, pointer, start);
-    if (patch) updateClipProps(current.clip.id, patch);
+    const live = findClip(useStore.getState().project, current.clip.id);
+    if (!live || !isClipActive(live, useStore.getState().currentFrame)) { drag.current = null; return; }
+    if (patch && Object.entries(patch).some(([key,value]) => JSON.stringify(live.props[key]) !== JSON.stringify(value))) {
+      if (!current.changed) { commit(); current.changed = true; }
+      updateClipProps(current.clip.id, patch);
+    }
   };
 
   const onHandlePointerUp = () => {
@@ -197,6 +203,7 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
                     onPointerMove={onHandlePointerMove}
                     onPointerUp={onHandlePointerUp}
                     onPointerCancel={onHandlePointerUp}
+                    onLostPointerCapture={onHandlePointerUp}
                   />
                 ))}
                 {readout && box ? (

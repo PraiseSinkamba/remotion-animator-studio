@@ -20,7 +20,7 @@ import {
   type CandlestickChartProps,
   type ChartEvaluation,
 } from '@chart-studio/components';
-import { elementRegion, moveElement, type Box } from '@chart-studio/editor';
+import { elementRegion, isClipActive, moveElement, type Box } from '@chart-studio/editor';
 import { strokeToAnchorPoints } from '@chart-studio/core';
 import type {
   Clip,
@@ -152,7 +152,7 @@ export const PreviewPanel: React.FC = () => {
   const setPlaying = useStore((s) => s.setPlaying);
   const setMuted = useStore((s) => s.setMuted);
   const commit = useStore((s) => s.commit);
-  const updateClipProps = useStore((s) => s.updateClipProps);
+  const updateClipsProps = useStore((s) => s.updateClipsProps);
 
   const drawingPath = useStore((s) => s.drawingPath);
   const swingPath = useStore((s) => s.swingPath);
@@ -240,14 +240,15 @@ export const PreviewPanel: React.FC = () => {
   const picksCache = useRef<{
     project: Project;
     measured: Map<string, Box>;
+    sceneFrame: number;
     picks: PickableClip[];
   } | null>(null);
   const picks = () => {
     const current = useStore.getState().project;
     const cached = picksCache.current;
-    if (cached && cached.project === current && cached.measured === measured) return cached.picks;
-    const list = pickableClips(current, measured);
-    picksCache.current = { project: current, measured, picks: list };
+    if (cached && cached.project === current && cached.measured === measured && cached.sceneFrame === useStore.getState().currentFrame) return cached.picks;
+    const list = pickableClips(current, measured, useStore.getState().currentFrame);
+    picksCache.current = { project: current, measured, sceneFrame: useStore.getState().currentFrame, picks: list };
     return list;
   };
 
@@ -260,45 +261,66 @@ export const PreviewPanel: React.FC = () => {
    */
   const [measured, setMeasured] = useState<Map<string, Box>>(new Map());
   useEffect(() => {
-    const id = window.requestAnimationFrame(() => {
-      const stage = wrapperRef.current;
-      if (!stage) return;
-      const stageRect = stage.getBoundingClientRect();
-      const { scale } = canvasMetrics(stageRect);
-      if (scale <= 0) return;
-      const next = new Map<string, Box>();
-      for (const clip of projectClips(project)) {
-        const el = stage.querySelector(`[data-clip-id="${clip.id}"]`);
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) continue;
-        // The measurement is the element's size; its place is its anchor, so
-        // the box sits where the compositor put it.
-        const width = rect.width / scale;
-        const height = rect.height / scale;
-        const anchorX = Number(clip.props.x ?? 0);
-        const anchorY = Number(clip.props.y ?? 0);
-        next.set(clip.id, {
-          left: anchorX - width / 2,
-          top: anchorY - height / 2,
-          width,
-          height,
+    let id = 0;
+    const measure = () => {
+      window.cancelAnimationFrame(id);
+      id = window.requestAnimationFrame(() => {
+        const stage = wrapperRef.current;
+        if (!stage) return;
+        const stageRect = stage.getBoundingClientRect();
+        const { scale } = canvasMetrics(stageRect);
+        if (scale <= 0) return;
+        const next = new Map<string, Box>();
+        for (const clip of projectClips(project)) {
+          const el = stage.querySelector(`[data-clip-id="${clip.id}"]`);
+          if (!el) continue;
+          const definition = getComponent(clip.element);
+          if (!definition || (definition.renderMode !== undefined && definition.renderMode !== 'content') || definition.edit?.handles.some((handle) => handle.effect === 'scale')) continue;
+          const width = (el as HTMLElement).offsetWidth;
+          const height = (el as HTMLElement).offsetHeight;
+          if (width <= 0 || height <= 0) continue;
+          // The measurement is the element's size; its place is its anchor, so
+          // the box sits where the compositor put it.
+          const anchorX = Number(clip.props.x ?? 0);
+          const anchorY = Number(clip.props.y ?? 0);
+          next.set(clip.id, {
+            left: anchorX - width / 2,
+            top: anchorY - height / 2,
+            width,
+            height,
+          });
+        }
+        setMeasured((previous) => {
+          let same = true;
+          previous.forEach((box, key) => {
+            const other = next.get(key);
+            if (!other || Math.abs(other.left - box.left) > 0.5 || Math.abs(other.top - box.top) > 0.5 || Math.abs(other.width - box.width) > 0.5 || Math.abs(other.height - box.height) > 0.5) {
+              same = false;
+            }
+          });
+          if (same && next.size === previous.size) return previous;
+          return next;
         });
-      }
-      setMeasured((previous) => {
-        if (previous.size === next.size) return previous;
-        let same = true;
-        previous.forEach((box, key) => {
-          const other = next.get(key);
-          if (!other || Math.abs(other.width - box.width) > 0.5 || Math.abs(other.height - box.height) > 0.5) {
-            same = false;
-          }
-        });
-        if (same && next.size === previous.size) return previous;
-        return next;
       });
-    });
-    return () => window.cancelAnimationFrame(id);
+    };
+    const stage = wrapperRef.current;
+    const resize = new ResizeObserver(measure);
+    const mutations = new MutationObserver(measure);
+    if (stage) {
+      resize.observe(stage);
+      stage.querySelectorAll('[data-clip-id]').forEach((el) => resize.observe(el));
+      mutations.observe(stage, {childList: true, subtree: true, characterData: true});
+      stage.addEventListener('load', measure, true);
+    }
+    document.fonts?.addEventListener('loadingdone', measure);
+    measure();
+    return () => {
+      window.cancelAnimationFrame(id);
+      resize.disconnect();
+      mutations.disconnect();
+      stage?.removeEventListener('load', measure, true);
+      document.fonts?.removeEventListener('loadingdone', measure);
+    };
   }, [project, currentFrame]);
 
   /**
@@ -448,7 +470,7 @@ export const PreviewPanel: React.FC = () => {
     const moving = new Set([...next.selectedClipIds, hit.id]);
     const origins: Array<{ clipId: string; clip: Clip; region: ReturnType<typeof elementRegion> }> = [];
     for (const c of projectClips(next.project)) {
-      if (!moving.has(c.id)) continue;
+      if (!moving.has(c.id) || !isClipActive(c, next.currentFrame)) continue;
       const region = elementRegion(c, next.project, measured.get(c.id) ?? null);
       if (region) origins.push({ clipId: c.id, clip: c, region });
     }
@@ -502,14 +524,16 @@ export const PreviewPanel: React.FC = () => {
       drag.current.moved = true;
       commit(); // one undo entry per drag, taken before the first move
     }
+    const patches: Array<{clipId: string; patch: Record<string, unknown>}> = [];
     for (const o of drag.current.origins) {
       // The element moves as a whole: a line is its points, and they move
       // together.
       const region = o.region ?? elementRegion(o.clip, project);
       if (!region) continue;
       const patch = moveElement(o.clip, region, { x: dx, y: dy });
-      if (patch) updateClipProps(o.clipId, patch);
+      if (patch) patches.push({clipId: o.clipId, patch});
     }
+    updateClipsProps(patches);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -770,6 +794,8 @@ export const PreviewPanel: React.FC = () => {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={() => { drag.current = null; swingDrag.current = null; if (wrapperRef.current) wrapperRef.current.style.cursor = 'default'; }}
+        onLostPointerCapture={() => { drag.current = null; swingDrag.current = null; if (wrapperRef.current) wrapperRef.current.style.cursor = 'default'; }}
         onPointerLeave={() => {
           if (wrapperRef.current && !drag.current) wrapperRef.current.style.cursor = 'default';
         }}

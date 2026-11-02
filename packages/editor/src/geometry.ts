@@ -211,7 +211,7 @@ const frameFor = (
   if (edit.pick === 'point') return null;
   // A measured box is the element's own size, read from the rendered frame:
   // it beats any estimate the props can offer.
-  if (measured) return measured;
+  if (measured && !edit.handles.some((handle) => handle.effect === 'scale')) return centredBox(anchor, measured.width, measured.height);
   const scale = edit.handles.find((handle) => handle.effect === 'scale');
   if (scale) {
     const span = spanFromHandle(props, scale);
@@ -299,7 +299,7 @@ export const elementRegion = (
   measured?: Box | null,
 ): Region | null => {
   const definition = getComponent(clip.element);
-  const edit = definition?.edit;
+  const edit = definition?.edit ?? (definition && (definition.renderMode === undefined || definition.renderMode === 'content') ? { pick: 'box' as const, handles: [] } : undefined);
   if (!definition || !edit) return null;
 
   const props = mergedProps(clip);
@@ -484,11 +484,7 @@ const pointDrag = (
   const raw = rawPoints(props);
   const current = region.points[handle.id];
   if (!current || !raw[handle.id]) return null;
-  const otherId = Object.keys(region.points).find((id) => id !== handle.id);
-  const other = otherId ? region.points[otherId] : undefined;
-  // Two ends on one vertical (a high/low line) stay on that vertical.
-  const vertical = other !== undefined && Math.abs(other.x - current.x) < 0.01;
-  const target = vertical ? { x: current.x, y: pointer.y } : { x: pointer.x, y: pointer.y };
+  const target = { x: pointer.x, y: pointer.y };
   return {
     points: { ...raw, [handle.id]: toStoredPoint(target, region.frame, region.pointsAreAbsolute) },
   };
@@ -577,8 +573,9 @@ export const moveElement = (
   region: Region,
   delta: Point,
 ): Record<string, unknown> | null => {
-  const edit = getComponent(clip.element)?.edit;
-  if (!edit) return null;
+  const definition = getComponent(clip.element);
+  if (!definition || (definition.renderMode !== undefined && definition.renderMode !== 'content')) return null;
+  const edit = definition.edit ?? {pick: 'box'};
   const props = mergedProps(clip);
   const patch: Record<string, unknown> = {};
 
@@ -602,3 +599,7 @@ export const moveElement = (
   }
   return patch;
 };
+
+/** Canvas lifetime is half-open; hidden and locked clips cannot be manipulated. */
+export const isClipActive = (clip: Clip, sceneFrame: number): boolean =>
+  !clip.hidden && !clip.locked && sceneFrame >= clip.from && sceneFrame < clip.from + clip.durationInFrames;

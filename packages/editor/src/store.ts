@@ -94,7 +94,8 @@ interface EditorState {
   updateClip: (clipId: string, patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) => void;
   /** Move several clips horizontally by the same frame delta (multi-drag). No history push. */
   shiftClips: (moves: Array<{ clipId: string; from: number }>) => void;
-  updateClipProps: (clipId: string, patch: Record<string, any>) => void;
+  updateClipProps: (clipId: string, patch: Record<string, unknown>) => void;
+  updateClipsProps: (patches: ReadonlyArray<{clipId: string; patch: Record<string, unknown>}>) => void;
   moveClipToTrack: (clipId: string, trackId: string) => void;
   addEffect: (clipId: string, type: EffectType) => void;
   removeEffect: (clipId: string, effectId: string) => void;
@@ -594,7 +595,7 @@ export const useStore = create<EditorState>((set, get) => ({
     }));
   },
   updateClip: (clipId, patch) =>
-    set((s) => ({ project: mapClips(s.project, clipId, (c) => ({ ...c, ...patch })) })),
+    set((s) => ({ project: mapClips(s.project, clipId, (c) => c.locked ? c : ({ ...c, ...patch })) })),
   shiftClips: (moves) =>
     set((s) => {
       const byId = new Map(moves.map((m) => [m.clipId, m.from]));
@@ -603,15 +604,23 @@ export const useStore = create<EditorState>((set, get) => ({
           ...s.project,
           tracks: s.project.tracks.map((t) => ({
             ...t,
-            clips: t.clips.map((c) => (byId.has(c.id) ? { ...c, from: byId.get(c.id)! } : c)),
+            clips: t.clips.map((c) => (!c.locked && byId.has(c.id) ? { ...c, from: byId.get(c.id)! } : c)),
           })),
         },
       };
     }),
-  updateClipProps: (clipId, patch) =>
-    set((s) => ({
-      project: mapClips(s.project, clipId, (c) => ({ ...c, props: { ...c.props, ...patch } })),
-    })),
+  updateClipProps: (clipId, patch) => get().updateClipsProps([{ clipId, patch }]),
+  updateClipsProps: (patches) => set((s) => {
+    const byId = new Map(patches.map(({clipId, patch}) => [clipId, patch]));
+    let changed = false;
+    const tracks = s.project.tracks.map((track) => ({ ...track, clips: track.clips.map((clip) => {
+      const patch = byId.get(clip.id);
+      if (clip.locked || !patch || Object.entries(patch).every(([key,value]) => JSON.stringify(clip.props[key]) === JSON.stringify(value))) return clip;
+      changed = true;
+      return { ...clip, props: { ...clip.props, ...patch } };
+    }) }));
+    return changed ? {project: {...s.project, tracks}} : s;
+  }),
   // no history push — callers commit at gesture start
   moveClipToTrack: (clipId, trackId) => {
     const clip = findClip(get().project, clipId);

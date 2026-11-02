@@ -761,3 +761,23 @@ describe('store — the layer order, the lock and the rename', () => {
     expect(useStore.getState().renameClipId).toBeNull();
   });
 });
+
+describe('atomic unlocked edits', () => {
+ it('keeps locked clips unchanged and publishes a batch once', () => {
+  useStore.setState({project:emptyProject()});
+  useStore.getState().addClip('shape','t-empty',0);
+  useStore.getState().addClip('shape','t-empty',0);
+  const [a,b] = useStore.getState().project.tracks[0].clips;
+  useStore.getState().setClipLocked(b.id,true);
+  const original = useStore.getState().project.tracks[0].clips[1];
+  let count=0;
+  const unsub=useStore.subscribe(()=>count++);
+  useStore.getState().updateClipsProps([{clipId:a.id,patch:{x:800}},{clipId:b.id,patch:{x:800}}]);
+  unsub();
+  expect(count).toBe(1);
+  expect(useStore.getState().project.tracks[0].clips[0].props.x).toBe(800);
+  expect(useStore.getState().project.tracks[0].clips[1]).toBe(original);
+  useStore.getState().updateClipProps(b.id,{x:900});
+  expect(useStore.getState().project.tracks[0].clips[1]).toBe(original);
+ });
+});
