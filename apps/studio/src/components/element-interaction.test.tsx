@@ -24,10 +24,11 @@ import { PreviewPanel } from './PreviewPanel';
 import { useStore } from '@chart-studio/editor';
 vi.mock('@remotion/player', async () => {
  const React = await import('react');
- return {Player: React.forwardRef(function MockPlayer(_props, _ref) { return null; })};
+ return {Player: React.forwardRef(function MockPlayer({inputProps}: {inputProps: {project: typeof project}}, _ref) { return <>{inputProps.project.tracks.flatMap(t=>t.clips).map(c=><div key={c.id} data-clip-id={c.id}/>)}</>; })};
 });
 afterEach(() => {cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();});
 const setup = (scale=1) => {
+ vi.stubGlobal('PointerEvent',MouseEvent);
  vi.stubGlobal('ResizeObserver', class {constructor(private cb:()=>void) {} observe(){this.cb();} disconnect(){} });
  vi.stubGlobal('requestAnimationFrame', ()=>1);
  vi.stubGlobal('cancelAnimationFrame', ()=>{});
@@ -70,5 +71,54 @@ describe('actual preview and overlay',()=>{
   fireEvent.pointerCancel(handle,{pointerId:1});
   fireEvent.pointerMove(handle,{clientX:200,clientY:200,pointerId:1});
   expect(useStore.getState().history).toHaveLength(0);
+ });
+});
+
+
+describe('preview measurement replacement and grouped movement',()=>{
+ it('replaces a measured ID at the same count and picks the replacement measured box',()=>{
+  const ui=setup();
+  vi.stubGlobal('PointerEvent',MouseEvent);
+  const frames=new Map<number,FrameRequestCallback>();let nextId=0;
+  vi.stubGlobal('requestAnimationFrame',(callback:FrameRequestCallback)=>{frames.set(++nextId,callback);return nextId;});
+  vi.stubGlobal('cancelAnimationFrame',(id:number)=>frames.delete(id));
+  vi.spyOn(HTMLElement.prototype,'offsetWidth','get').mockReturnValue(300);
+  vi.spyOn(HTMLElement.prototype,'offsetHeight','get').mockReturnValue(80);
+  const setText=(id:string,x:number)=>act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[{...clip,id,element:'text',from:0,props:{...getComponent('text')!.defaults,text:'X',fontSize:10,x,y:300}}]}]},selectedClipIds:[id]}));
+  const flush=()=>act(()=>{const callbacks=[...frames.values()];frames.clear();callbacks.forEach(callback=>callback(0));});
+  setText('first',300);flush();
+  expect((ui.container.querySelector('.border-dashed.border-primary') as HTMLElement).style.width).toBe('300px');
+  setText('replacement',800);flush();
+  const box=ui.container.querySelector('.border-dashed.border-primary') as HTMLElement;
+  expect(box.style.left).toBe('650px');expect(box.style.width).toBe('300px');
+  expect(ui.container.querySelector('[data-clip-id="first"]')).toBeNull();
+  expect(ui.container.querySelectorAll('[data-clip-id]')).toHaveLength(1);
+  const stage=ui.container.querySelector('.preview-stage')!;
+  fireEvent.pointerDown(stage,{button:0,clientX:300,clientY:300});
+  expect(useStore.getState().selectedClipIds).toEqual([]);
+  fireEvent.pointerDown(stage,{button:0,clientX:900,clientY:300});
+  fireEvent.pointerUp(stage,{button:0,clientX:900,clientY:300});
+  expect(useStore.getState().selectedClipIds).toEqual(['replacement']);
+ });
+ it('excludes locked group members from real body-drag targets',()=>{
+  const ui=setup();vi.stubGlobal('PointerEvent',MouseEvent);
+  const original=useStore.getState().project.tracks[0].clips[0];
+  const locked={...original,id:'locked',groupId:'group',locked:true,props:{...original.props,x:600}};
+  act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[{...original,groupId:'group'},locked]}]},selectedClipIds:[original.id,locked.id]}));
+  const update=useStore.getState().updateClipsProps;
+  const patches=vi.fn(update);
+  act(()=>useStore.setState({updateClipsProps:patches}));
+  try {
+   const stage=ui.container.querySelector('.preview-stage')!;
+   fireEvent.pointerDown(stage,{button:0,clientX:300,clientY:300});
+   fireEvent.pointerMove(stage,{clientX:350,clientY:320});
+   fireEvent.pointerUp(stage,{clientX:350,clientY:320});
+   expect(patches).toHaveBeenCalledTimes(1);
+   expect(patches.mock.calls[0][0].map(p=>p.clipId)).toEqual([original.id]);
+   const [moved,unchanged]=useStore.getState().project.tracks[0].clips;
+   expect(moved.props.x).toBe(350);expect(moved.props.y).toBe(320);
+   expect(unchanged).toBe(locked);
+   expect(useStore.getState().history).toHaveLength(1);
+  } finally {act(()=>useStore.setState({updateClipsProps:update}));}
  });
 });
