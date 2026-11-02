@@ -454,3 +454,10 @@ describe('validateDrawingProps', () => {
     expect(result.ok).toBe(true);
   });
 });
+
+it.each(['toString','constructor','__proto__'])('rejects prototype effect type %s structurally', type => {
+ const doc=validProject();
+ const raw={...doc, tracks:[{...doc.tracks[0],clips:[{...doc.tracks[0].clips[0],effects:[{id:'bad',type,params:{}}]}]}]};
+ const result=validateProjectDocument(raw);
+ expect(result).toMatchObject({ok:false,issues:[{path:'tracks.0.clips.0.effects.0.type'}]});
+});

@@ -147,3 +147,14 @@ production build **1/1** all exited 0. The real R1 verifier exited 0 after produ
 stills, three AuthoredPath stills, and the 240-frame H.264 MP4 (212,711 bytes). Main frame 45 and
 browser preview frame 25 were inspected. Build retained the existing third-party PURE-annotation
 and large-chunk warnings. No lint script is available.
+
+## Prototype-name diagnostic follow-up — 2026-11-02
+
+The core document schema now restricts effect names to the canonical set, and the component
+effect validator rejects inherited object keys before reading the catalogue. Regression tests cover
+`toString`, `constructor` and `__proto__` at structural, direct-validator and migration boundaries,
+including the clip/effect/type diagnostic. Focused validation, migration, effects and store tests
+passed **141/141**; the full suite passed **591/591 across 37 files** (raw output:
+`out/element-repair/final-vitest.log`); all six typechecks passed; and the real R1 `--stills`
+verifier exited 0 after six Main and three AuthoredPath stills. This diagnostic-only follow-up did
+not repeat the earlier browser/SQLite, production build or full MP4 runs recorded above.

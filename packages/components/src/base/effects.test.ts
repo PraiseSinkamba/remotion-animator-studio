@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Easing } from 'remotion';
-import { computeEffectStyle, getEasing } from './effects';
+import { computeEffectStyle, getEasing, validateEffect } from './effects';
 import type { EffectInstance, EffectType } from '@chart-studio/core';
 
 const effect = (type: EffectType, params: Record<string, number | string>): EffectInstance => ({
@@ -70,4 +70,8 @@ describe('computeEffectStyle', () => {
       12,
     );
   });
+});
+
+it.each(['toString','constructor','__proto__'])('rejects inherited effect type %s directly', type => {
+ expect(validateEffect(effect(type as EffectType, {}))).toEqual({path:'type',message:'Unsupported effect type'});
 });

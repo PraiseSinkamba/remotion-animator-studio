@@ -903,3 +903,9 @@ it('rejects malformed effects and counter decimals on import with useful paths',
  const doc=legacyProject(); doc.schemaVersion=4; doc.tracks[0].clips[0].element='counter';doc.tracks[0].clips[0].props={decimals:101};
  expect(()=>migrateProject(doc)).toThrow(/c1.*decimals/);
 });
+
+it.each(['toString','constructor','__proto__'])('rejects prototype effect type %s with clip and effect identity', type => {
+ const doc=legacyProject(); doc.schemaVersion=4;
+ doc.tracks[0].clips[0].effects=[{id:'bad',type,params:{}}];
+ expect(()=>migrateProject(doc)).toThrow(/Clip "c1" effect "bad" type:/);
+});

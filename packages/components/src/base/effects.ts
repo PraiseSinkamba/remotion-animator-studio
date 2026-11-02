@@ -553,8 +553,8 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
 
 /** Validate supplied parameters without discarding extension fields or applying defaults. */
 export function validateEffect(effect: EffectInstance): { path: string; message: string } | undefined {
+  if (!Object.hasOwn(EFFECTS, effect.type)) return { path: 'type', message: 'Unsupported effect type' };
   const definition = EFFECTS[effect.type];
-  if (!definition) return { path: 'type', message: 'Unsupported effect type' };
   for (const [key, value] of Object.entries(effect.params)) {
     if (typeof value !== 'string' && (typeof value !== 'number' || !Number.isFinite(value))) {
       return { path: `params.${key}`, message: 'Expected a string or finite number' };

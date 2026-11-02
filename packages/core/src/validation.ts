@@ -317,7 +317,7 @@ const chartGroupSpecSchema = z.looseObject({
 
 const effectInstanceSchema = z.looseObject({
   id: z.string().min(1),
-  type: z.string().min(1),
+  type: z.enum(EFFECT_TYPES),
   params: z.record(z.string(), z.union([z.number(), z.string()])),
 });
 
