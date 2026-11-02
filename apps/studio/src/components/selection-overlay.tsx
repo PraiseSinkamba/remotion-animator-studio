@@ -155,7 +155,7 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box>; onManipul
              * not be drawn: the line is picked and dragged by its ends, and a
              * rectangle around it is exactly what this design removes.
              */
-            const corners=projectedCorners(region).map(stagePoint);
+            const corners=region.pick==='box'?projectedCorners(region).map(stagePoint):[];
             const box = corners.length >= 3 ? {
               left:Math.min(...corners.map(p=>p.left)),top:Math.min(...corners.map(p=>p.top)),
               width:Math.max(...corners.map(p=>p.left))-Math.min(...corners.map(p=>p.left)),
@@ -200,7 +200,9 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box>; onManipul
                 {handles.map(({ handle, left, top }) => (
                   <div
                     key={`${clip.id}-${handle.id}`}
-                    className="pointer-events-auto absolute size-3 rounded-sm border border-primary-foreground bg-primary"
+                    className={`pointer-events-auto absolute size-3 ${handle.appearance === 'circle' ? 'rounded-full' : 'rounded-sm'} border border-primary-foreground bg-primary`}
+                    aria-label={handle.label}
+                    title={handle.label}
                     style={{ left, top, transform: 'translate(-50%, -50%)' }}
                     onPointerDown={(e) => onHandlePointerDown(e, handle, clip, region)}
                     onPointerMove={onHandlePointerMove}

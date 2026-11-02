@@ -16,7 +16,7 @@
  */
 import { getComponent } from './registry';
 import { validateEffect } from './base/effects';
-import { computePriceRange, materialiseSeries, validateProjectScalars, validateProjectDocument, normalizeComponentProps } from '@chart-studio/core';
+import { computePriceRange, materialiseSeries, validateProjectScalars, validateProjectDocument, normalizeComponentProps, createPropsValidator } from '@chart-studio/core';
 import type {
   Clip,
   DrawingKind,
@@ -376,7 +376,7 @@ const convertRetiredDrawings = (doc: Record<string, unknown>): Record<string, un
             ...rawClip,
             element: 'trendline',
             props,
-            propsVersion: propsVersionOf('trendline'),
+            propsVersion: 2,
             };
           }
 
@@ -423,7 +423,12 @@ const fallbackProps = (
   kind: DrawingKind,
   props: Record<string, unknown>,
 ): Record<string, unknown> => {
-  const next: Record<string, unknown> = { ...props };
+  let next: Record<string, unknown> = { ...props };
+  if(kind==='position') {
+    const normalized=createPropsValidator({x:960,y:540,width:320,height:240,points:LEGACY_DRAWING_POINTS.position})(props);
+    if(!normalized.ok) fail(`Invalid position props.${normalized.issues[0].path}: ${normalized.issues[0].message}`);
+    next=normalized.value;
+  }
   delete next.chartClipId;
   delete next.paneId;
   delete next.anchors;
@@ -433,7 +438,7 @@ const fallbackProps = (
   delete next.zone;
 
   const defaults = LEGACY_DRAWING_POINTS[kind];
-  if (Object.keys(defaults).length > 0) next.points = defaults;
+  if (kind!=='position' && Object.keys(defaults).length > 0) next.points = defaults;
 
   // The caption is the creator's own figure: keep it when it can be read.
   if (typeof props.caption === 'string') next.caption = props.caption;
@@ -446,14 +451,10 @@ const fallbackProps = (
   const position = props.position as Record<string, unknown> | undefined;
   if (position) {
     next.position = {
-      direction:
-        position.direction === 'short' || position.direction === 'long'
-          ? position.direction
-          : 'long',
-      ...(typeof position.showRiskReward === 'boolean'
-        ? { showRiskReward: position.showRiskReward }
-        : {}),
+      ...position,
+      direction:position.direction??'long',
     };
+    for(const key of ['entry','stop','target']) delete (next.position as Record<string,unknown>)[key];
   }
 
   return next;
@@ -636,7 +637,10 @@ const migrateDrawingClip = (
   next.y = boxOverride.y;
   next.width = boxOverride.width;
   next.height = boxOverride.height;
-  if (Object.keys(points).length > 0) next.points = points;
+  if (Object.keys(points).length > 0) {
+    const previous=typeof props.points==='object' && props.points!==null ? props.points as Record<string,Record<string,unknown>> : {};
+    next.points={...previous,...Object.fromEntries(Object.entries(points).map(([id,point])=>[id,{...previous[id],...point}]))};
+  }
 
   // The creator's own figure survives as the caption: a price line's price
   // is exactly the number the creator saw.
@@ -648,12 +652,8 @@ const migrateDrawingClip = (
 
   const position = props.position as Record<string, unknown> | undefined;
   if (position) {
-    next.position = {
-      ...(typeof position.direction === 'string' ? { direction: position.direction } : {}),
-      ...(typeof position.showRiskReward === 'boolean'
-        ? { showRiskReward: position.showRiskReward }
-        : {}),
-    };
+    next.position = {...position};
+    for(const key of ['entry','stop','target']) delete (next.position as Record<string,unknown>)[key];
   }
 
   // The lifecycle becomes the drawing's own: the chart's range, measured
@@ -692,7 +692,7 @@ const migrateV2ToV3 = (
   const nextTracks = tracks.map((track) => ({
     ...track,
     clips: track.clips.map((clip) =>
-      DRAWING_ELEMENTS.includes(clip.element)
+      DRAWING_ELEMENTS.includes(clip.element) && (clip.propsVersion ?? 1) < 2
         ? migrateDrawingClip(clip, chartClips, series)
         : clip,
     ),
@@ -736,11 +736,20 @@ const DRAWING_POINT_KEYS: Record<DrawingKind, string[]> = {
  * points its shape needs is left exactly as it was.
  */
 const migrateDrawingToV4 = (clip: Clip): Clip => {
+  if ((clip.propsVersion ?? 2) >= 3) return clip;
   // The kind is read as a string: a version 3 document may still carry the
   // two kinds this conversion retires, and the conversion is what carries
   // them across.
   const kind = String(clip.element);
-  const props = { ...(clip.props as Record<string, unknown>) };
+  let props = { ...(clip.props as Record<string, unknown>) };
+  if (kind === 'position') {
+    // These defaults belong to the fractional model, independently of the
+    // current catalogue. Validate before conversion can overwrite bad input.
+    const legacy = createPropsValidator({x:960,y:540,width:320,height:240,points:LEGACY_DRAWING_POINTS.position});
+    const normalized = legacy(props);
+    if (!normalized.ok) fail(`Clip "${clip.id}" props.${normalized.issues[0].path}: ${normalized.issues[0].message}`);
+    props = normalized.value;
+  }
   const points = props.points as Record<string, { x: number; y: number }> | undefined;
 
   const box = {
@@ -802,7 +811,7 @@ const migrateDrawingToV4 = (clip: Clip): Clip => {
       const target = absolute(points?.target);
       if (!entry || !stop || !target) return clip;
       // The box stays: the levels are places inside it.
-      next.points = { entry, stop, target };
+      next.points = { ...points, entry: {...points?.entry, ...entry}, stop: {...points?.stop, ...stop}, target: {...points?.target, ...target} };
       break;
     }
     case 'trendline':
@@ -840,10 +849,13 @@ const migrateV3ToV4 = (
   doc: Record<string, unknown>,
   tracks: Track[],
 ): { doc: Record<string, unknown>; tracks: Track[] } => {
+  const chartClips = new Map(tracks.flatMap(track=>track.clips).map(clip=>[clip.id,clip]));
   const nextTracks = tracks.map((track) => ({
     ...track,
     clips: track.clips.map((clip) =>
-      DRAWING_ELEMENTS.includes(clip.element) ? migrateDrawingToV4(clip) : clip,
+      DRAWING_ELEMENTS.includes(clip.element) ? migrateDrawingToV4(
+        clip.propsVersion === 1 ? migrateDrawingClip(clip,chartClips,Array.isArray(doc.series)?doc.series as SeriesSpec[]:[]) : clip,
+      ) : clip,
     ),
   }));
 
@@ -931,6 +943,13 @@ export const migrateProject = (raw: unknown): Project => {
     durationInFrames,
     backgroundColor,
     tracks: migrated.tracks.map(track=>({...track,clips:track.clips.map(clip=>{
+      if (clip.element === 'position' && (clip.propsVersion ?? 1) < 4) {
+        const props = clip.props as Record<string, unknown>;
+        if (props.left !== undefined && (typeof props.left !== 'number' || !Number.isFinite(props.left))) fail(`Clip "${clip.id}" props.left: Expected a finite number`);
+        const x = typeof props.x === 'number' ? props.x : 960;
+        const width = typeof props.width === 'number' ? props.width : 320;
+        clip = {...clip, props:{...props, left:x-width/2}, propsVersion:4};
+      }
       const definition=getComponent(clip.element);
       if(!definition) return clip;
       const normalized=normalizeComponentProps(definition,clip.props);

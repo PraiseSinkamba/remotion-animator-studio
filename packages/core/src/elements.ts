@@ -252,6 +252,8 @@ export type TextLabelProps = Omit<IndependentDrawingProps, 'points'> & {
 
 /** Entry, stop and target levels, in a box of the tool's own. */
 export type PositionProps = Omit<IndependentDrawingProps, 'points'> & {
+  /** Explicit paint edge; independent of the authored transform origin. */
+  left?: number;
   points?: { entry: DrawingPoint; stop: DrawingPoint; target: DrawingPoint };
 };
 

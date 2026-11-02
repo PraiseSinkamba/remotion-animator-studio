@@ -41,6 +41,51 @@ const setup = (scale=1) => {
  return render(<PreviewPanel/>);
 };
 describe('actual preview and overlay',()=>{
+ it.each([0.25,1,4])('renders four purpose grips and applies real position gestures at zoom %s',scale=>{
+  const ui=setup(scale);
+  const c:Clip={...clip,id:'position',element:'position',from:0,propsVersion:4,
+    props:{...getComponent('position')!.defaults,x:430,y:270,left:270,width:320,
+      points:{entry:{x:270,y:270},target:{x:270,y:210},stop:{x:270,y:330}}}};
+  act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[c]}]},selectedClipIds:[c.id]}));
+  const grip=(name:string)=>ui.getByLabelText(name) as HTMLElement;
+  const gesture=(name:string,x:number,y:number)=>{
+    const h=grip(name);
+    fireEvent.pointerDown(h,{button:0,clientX:parseFloat(h.style.left),clientY:parseFloat(h.style.top),pointerId:1});
+    fireEvent.pointerMove(h,{clientX:x*scale,clientY:y*scale,pointerId:1});
+    fireEvent.pointerUp(h,{pointerId:1});
+  };
+  expect(ui.container.querySelectorAll('.size-3')).toHaveLength(4);
+  expect(grip('Entry').classList.contains('rounded-full')).toBe(true);
+  expect(grip('Width').classList.contains('rounded-full')).toBe(true);
+  expect(grip('Target').classList.contains('rounded-sm')).toBe(true);
+  gesture('Target',270,120);gesture('Stop',270,440);gesture('Entry',270,310);gesture('Width',690,310);
+  const after=useStore.getState().project.tracks[0].clips[0];
+  expect(after.props).toMatchObject({x:430,y:270,left:270,width:420,points:{entry:{x:270,y:310},target:{x:270,y:120},stop:{x:270,y:440}}});
+  const box=ui.container.querySelector('.border-dashed.border-primary') as HTMLElement;
+  expect(box.style.top).toBe(`${120*scale}px`);expect(box.style.height).toBe(`${320*scale}px`);
+  expect(useStore.getState().history).toHaveLength(4);
+ });
+ it.each(['horizontalLine','verticalLine','trendline','arrow'] as const)('shows %s grips without a rectangle',element=>{
+  const ui=setup();const c:Clip={...clip,from:0,element,props:{...getComponent(element)!.defaults}};
+  act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[c]}]}}));
+  expect(ui.container.querySelectorAll('.size-3')).toHaveLength(element==='horizontalLine'||element==='verticalLine'?1:2);
+  expect(ui.container.querySelector('.border-dashed.border-primary')).toBeNull();
+  expect(ui.container.querySelector('polygon')).toBeNull();
+ });
+ it('can separate fully overlapping level grips in their declared paint order',()=>{
+  const ui=setup();const c:Clip={...clip,id:'position',element:'position',from:0,propsVersion:4,
+    props:{...getComponent('position')!.defaults,x:430,y:270,left:270,points:{entry:{x:270,y:270},target:{x:270,y:270},stop:{x:270,y:270}}}};
+  act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[c]}]},selectedClipIds:[c.id]}));
+  // Entry paints above the coincident level squares. After moving it, Stop
+  // is above Target; each subsequent drag exposes the remaining purpose.
+  expect([...ui.container.querySelectorAll('.size-3')].map(el=>el.getAttribute('aria-label'))).toEqual(['Target','Stop','Entry','Width']);
+  for(const [name,y] of [['Entry',310],['Stop',440],['Target',120]] as const) {
+    const h=ui.getByLabelText(name);
+    fireEvent.pointerDown(h,{button:0,clientX:270,clientY:270,pointerId:1});
+    fireEvent.pointerMove(h,{clientX:270,clientY:y,pointerId:1});fireEvent.pointerUp(h,{pointerId:1});
+  }
+  expect(useStore.getState().project.tracks[0].clips[0].props.points).toEqual({entry:{x:270,y:310},target:{x:270,y:120},stop:{x:270,y:440}});
+ });
  it.each([0.25,1,4])('tracks move and resize at scale %s',scale=>{
   const ui=setup(scale);
   const box=()=>ui.container.querySelector('.border-dashed.border-primary') as HTMLElement;

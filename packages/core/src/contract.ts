@@ -31,6 +31,8 @@ export interface ComponentRenderContext {
    * has one. `undefined` for every component that does not evaluate.
    */
   evaluated?: unknown;
+  geometry?: ComponentGeometry;
+  composition?: { width: number; height: number };
 }
 
 /**
@@ -118,8 +120,9 @@ export type ElementPickKind = 'box' | 'segment' | 'point';
  * - `point` — move one endpoint of a segment.
  * - `level` — move one level of a multi-level element.
  * - `move` — move the element itself.
+ * - `width` — set a scalar span measured from the region's left edge.
  */
-export type ElementHandleEffect = 'scale' | 'font' | 'wrap' | 'point' | 'level' | 'move';
+export type ElementHandleEffect = 'scale' | 'font' | 'wrap' | 'point' | 'level' | 'move' | 'width';
 
 /**
  * One draggable handle on a selected element.
@@ -135,6 +138,9 @@ export interface ElementHandle {
   effect: ElementHandleEffect;
   /** The props the handle writes, for the effects that write props. */
   props?: string[];
+  appearance?: 'circle' | 'square';
+  /** Human-readable purpose, used by the overlay tooltip and accessibility label. */
+  label?: string;
 }
 
 /**
@@ -146,6 +152,8 @@ export interface EditPoint { x: number; y: number }
 export interface EditBox { left: number; top: number; width: number; height: number }
 export interface ComponentGeometry {
   anchor: EditPoint;
+  /** Actual content layout, with the CSS pivot offset from this box to origin. */
+  placement?: EditBox;
   box: EditBox | null;
   /** CSS wrapper origin for pose projection; may differ from the pick box center. */
   origin: EditPoint;
@@ -158,6 +166,10 @@ export interface ComponentGeometry {
   pickStrokes?: { from: EditPoint; to: EditPoint; width: number }[];
 }
 export interface ElementEditModel {
+  /** Constrain body and move-handle translation in composition coordinates. */
+  moveAxis?: 'x' | 'y';
+  /** Additional stored scalar coordinates translated alongside absolute points. */
+  translate?: { x?: string[]; y?: string[] };
   coordinates?: 'absolute' | 'fractional';
   resize?: 'axes' | 'uniform' | ((props: Record<string, unknown>) => 'axes' | 'uniform');
   contentSized?: boolean;
@@ -255,11 +267,10 @@ export interface VideoComponentDefinition {
   /** Defaults to `content`. */
   renderMode?: RenderMode;
   /**
-   * Editor-only geometry of the component's rendered box, in composition
-   * pixels. The selection overlay draws this rectangle; it is metadata and
-   * never reaches the composition, so it cannot change a rendered pixel.
+   * Pure component geometry in composition pixels, shared by picking,
+   * manipulation and rendering. A declared placement also controls layout.
    */
-  geometry?: (props: Record<string, unknown>, measured?: { width: number; height: number }) => ComponentGeometry;
+  geometry?: (props: Record<string, unknown>, measured?: { width: number; height: number }, composition?: { width: number; height: number }) => ComponentGeometry;
   bounds?: (props: Record<string, unknown>) => ComponentBounds;
   /**
    * Optional edit model: how the element is picked and which handles the

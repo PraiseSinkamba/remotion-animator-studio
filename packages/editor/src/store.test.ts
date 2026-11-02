@@ -32,6 +32,40 @@ describe('store — clip creation', () => {
     expect(clip.propsVersion).toBe(getComponent('text')?.propsVersion ?? 1);
   });
 
+  it('creates current position props coherently through both factories at 960 by 540',()=>{
+    useStore.setState({project:{...emptyProject(),width:960,height:540}});
+    useStore.getState().addClip('position','t-empty',0);
+    useStore.getState().addDrawing('position',{});
+    for(const c of useStore.getState().project.tracks[0].clips) {
+      expect(c.propsVersion).toBe(4);
+      expect(c.props).toMatchObject({x:480,y:270,left:320,width:320,
+        points:{entry:{x:320,y:270},target:{x:320,y:210},stop:{x:320,y:330}}});
+    }
+  });
+
+  it('rescales declared absolute geometry and extra coordinates with the project while preserving fractional data',()=>{
+    const make=(element:'position'|'horizontalLine'|'verticalLine'|'trendline'|'shape',props:Record<string,unknown>)=>({
+      id:element,name:element,element,from:0,durationInFrames:90,effects:[],propsVersion:getComponent(element)!.propsVersion,props,
+    });
+    const original={...emptyProject(),width:1920,height:1080,tracks:[{id:'t-empty',name:'t',clips:[
+      make('position',{x:860,y:540,left:700,width:320,height:240,points:{entry:{x:700,y:540,note:{keep:true}},target:{x:700,y:240},stop:{x:700,y:880}}}),
+      make('horizontalLine',{x:860,y:540,width:480}),make('verticalLine',{x:860,y:540,height:320}),
+      make('trendline',{points:{start:{x:120,y:180,note:'keep'},end:{x:900,y:700}}}),
+      make('shape',{...getComponent('shape')!.defaults,x:860,y:540,points:{control:{x:0.25,y:0.75}}}),
+    ]}]};
+    const before=structuredClone(original);
+    useStore.setState({project:original});useStore.getState().resizeProject(960,270);
+    const [position,horizontal,vertical,segment,fractional]=useStore.getState().project.tracks[0].clips;
+    expect(position.props).toMatchObject({x:430,y:135,left:350,width:160,height:60,
+      points:{entry:{x:350,y:135,note:{keep:true}},target:{x:350,y:60},stop:{x:350,y:220}}});
+    expect(horizontal.props).toEqual({x:430,y:135,width:240});
+    expect(vertical.props).toEqual({x:430,y:135,height:80});
+    expect(segment.props.points).toEqual({start:{x:60,y:45,note:'keep'},end:{x:450,y:175}});
+    expect(fractional.props.points).toEqual(before.tracks[0].clips[4].props.points);
+    expect(original).toEqual(before);
+    useStore.getState().undo();expect(useStore.getState().project).toEqual(original);
+  });
+
   it('stamps the component props version on every clip of a preset', () => {
     useStore.getState().addPreset('titleIntro', 0);
 

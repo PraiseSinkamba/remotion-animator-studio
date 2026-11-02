@@ -6,8 +6,8 @@
  * the points into the box's own pixels; an adapter whose drawing has no box —
  * a trend line, an arrow, a high/low line — draws where the points are.
  *
- * The composition centres a clip's content on the clip's own `x` / `y`, so a
- * drawing with a box needs no offset arithmetic of its own.
+ * The declaration supplies the actual paint box to both adapter and
+ * compositor, independently of the authored transform origin.
  *
  * One rule for the position tool (OB-006): the adapter draws entry, stop
  * and target levels and, optionally, the risk/reward *ratio* between them.
@@ -360,7 +360,7 @@ export const PositionAdapter: React.FC<DrawingAdapterProps> = ({
   // drawing and not about a market.
   const reward = Math.abs(t.y - e.y);
   const risk = Math.abs(e.y - s.y);
-  const ratio = risk > 0 ? reward / risk : 0;
+  const ratio = risk > 0 ? `R ${(reward / risk).toFixed(2)}` : reward===0 ? 'R 0.00' : 'R — (zero risk)';
 
   // The two zones: what the target is worth above the entry, and what the
   // stop costs below it. A position reads as a position because of them.
@@ -401,7 +401,7 @@ export const PositionAdapter: React.FC<DrawingAdapterProps> = ({
           fontSize={fontOf(style)}
           fill={color}
         >
-          {`R ${ratio.toFixed(2)}`}
+          {ratio}
         </text>
       ) : null}
       <Caption text={caption} style={style} x={4} y={height - 6} />

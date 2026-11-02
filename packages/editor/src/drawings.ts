@@ -56,6 +56,7 @@ export interface DrawingDraft {
   /** The drawing's points, in composition pixels. */
   points?: Record<string, DrawingPoint>;
   caption?: string;
+  left?: number;
   position?: { direction: 'long' | 'short'; showRiskReward?: boolean };
   label?: { text?: string };
   style?: DrawingStyle;
@@ -103,6 +104,7 @@ export const drawingDraftFromClicks = (
       return {
         x: first.x,
         y: first.y,
+        left,
         width,
         height,
         points: {
@@ -171,6 +173,7 @@ export const defaultDrawingDraft = (
   return {
     x: at.x,
     y: at.y,
+    ...(typeof defaults.left === 'number' ? {left: defaults.left + dx} : {}),
     ...(typeof defaults.width === 'number' ? { width: defaults.width } : {}),
     ...(typeof defaults.height === 'number' ? { height: defaults.height } : {}),
     ...(moved ? { points: moved } : {}),

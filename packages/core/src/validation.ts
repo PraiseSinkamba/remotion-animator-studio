@@ -578,6 +578,7 @@ const drawingBaseShape = {
   y: z.number().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
+  left: z.number().optional(),
   opacity: z.number().min(0).max(1).optional(),
   caption: z.string().optional(),
   style: z

@@ -29,16 +29,28 @@ export const listComponentsByCategory = (category: ComponentCategory): VideoComp
  * Props for a new instance: the component's defaults, with x/y centred on the
  * canvas for components that are positioned.
  */
-export const buildComponentProps = (definition: VideoComponentDefinition, project: Project): ComponentProps => ({
-  ...definition.defaults,
-  ...('x' in definition.defaults ? { x: project.width / 2, y: project.height / 2 } : {}),
-});
+export const buildComponentProps = (definition: VideoComponentDefinition, project: Project): ComponentProps => {
+  const props = structuredClone(definition.defaults);
+  if (!('x' in props)) return props;
+  const dx=project.width/2-Number(props.x),dy=project.height/2-Number(props.y);
+  props.x=project.width/2;props.y=project.height/2;
+  for(const key of definition.edit?.translate?.x ?? []) if(key!=='x' && typeof props[key]==='number') props[key]+=dx;
+  for(const key of definition.edit?.translate?.y ?? []) if(key!=='y' && typeof props[key]==='number') props[key]+=dy;
+  if(definition.edit?.coordinates==='absolute' && props.points && typeof props.points==='object') {
+    props.points=Object.fromEntries(Object.entries(props.points as Record<string,unknown>).map(([id,value])=>{
+      const point=value as Record<string,unknown>|null;
+      return [id,point && typeof point==='object' && typeof point.x==='number' && typeof point.y==='number'
+        ? {...point,x:point.x+dx,y:point.y+dy}:value];
+    }));
+  }
+  return props;
+};
 
 const validateDefinition = (definition: VideoComponentDefinition): void => {
   const ids = new Set<string>();
   for (const h of definition.edit?.handles ?? []) {
     const corner = ['nw','ne','se','sw'].includes(h.id);
-    if (ids.has(h.id) || !h.id || ((h.effect === 'scale' || h.effect === 'font') && !corner) || (h.effect === 'wrap' && !['e','w'].includes(h.id)) || (['scale','font','wrap'].includes(h.effect) && !h.props?.length)) throw new Error('Invalid handle ' + definition.type + '.' + h.id);
+    if (ids.has(h.id) || !h.id || ((h.effect === 'scale' || h.effect === 'font') && !corner) || (h.effect === 'wrap' && !['e','w'].includes(h.id)) || (['scale','font','wrap','width'].includes(h.effect) && !h.props?.length)) throw new Error('Invalid handle ' + definition.type + '.' + h.id);
     ids.add(h.id);
   }
 };

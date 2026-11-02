@@ -58,8 +58,6 @@ const ClipRenderer: React.FC<{
 }> = ({ clip, project, transition }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const pose = evaluateElementPose(clip, clip.from + frame, fps);
-  const fx = pose.style;
   const definition = getComponent(clip.element);
   if (!definition) return null;
   // A hidden clip is not rendered. The shell honours the flag for every
@@ -77,7 +75,11 @@ const ClipRenderer: React.FC<{
     sceneFrame: clip.from + frame,
     project,
   });
-  const content = React.createElement(definition.render, { clip, props, frame, fps, evaluated });
+  const composition = {width: project.width, height: project.height};
+  const geometry = definition.geometry?.(props, undefined, composition);
+  const pose = evaluateElementPose(clip, clip.from + frame, fps, geometry);
+  const fx = pose.style;
+  const content = React.createElement(definition.render, { clip, props, frame, fps, evaluated, geometry, composition });
 
   // A transition's blend, when this clip is one of the two it joins. The
   // transition never shifts a clip: the outgoing clip fades over its own tail
@@ -141,13 +143,14 @@ const ClipRenderer: React.FC<{
       data-clip-id={clip.id}
       style={{
         position: 'absolute',
-        left: anchored && typeof props.x === 'number' ? props.x : 0,
-        top: anchored && typeof props.y === 'number' ? props.y : 0,
+        left: geometry?.placement?.left ?? (anchored && typeof props.x === 'number' ? props.x : 0),
+        top: geometry?.placement?.top ?? (anchored && typeof props.y === 'number' ? props.y : 0),
+        transformOrigin: geometry?.placement ? `${geometry.origin.x - geometry.placement.left}px ${geometry.origin.y - geometry.placement.top}px` : undefined,
         opacity: fx.opacity * blendOpacity,
         filter: filters.length ? filters.join(' ') : undefined,
         clipPath: blendClipPath ?? fx.clipPath ?? undefined,
         transform:
-          (anchored ? 'translate(-50%, -50%) ' : '') +
+          (anchored && !geometry?.placement ? 'translate(-50%, -50%) ' : '') +
           pose.transform,
       }}
     >

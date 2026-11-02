@@ -296,7 +296,7 @@ describe('the edit declarations', () => {
   it('declares one move handle for a one anchor element', () => {
     for (const type of pointElements) {
       const edit = editOf(type);
-      expect(edit.pick).toBe('point');
+      expect(edit.pick).toBe('segment');
       expect(edit.handles).toHaveLength(1);
       expect(edit.handles[0].effect).toBe('move');
     }
@@ -313,14 +313,12 @@ describe('the edit declarations', () => {
     }
   });
 
-  it('declares three level handles for the position tool', () => {
+  it('declares three levels and a width handle for the position tool', () => {
     for (const type of levelElements) {
       const edit = editOf(type);
       expect(edit.pick).toBe('box');
-      expect(edit.handles.map((handle) => handle.id)).toEqual(['entry', 'stop', 'target']);
-      for (const handle of edit.handles) {
-        expect(handle.effect).toBe('level');
-      }
+      expect(edit.handles.map((handle) => handle.id)).toEqual(['target', 'stop', 'entry', 'width']);
+      expect(edit.handles.map(handle => handle.effect)).toEqual(['level','level','level','width']);
     }
   });
 
@@ -517,4 +515,86 @@ it.each([
 ])('picks the painted arrowhead for aligned and coincident endpoints', (from,to,point) => {
  const clip=makeClip('arrow',{points:{from,to}});
  expect(hitsElement('segment',regionOf(clip),point,0)).toBe(true);
+});
+
+describe('purpose drawing geometry', () => {
+  const position = () => makeClip('position', {
+    x:430,y:270,left:270,width:320,height:240,
+    points:{entry:{x:280,y:270,note:{keep:true}},target:{x:270,y:210},stop:{x:270,y:330}},
+  },4);
+  const grip = (id: string) => getComponent('position')!.edit!.handles.find(h=>h.id===id)!;
+  const drag = (clip: Clip, id: string, at: {x:number;y:number}) => {
+    const region = regionOf(clip);
+    const patch = dragEffect(clip,grip(id),region,at,handleAt(region,grip(id))!)!;
+    return {...clip,props:{...clip.props,...patch}};
+  };
+  it('extends both zones, edits entry only, changes width only, then moves every stored point', () => {
+    let clip=position();
+    clip=drag(clip,'target',{x:999,y:120});
+    clip=drag(clip,'stop',{x:999,y:440});
+    expect(regionOf(clip).box).toEqual({left:270,top:120,width:320,height:320});
+    clip=drag(clip,'entry',{x:999,y:310});
+    expect(clip.props.points).toEqual({entry:{x:280,y:310,note:{keep:true}},target:{x:270,y:120},stop:{x:270,y:440}});
+    expect(Math.abs(120-310)/Math.abs(440-310)).toBeCloseTo(1.461538);
+    const before=structuredClone(clip.props);
+    clip=drag(clip,'width',{x:690,y:999});
+    expect(clip.props).toEqual({...before,width:420});
+    const patch=moveElement(clip,regionOf(clip),{x:60,y:20})!;
+    expect(patch).toEqual({x:490,y:290,left:330,points:{entry:{x:340,y:330,note:{keep:true}},target:{x:330,y:140},stop:{x:330,y:460}}});
+    expect(Object.keys(patch.points as object)).not.toContain('width');
+  });
+  it('preserves the exact stored level x and nested data when changing only y',()=>{
+    const clip=position();clip.props.points.entry.x=280.123456789;
+    expect(drag(clip,'entry',{x:999,y:310}).props.points.entry).toEqual({x:280.123456789,y:310,note:{keep:true}});
+  });
+  it.each(['target','stop','entry','width'])('keeps the projected %s grip under its constrained pointer after a posed edit',id=>{
+    const clip:Clip={...position(),effects:[{id:'z',type:'zoomIn',params:{fromScale:2,duration:30}},{id:'r',type:'rotate',params:{rpm:20}}]};
+    const region=elementRegion(clip,project,null,10)!;
+    const handle=grip(id),start=handleAt(region,handle)!;
+    const desired=region.pose!.toComposition({x:region.points[id].x+(id==='width'?100:0),y:region.points[id].y+(id==='width'?0:-150)})!;
+    const patch=dragEffect(clip,handle,region,desired,start)!;
+    const next=elementRegion({...clip,props:{...clip.props,...patch}},project,null,10)!;
+    expect(handleAt(next,handle)!.x).toBeCloseTo(desired.x,3);
+    expect(handleAt(next,handle)!.y).toBeCloseTo(desired.y,3);
+    expect(next.origin).toEqual(region.origin);
+    if(id!=='width') expect(next.points.width.x).toBe(region.points.width.x);
+  });
+  it('moves the posed position body by the displayed delta without changing its geometry',()=>{
+    const clip:Clip={...position(),effects:[{id:'z',type:'zoomIn',params:{fromScale:2,duration:30}},{id:'r',type:'rotate',params:{rpm:20}}]};
+    const region=elementRegion(clip,project,null,10)!;
+    const before=structuredClone(clip),delta={x:60,y:20};
+    const patch=moveElement(clip,region,delta)!;
+    const next=elementRegion({...clip,props:{...clip.props,...patch}},project,null,10)!;
+    for(const handle of getComponent('position')!.edit!.handles) {
+      const a=handleAt(region,handle)!,b=handleAt(next,handle)!;
+      expect(b.x-a.x).toBeCloseTo(delta.x,3);expect(b.y-a.y).toBeCloseTo(delta.y,3);
+    }
+    expect(clip).toEqual(before);
+  });
+  it.each(['horizontalLine','verticalLine'] as const)('constrains %s body and handle movement and spans 960 by 540',element=>{
+    const clip=makeClip(element,{x:430,y:270});
+    const region=elementRegion(clip,{...project,width:960,height:540},null,0)!;
+    const h=getComponent(element)!.edit!.handles[0];
+    const expected=element==='horizontalLine'?{x:430,y:290}:{x:490,y:270};
+    expect(moveElement(clip,region,{x:60,y:20})).toEqual(expected);
+    const start=handleAt(region,h)!;
+    expect(dragEffect(clip,h,region,{x:start.x+60,y:start.y+20},start)).toEqual(expected);
+    for(const scale of [0.25,1,4]) {
+      const horizontal=element==='horizontalLine';
+      const point={x:horizontal?30:430+5/scale,y:horizontal?270+5/scale:30};
+      expect(hitsElement('segment',region,point,6,scale)).toBe(true);
+      expect(hitsElement('segment',region,{x:point.x+(horizontal?0:2/scale),y:point.y+(horizontal?2/scale:0)},6,scale)).toBe(false);
+    }
+  });
+  it('derives position bounds from the levels and exposes four purpose grips', () => {
+    const clip = makeClip('position', {x:430,y:270,left:270,width:320,points:{entry:{x:270,y:270},target:{x:270,y:120},stop:{x:270,y:440}}});
+    const region = regionOf(clip);
+    expect(region.box).toEqual({left:270,top:120,width:320,height:320});
+    expect(getComponent('position')?.edit?.handles.map(h=>h.id)).toEqual(['target','stop','entry','width']);
+  });
+  it('picks guides across a non-default composition', () => {
+    const clip=makeClip('horizontalLine',{x:430,y:270});
+    const region=elementRegion(clip,{...project,width:960,height:540})!;
+    expect(hitsElement('segment',region,{x:30,y:270},6)).toBe(true);
+  });
 });

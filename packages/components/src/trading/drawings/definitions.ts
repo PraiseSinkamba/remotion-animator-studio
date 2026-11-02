@@ -7,12 +7,14 @@
  *
  * A drawing's points are absolute: they are places in the composition. A
  * drawing with a box of its own — a rule, a rectangle, a label, the position
- * tool — is centred by the composition on its own `x` / `y`. A drawing with
+ * tool — declares its content placement separately from its transform origin.
+ * A drawing with
  * no box — a trend line, an arrow, a high/low line — is placed by its points
  * alone, and its region is derived from them.
  */
 import React from 'react';
 import { arrowShape } from './arrow-geometry';
+import {guideGeometry,positionGeometry} from './purpose-geometry';
 import {
   componentBounds,
   createPropsValidator,
@@ -150,11 +152,11 @@ const drawingDefinition = (
   icon,
   description,
   category: 'trading',
-  propsVersion: 3,
+  propsVersion: type === 'position' ? 4 : 3,
   defaults,
   params,
   edit: {...edit, coordinates: 'absolute', resize: 'axes'},
-  geometry: (input) => {
+  geometry: (input, _measured, composition) => {
     const props: Record<string, unknown> = {...defaults, ...input, points: {...defaults.points, ...(input.points as Record<string, unknown> | undefined)}};
     const ownShape = shape(props);
     const b = bounds(props);
@@ -163,6 +165,13 @@ const drawingDefinition = (
     const raw = props.points;
     if (raw && typeof raw === 'object') for(const [id, value] of Object.entries(raw)) {
       if(value && typeof value === 'object' && 'x' in value && 'y' in value && typeof value.x === 'number' && typeof value.y === 'number') points[id] = {x:value.x,y:value.y};
+    }
+    if (type === 'position') {
+      const left = num(props.left, num(props.x, 960) - num(props.width, 320) / 2);
+      return positionGeometry(anchor,left,num(props.width,320),points);
+    }
+    if (type === 'horizontalLine' || type === 'verticalLine') {
+      return guideGeometry(type==='horizontalLine'?'y':'x',anchor,composition);
     }
     const arrow = type === 'arrow' && points.from && points.to ? arrowShape(points.from, points.to) : undefined;
     const pickPolygons = arrow ? [arrow.head] : undefined;
@@ -173,7 +182,7 @@ const drawingDefinition = (
     ] : undefined;
     return {anchor,origin:anchor,pickPolygons,pickStrokes,box:ownShape ? {left:b.x-b.width/2,top:b.y-b.height/2,width:b.width,height:b.height} : null,points};
   },
-  render: ({ clip, props }: ComponentRenderContext): React.ReactElement | null => {
+  render: ({ clip, props, geometry, composition }: ComponentRenderContext): React.ReactElement | null => {
     if (clip.hidden) return null;
     // The definition's defaults under the clip's own props: a drawing that
     // misses a point is drawn as the defaults say.
@@ -196,7 +205,11 @@ const drawingDefinition = (
       label: merged.label as { text?: string } | undefined,
     };
 
-    const box = shape(merged);
+    const origin={x:num(merged.x,960),y:num(merged.y,540)};
+    const placement = geometry?.placement ?? (type==='position'
+      ? positionGeometry(origin,num(merged.left,origin.x-num(merged.width,320)/2),num(merged.width,320),points).placement
+      : type==='horizontalLine'||type==='verticalLine' ? guideGeometry(type==='horizontalLine'?'y':'x',origin,composition).placement : undefined);
+    const box = placement ? {x:placement.left+placement.width/2,y:placement.top+placement.height/2,width:placement.width,height:placement.height} : shape(merged);
     if (!box) {
       // The shape is its own points. The content is placed by them, in
       // composition pixels, and there is no box for the composition to centre.
@@ -228,33 +241,33 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'horizontalLine',
     'Horizontal Line',
     '📏',
-    'A horizontal rule of its own length.',
+    'A horizontal guide across the composition.',
     baseDefaults({ x: 960, y: 540, width: 480 }),
     horizontalShape,
     (props) => {
       const box = horizontalShape(props);
       return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : componentBounds(props);
     },
-    [X_PARAM, Y_PARAM, WIDTH_PARAM, OPACITY_PARAM],
+    [Y_PARAM, OPACITY_PARAM],
     HorizontalLineAdapter,
     // One anchor: the line is dragged by its own anchor.
-    { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
+    { pick: 'segment', moveAxis: 'y', handles: [{ id: 'anchor', effect: 'move' }] },
   ),
   drawingDefinition(
     'verticalLine',
     'Vertical Line',
     '┃',
-    'A vertical rule of its own length.',
+    'A vertical guide across the composition.',
     baseDefaults({ x: 960, y: 540, height: 320 }),
     verticalShape,
     (props) => {
       const box = verticalShape(props);
       return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : componentBounds(props);
     },
-    [X_PARAM, Y_PARAM, HEIGHT_PARAM, OPACITY_PARAM],
+    [X_PARAM, OPACITY_PARAM],
     VerticalLineAdapter,
     // One anchor: the line is dragged by its own anchor.
-    { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
+    { pick: 'segment', moveAxis: 'x', handles: [{ id: 'anchor', effect: 'move' }] },
   ),
   drawingDefinition(
     'trendline',
@@ -324,6 +337,7 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
       x: 960,
       y: 540,
       width: 320,
+      left: 800,
       height: 240,
       points: {
         entry: { x: 800, y: 540 },
@@ -334,15 +348,15 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     }),
     positionShape,
     componentBounds,
-    [X_PARAM, Y_PARAM, WIDTH_PARAM, HEIGHT_PARAM, OPACITY_PARAM],
+    [WIDTH_PARAM, OPACITY_PARAM],
     PositionAdapter,
-    // Three levels, each dragged on its own.
     {
-      pick: 'box',
+      pick: 'box', translate: {x:['x','left'],y:['y']},
       handles: [
-        { id: 'entry', effect: 'level' },
-        { id: 'stop', effect: 'level' },
-        { id: 'target', effect: 'level' },
+        {id:'target',effect:'level',appearance:'square',label:'Target'},
+        {id:'stop',effect:'level',appearance:'square',label:'Stop'},
+        {id:'entry',effect:'level',appearance:'circle',label:'Entry'},
+        {id:'width',effect:'width',props:['width'],appearance:'circle',label:'Width'},
       ],
     },
   ),

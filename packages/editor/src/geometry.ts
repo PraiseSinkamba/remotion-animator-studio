@@ -189,7 +189,7 @@ const authoredRegion = (
   const props = mergedProps(clip);
   const anchor: Point = { x: num(props.x) ?? 0, y: num(props.y) ?? 0 };
   const pointsAreAbsolute = edit.coordinates === 'absolute';
-  const declared = definition.geometry?.(props, edit.contentSized && measured ? measured : undefined);
+  const declared = definition.geometry?.(props, edit.contentSized && measured ? measured : undefined, {width:project.width,height:project.height});
   const bounds = (definition.bounds ?? componentBounds)(props);
   const frame = declared ? declared.box : (edit.pick === 'point' ? null : centredBox({x:bounds.x,y:bounds.y}, bounds.width,bounds.height));
   if (declared) {
@@ -201,7 +201,7 @@ const authoredRegion = (
     if (handle.effect !== 'point' && handle.effect !== 'level') continue;
     const raw = rawPoints(props)[handle.id];
     if (!raw) continue;
-    points[handle.id] = resolvePoint(raw, frame, pointsAreAbsolute);
+    if (!points[handle.id]) points[handle.id] = resolvePoint(raw, frame, pointsAreAbsolute);
   }
 
   if (edit.pick === 'point') {
@@ -326,6 +326,7 @@ export const handleAt = (region: Region, handle: ElementHandle, _clip?: Clip): P
     }
     case 'point':
     case 'level':
+    case 'width':
       return region.points[handle.id] ?? null;
     case 'move':
       return region.anchor;
@@ -437,33 +438,11 @@ const levelDrag = (
   const current = region.points[handle.id];
   if (!current || !raw[handle.id]) return null;
   // A level is a horizontal line — it moves up and down only.
-  const target = { x: current.x, y: pointer.y };
+  const target = { x: region.pointsAreAbsolute ? raw[handle.id].x : current.x, y: pointer.y };
+  const stored = toStoredPoint(target, region.frame, region.pointsAreAbsolute);
   return {
-    points: { ...raw, [handle.id]: toStoredPoint(target, region.frame, region.pointsAreAbsolute) },
+    points: { ...raw, [handle.id]: {...raw[handle.id], y: stored.y} },
   };
-};
-
-const moveDrag = (
-  props: Record<string, unknown>,
-  region: Region,
-  pointer: Point,
-  start: Point,
-): Record<string, unknown> => {
-  const dx = pointer.x - start.x;
-  const dy = pointer.y - start.y;
-  const patch: Record<string, unknown> = {
-    x: round(region.anchor.x + dx),
-    y: round(region.anchor.y + dy),
-  };
-  const raw = rawPoints(props);
-  if (region.pointsAreAbsolute) {
-    const moved: Record<string, Point> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      moved[key] = { ...value, x: round(value.x + dx), y: round(value.y + dy) };
-    }
-    if (Object.keys(moved).length > 0) patch.points = moved;
-  }
-  return patch;
 };
 
 /**
@@ -501,12 +480,14 @@ export const dragEffect = (
       return fontDrag(props, handle, region, pointer, start);
     case 'wrap':
       return wrapDrag(props, handle, region, pointer);
+    case 'width':
+      return region.box && handle.props?.[0] ? {[handle.props[0]]: round(Math.max(MIN_SIZE, pointer.x-region.box.left))} : null;
     case 'point':
       return pointDrag(props, handle, region, pointer);
     case 'level':
       return levelDrag(props, handle, region, pointer);
     case 'move':
-      return moveDrag(props, region, pointer, start);
+      return moveElement(clip, region, {x:pointer.x-start.x,y:pointer.y-start.y});
     default:
       return null;
   }
@@ -529,9 +510,9 @@ export const moveElement = (
     if (!region.pose.invertible) return null;
     // Anchored wrappers translate their origin too. Their screen delta is
     // therefore the authored anchor delta, independent of scale/rotation.
-    if (region.pointsAreAbsolute && !region.frame) {
+    if (region.pointsAreAbsolute && !region.frame && Object.keys(rawPoints(mergedProps(clip))).length > 0) {
       const points={...rawPoints(mergedProps(clip))};
-      for (const [id,point] of Object.entries(region.points)) {
+      for (const [id,point] of Object.entries(rawPoints(mergedProps(clip)))) {
         const displayed=region.pose.toComposition(point);
         const authored=displayed&&region.pose.toAuthored({x:displayed.x+delta.x,y:displayed.y+delta.y});
         if (!authored) return null;
@@ -543,11 +524,12 @@ export const moveElement = (
   }
   const definition = getComponent(clip.element);
   if (!definition || (definition.renderMode !== undefined && definition.renderMode !== 'content')) return null;
-  const edit = definition.edit ?? {pick: 'box'};
+  const edit = definition.edit;
+  delta = {x: edit?.moveAxis === 'y' ? 0 : delta.x, y: edit?.moveAxis === 'x' ? 0 : delta.y};
   const props = mergedProps(clip);
   const patch: Record<string, unknown> = {};
 
-  const moved = Object.entries(region.points);
+  const moved = Object.entries(rawPoints(props));
   if (moved.length > 0 && region.pointsAreAbsolute) {
     const points = { ...rawPoints(props) };
     for (const [key, point] of moved) {
@@ -561,9 +543,9 @@ export const moveElement = (
   }
 
   // A line is its points: it has no anchor to move.
-  if (edit.pick !== 'segment' || moved.length === 0) {
-    patch.x = round(region.anchor.x + delta.x);
-    patch.y = round(region.anchor.y + delta.y);
+  if (edit?.pick !== 'segment' || moved.length === 0) {
+    for (const key of edit?.translate?.x ?? ['x']) if (typeof props[key] === 'number') patch[key] = round(Number(props[key]) + delta.x);
+    for (const key of edit?.translate?.y ?? ['y']) if (typeof props[key] === 'number') patch[key] = round(Number(props[key]) + delta.y);
   }
   return patch;
 };

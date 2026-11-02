@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { EFFECTS, validateEffect } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
 import type { DrawingDraft } from './drawings';
+import {defaultDrawingDraft} from './drawings';
 import { buildPresetClips, PRESETS } from './presets';
 import { buildChartGroup, relayoutChartGroup, withChartMarket } from './chartGroup';
 import { sampleProject } from '@chart-studio/core';
@@ -360,9 +361,13 @@ export const useStore = create<EditorState>((set, get) => ({
     const rx = width / s.project.width;
     const ry = height / s.project.height;
     const m = Math.min(rx, ry);
-    const scaleProps = (p: Record<string, any>): Record<string, any> => {
-      const q = { ...p };
+    const scaleProps = (clip: Clip): Record<string, unknown> => {
+      const q: Record<string, unknown> = { ...clip.props };
+      const edit = getComponent(clip.element)?.edit;
+      const scaled = new Set<string>();
       const scaleKey = (key: string, f: number) => {
+        if (scaled.has(key)) return;
+        scaled.add(key);
         if (typeof q[key] === 'number') q[key] = Math.round(q[key] * f * 100) / 100;
       };
       scaleKey('x', rx);
@@ -371,6 +376,14 @@ export const useStore = create<EditorState>((set, get) => ({
       scaleKey('height', ry);
       for (const k of ['fontSize', 'size', 'borderRadius', 'letterSpacing', 'amplitude', 'drift']) scaleKey(k, m);
       scaleKey('wavelength', rx);
+      for (const key of edit?.translate?.x ?? []) scaleKey(key, rx);
+      for (const key of edit?.translate?.y ?? []) scaleKey(key, ry);
+      if (edit?.coordinates === 'absolute' && q.points && typeof q.points === 'object' && !Array.isArray(q.points)) {
+        q.points = Object.fromEntries(Object.entries(q.points).map(([id,value]: [string,unknown]) => {
+          if (!value || typeof value !== 'object' || !('x' in value) || !('y' in value) || typeof value.x !== 'number' || typeof value.y !== 'number') return [id,value];
+          return [id,{...value,x:Math.round(value.x*rx*100)/100,y:Math.round(value.y*ry*100)/100}];
+        }));
+      }
       return q;
     };
     set((state) => ({
@@ -380,7 +393,7 @@ export const useStore = create<EditorState>((set, get) => ({
         height,
         tracks: state.project.tracks.map((t) => ({
           ...t,
-          clips: t.clips.map((c) => c.locked ? c : ({ ...c, props: scaleProps(c.props) })),
+          clips: t.clips.map((c) => c.locked ? c : ({ ...c, props: scaleProps(c) })),
         })),
       },
     }));
@@ -1024,6 +1037,7 @@ export const useStore = create<EditorState>((set, get) => ({
       durationInFrames,
       props: {
         ...defaults,
+        ...defaultDrawingDraft(kind,{x:draft.x??s.project.width/2,y:draft.y??s.project.height/2}),
         ...rest,
       },
       effects: [],
