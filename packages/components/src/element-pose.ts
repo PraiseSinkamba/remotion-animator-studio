@@ -1,4 +1,4 @@
-import { getComponent, type Clip, type ComponentGeometry } from '@chart-studio/core';
+import { getComponent, normalizeComponentProps, type Clip, type ComponentGeometry } from '@chart-studio/core';
 import { computeEffectStyle, type ComputedStyle } from './base/effects.js';
 
 export interface PosePoint { x: number; y: number }
@@ -25,7 +25,8 @@ export function evaluateElementPose(
 ): ElementPose {
   const style = computeEffectStyle(sceneFrame - clip.from, clip.durationInFrames, fps, clip.effects);
   const definition = getComponent(clip.element);
-  const props = { ...definition?.defaults, ...clip.props };
+  const normalized=definition ? normalizeComponentProps(definition,clip.props) : undefined;
+  const props = normalized?.ok ? normalized.value : clip.props;
   const declared = geometry ?? definition?.geometry?.(props);
   const origin = declared?.origin ?? { x: Number(props.x ?? 0), y: Number(props.y ?? 0) };
   const anchor = declared?.anchor ?? origin;

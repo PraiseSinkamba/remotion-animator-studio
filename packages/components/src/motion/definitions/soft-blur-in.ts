@@ -1,3 +1,4 @@
+import { createPropsValidator } from '@chart-studio/core';
 import { contentGeometry, geometryBounds } from './content-geometry';
 /**
  * Registry definition for the vendored Remocn "Soft Blur In" component.
@@ -84,4 +85,5 @@ export const remocnSoftBlurInDefinition: VideoComponentDefinition = {
 };
 
 remocnSoftBlurInDefinition.bounds = (props) => geometryBounds(remocnSoftBlurInDefinition.geometry!({...remocnSoftBlurInDefinition.defaults,...props}));
+remocnSoftBlurInDefinition.validateProps = createPropsValidator(remocnSoftBlurInDefinition.defaults, remocnSoftBlurInDefinition.params);
 registerComponent(remocnSoftBlurInDefinition);

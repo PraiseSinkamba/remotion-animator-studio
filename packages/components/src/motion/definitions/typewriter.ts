@@ -1,3 +1,4 @@
+import { createPropsValidator } from '@chart-studio/core';
 import { contentGeometry, geometryBounds } from './content-geometry';
 /**
  * Registry definition for the vendored Remocn "Typewriter" component.
@@ -90,4 +91,5 @@ export const remocnTypewriterDefinition: VideoComponentDefinition = {
 };
 
 remocnTypewriterDefinition.bounds = (props) => geometryBounds(remocnTypewriterDefinition.geometry!({...remocnTypewriterDefinition.defaults,...props}));
+remocnTypewriterDefinition.validateProps = createPropsValidator(remocnTypewriterDefinition.defaults, remocnTypewriterDefinition.params);
 registerComponent(remocnTypewriterDefinition);

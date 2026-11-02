@@ -2,7 +2,7 @@ import { noise2D } from '@remotion/noise';
 import React from 'react';
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
 import { evaluateElementPose, type ComputedStyle } from '@chart-studio/components';
-import { getComponent } from '@chart-studio/components';
+import { getComponent, normalizeComponentProps } from '@chart-studio/components';
 import { evaluateClip } from './evaluate';
 import type { Clip, Project } from '@chart-studio/core';
 import {
@@ -66,7 +66,9 @@ const ClipRenderer: React.FC<{
   // clip, so hiding an element hides it in the preview and in the export.
   if (clip.hidden) return null;
 
-  const props = clip.props;
+  const normalized=normalizeComponentProps(definition,clip.props);
+  if(!normalized.ok) throw new Error(`Clip "${clip.id}" props.${normalized.issues[0].path}: ${normalized.issues[0].message}`);
+  const props = normalized.value;
   // Inside the Sequence the frame is clip-relative; the evaluation wants the
   // absolute scene frame.
   const evaluated = evaluateClip(definition, {
@@ -139,8 +141,8 @@ const ClipRenderer: React.FC<{
       data-clip-id={clip.id}
       style={{
         position: 'absolute',
-        left: anchored ? props.x : 0,
-        top: anchored ? props.y : 0,
+        left: anchored && typeof props.x === 'number' ? props.x : 0,
+        top: anchored && typeof props.y === 'number' ? props.y : 0,
         opacity: fx.opacity * blendOpacity,
         filter: filters.length ? filters.join(' ') : undefined,
         clipPath: blendClipPath ?? fx.clipPath ?? undefined,

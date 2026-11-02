@@ -781,3 +781,25 @@ describe('atomic unlocked edits', () => {
   expect(useStore.getState().project.tracks[0].clips[1]).toBe(original);
  });
 });
+
+
+describe('atomic validated props edits',()=>{
+ it('retains project and history on invalid supplied values',()=>{
+ useStore.setState({project:emptyProject(),history:[],future:[],notice:null});
+ useStore.getState().addClip('shape','t-empty',0);
+ const before=useStore.getState();const clip=before.project.tracks[0].clips[0];
+ useStore.getState().updateClipProps(clip.id,{width:-100,x:'wrong'});
+ const after=useStore.getState();expect(after.project).toBe(before.project);expect(after.history).toBe(before.history);expect(after.notice).toContain(clip.id);
+ });
+});
+
+it('rejects an entire props batch when one unlocked member is invalid', () => {
+  useStore.setState({project:emptyProject(),history:[],future:[],notice:null});
+  useStore.getState().addClip('shape','t-empty',0);
+  useStore.getState().addClip('shape','t-empty',0);
+  const before=useStore.getState();const [first,second]=before.project.tracks[0].clips;
+  useStore.getState().updateClipsProps([{clipId:first.id,patch:{x:20}},{clipId:second.id,patch:{height:'wrong'}}]);
+  expect(useStore.getState().project).toBe(before.project);
+  expect(useStore.getState().history).toBe(before.history);
+  expect(useStore.getState().notice).toContain(second.id);
+});

@@ -1,3 +1,4 @@
+import { createPropsValidator } from '@chart-studio/core';
 import { contentGeometry, geometryBounds } from './content-geometry';
 /**
  * Registry definition for the vendored Remocn "Marker Highlight" component.
@@ -91,4 +92,5 @@ export const remocnMarkerHighlightDefinition: VideoComponentDefinition = {
 };
 
 remocnMarkerHighlightDefinition.bounds = (props) => geometryBounds(remocnMarkerHighlightDefinition.geometry!({...remocnMarkerHighlightDefinition.defaults,...props}));
+remocnMarkerHighlightDefinition.validateProps = createPropsValidator(remocnMarkerHighlightDefinition.defaults, remocnMarkerHighlightDefinition.params);
 registerComponent(remocnMarkerHighlightDefinition);

@@ -205,6 +205,8 @@ export interface VideoComponentDefinition {
   category: ComponentCategory;
   /** Props applied to a freshly created instance. */
   defaults: ComponentProps;
+  /** Definition-owned validation and default normalization at load/edit/render boundaries. */
+  validateProps?: import('./component-props').PropsValidator;
   /** Inspector controls rendered above the custom inspector section. */
   params: ParamDef[];
   /**

@@ -14,6 +14,8 @@
 import React from 'react';
 import {
   componentBounds,
+  createPropsValidator,
+  validateDrawingProps,
   registerComponent,
   type ComponentBounds,
   type ComponentProps,
@@ -338,4 +340,9 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
   ),
 ];
 
-for (const definition of drawingDefinitions) registerComponent(definition);
+for (const definition of drawingDefinitions) registerComponent({...definition, validateProps: (raw) => {
+ const result=createPropsValidator(definition.defaults)(raw);
+ if(!result.ok) return result;
+ const domain=validateDrawingProps(definition.type as DrawingKind,result.value);
+ return domain.ok ? result : domain;
+}});

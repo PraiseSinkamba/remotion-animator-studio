@@ -1,4 +1,5 @@
 import type { ElementEditModel, ComponentCategory, ComponentProps, VideoComponentDefinition } from './contract';
+import { createPropsValidator } from './component-props';
 import type { ElementType, Project } from './schemas';
 
 /**
@@ -13,6 +14,7 @@ const registry = new Map<ElementType, VideoComponentDefinition>();
 export const registerComponent = (definition: VideoComponentDefinition): void => {
   if (registry.has(definition.type)) throw new Error('Duplicate component ID: ' + definition.type);
   validateDefinition(definition);
+  definition.validateProps ??= createPropsValidator(definition.defaults,definition.params);
   registry.set(definition.type, definition);
 };
 

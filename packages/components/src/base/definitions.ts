@@ -1,3 +1,4 @@
+import { createBasePropsValidator } from './props-validation';
 import {makeStar, makePolygon, makePie} from '@remotion/shapes';
 /**
  * The 22 base elements inherited from the upstream editor, expressed as
@@ -753,6 +754,7 @@ const baseBounds = (definition: VideoComponentDefinition, p: Record<string, unkn
 definitions.forEach((definition) =>
   registerComponent({
     ...definition,
+    validateProps: createBasePropsValidator(definition),
     edit: definition.edit ? {...definition.edit, coordinates: 'fractional', contentSized: ['text','counter','emoji'].includes(definition.type), resize: definition.type === 'shape' ? (props) => ['rect','ellipse'].includes(String(props.kind)) ? 'axes' : 'uniform' : ['blob','cursor','neonSun','isoCity'].includes(definition.type) ? 'uniform' : 'axes'} : undefined,
     geometry: (props, measured) => {
       const b = baseBounds(definition, props, measured);

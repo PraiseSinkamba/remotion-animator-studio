@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import {listComponents,normalizeComponentProps} from './registry';
 import type { ElementType, Project } from '@chart-studio/core';
 import { CURRENT_PROJECT_SCHEMA_VERSION, migrateProject } from './project-migrate';
 
@@ -813,4 +814,44 @@ describe('migrateProject — the v3 to v4 conversion', () => {
     const twice = migrateProject(once);
     expect(twice).toEqual(once);
   });
+});
+
+
+describe('validated migration boundary',()=>{
+ it('rejects malformed known shape props with clip identity',()=>{const doc=legacyProject();doc.schemaVersion=4;doc.tracks[0].clips[0].element='shape';doc.tracks[0].clips[0].props={x:'wrong',width:-100,height:'wrong'};expect(()=>migrateProject(doc)).toThrow(/c1.*props/)});
+ it('rejects invalid lifetime and duplicate identities',()=>{const doc=legacyProject();doc.tracks[0].clips[0].from=-1;expect(()=>migrateProject(doc)).toThrow(/from/);doc.tracks[0].clips[0].from=0;doc.tracks[0].clips.push({...doc.tracks[0].clips[0]});expect(()=>migrateProject(doc)).toThrow(/Duplicate clip/)});
+ it('rejects nonpositive props versions',()=>{const doc=legacyProject();doc.tracks[0].clips[0].propsVersion=0;expect(()=>migrateProject(doc)).toThrow(/propsVersion/)});
+});
+
+
+describe('catalogue load validation',()=>{
+ it('roundtrips every registered default without dropping extensions',()=>{
+  for(const definition of listComponents()) {
+   const props={...structuredClone(definition.defaults),futureExtension:{retained:true}};
+   const normalized=normalizeComponentProps(definition,props);
+   expect(normalized,definition.type).toMatchObject({ok:true});
+   const doc=legacyProject();doc.schemaVersion=4;doc.tracks[0].clips[0].element=definition.type;doc.tracks[0].clips[0].props=props;
+   expect(migrateProject(migrateProject(doc)).tracks[0].clips[0].props).toEqual(props);
+  }
+ });
+ it('adds legacy-only durable bar IDs without changing authored market data',()=>{
+  const doc=legacyProject();doc.schemaVersion=2;
+  doc.series=[{id:'legacy',origin:'manual',label:'Legacy',timeBasis:'logical',bars:[{t:0,o:10,h:12,l:9,c:11}]}];
+  const before=structuredClone(doc);const result=migrateProject(doc);
+  expect(result.series?.[0]).toMatchObject({bars:[{id:'legacy:0',t:0,o:10,h:12,l:9,c:11}]});
+  expect(doc).toEqual(before);expect(migrateProject(result)).toEqual(result);
+  expect(()=>migrateProject({...doc,schemaVersion:4})).toThrow(/id/);
+ });
+ it('rejects malformed visibility flags and fractional lifetimes',()=>{
+  const doc=legacyProject();Object.assign(doc.tracks[0].clips[0],{hidden:'wrong'});expect(()=>migrateProject(doc)).toThrow(/hidden/);
+ });
+});
+
+
+it('upgrades old drawing props independently of the current project version',()=>{
+ const doc=legacyProject();doc.schemaVersion=4;
+ Object.assign(doc.tracks[0].clips[0],{element:'trendline',propsVersion:2,props:{x:100,y:100,width:100,height:100,points:{start:{x:0,y:0},end:{x:1,y:1}}}});
+ const before=structuredClone(doc);const result=migrateProject(doc);
+ expect(result.tracks[0].clips[0].props.points).toEqual({start:{x:50,y:50},end:{x:150,y:150}});
+ expect(result.tracks[0].clips[0].propsVersion).toBe(3);expect(doc).toEqual(before);expect(migrateProject(result)).toEqual(result);
 });

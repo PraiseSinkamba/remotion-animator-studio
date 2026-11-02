@@ -15,7 +15,7 @@
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
 import { getComponent } from './registry';
-import { computePriceRange, materialiseSeries, validateProjectScalars } from '@chart-studio/core';
+import { computePriceRange, materialiseSeries, validateProjectScalars, validateProjectDocument, normalizeComponentProps } from '@chart-studio/core';
 import type {
   Clip,
   DrawingKind,
@@ -45,6 +45,10 @@ const migrateClip = (raw: unknown, index: number): Clip => {
   }
   const clip = raw as Record<string, unknown>;
 
+  if(typeof clip.id !== 'string' || !clip.id) fail(`Invalid clip ID at clip ${index}`);
+  for(const field of ['from','durationInFrames']) if(clip[field] !== undefined && (typeof clip[field] !== 'number' || !Number.isFinite(clip[field]))) fail(`Clip "${clip.id}" has invalid ${field}`);
+  if(clip.props !== undefined && (typeof clip.props !== 'object' || clip.props===null || Array.isArray(clip.props))) fail(`Clip "${clip.id}" has invalid props`);
+  if(clip.effects !== undefined && !Array.isArray(clip.effects)) fail(`Clip "${clip.id}" has invalid effects`);
   const id = typeof clip.id === 'string' ? clip.id : '';
   const element = clip.element;
   if (typeof element !== 'string') fail(`Invalid project file: clip "${id}" has no component type.`);
@@ -53,7 +57,8 @@ const migrateClip = (raw: unknown, index: number): Clip => {
   if (!definition) fail(`Unsupported component type "${element}"`);
 
   const definitionVersion = definition.propsVersion ?? 1;
-  const clipVersion = typeof clip.propsVersion === 'number' ? clip.propsVersion : 1;
+  const clipVersion = clip.propsVersion === undefined ? 1 : clip.propsVersion;
+  if(typeof clipVersion !== 'number' || !Number.isInteger(clipVersion) || clipVersion < 1) fail(`Clip "${id}" has invalid propsVersion`);
   if (clipVersion > definitionVersion) {
     fail(`Clip "${id}" uses props version ${clipVersion} but "${element}" supports ${definitionVersion}`);
   }
@@ -875,13 +880,31 @@ export const migrateProject = (raw: unknown): Project => {
   if (version < 3) doc = renameLegacyElements(doc);
   doc = convertRetiredDrawings(doc);
 
+  // Legacy documents predate durable bar IDs. Normalize identity only, never market data.
+  if(version < CURRENT_PROJECT_SCHEMA_VERSION && Array.isArray(doc.series)) doc={...doc,series:doc.series.map(series=>{
+    if(typeof series!=='object'||series===null||!('bars' in series)||!Array.isArray(series.bars)||!('id' in series)) return series;
+    return {...series,bars:series.bars.map((bar:unknown,index:number)=>typeof bar==='object'&&bar!==null&&!('id' in bar)?{...bar,id:`${series.id}:${index}`}:bar)};
+  })};
   const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index));
 
   const v2 = version < 2 ? migrateV1ToV2(doc, tracks) : { doc, tracks };
   const v3 = version < 3 ? migrateV2ToV3(v2.doc, v2.tracks) : v2;
-  const migrated = version < 4 ? migrateV3ToV4(v3.doc, v3.tracks) : v3;
+  const chartClips = new Map(v3.tracks.flatMap(track => track.clips).map(clip => [clip.id, clip]));
+  const migrated = version < 4 ? migrateV3ToV4(v3.doc, v3.tracks) : {
+    ...v3,
+    tracks: v3.tracks.map(track => ({
+      ...track,
+      clips: track.clips.map(clip => {
+        if (!DRAWING_ELEMENTS.includes(clip.element) || clip.propsVersion === undefined || clip.propsVersion >= 3) return clip;
+        const independent = clip.propsVersion === 1
+          ? migrateDrawingClip(clip, chartClips, Array.isArray(doc.series) ? doc.series as SeriesSpec[] : [])
+          : clip;
+        return migrateDrawingToV4(independent);
+      }),
+    })),
+  };
 
-  return {
+  const result: Project = {
     ...(migrated.doc as unknown as Project),
     name,
     width,
@@ -889,7 +912,21 @@ export const migrateProject = (raw: unknown): Project => {
     fps,
     durationInFrames,
     backgroundColor,
-    tracks: migrated.tracks,
+    tracks: migrated.tracks.map(track=>({...track,clips:track.clips.map(clip=>{
+      const definition=getComponent(clip.element);
+      if(!definition) return clip;
+      const normalized=normalizeComponentProps(definition,clip.props);
+      if(!normalized.ok) fail(`Clip "${clip.id}" props.${normalized.issues[0].path}: ${normalized.issues[0].message}`);
+      return clip;
+    })})),
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
   };
+  const validated=validateProjectDocument(result);
+  if(!validated.ok) fail(`Invalid project file: ${validated.issues[0].path}: ${validated.issues[0].message}`);
+  const ids=new Set<string>();
+  for(const track of result.tracks) for(const clip of track.clips) {
+    if(ids.has(clip.id)) fail(`Duplicate clip ID "${clip.id}"`);
+    ids.add(clip.id);
+  }
+  return result;
 };

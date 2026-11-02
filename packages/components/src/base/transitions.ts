@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { registerComponent, type TransitionBlend, type VideoComponentDefinition } from '@chart-studio/core';
+import { registerComponent, createPropsValidator, type TransitionBlend, type VideoComponentDefinition } from '@chart-studio/core';
 
 /** The props a transition component is given. */
 interface TransitionComponentProps {
@@ -97,7 +97,9 @@ const wipe: VideoComponentDefinition = {
   render: () => null,
 };
 
+crossfade.validateProps = createPropsValidator(crossfade.defaults, crossfade.params);
 registerComponent(crossfade);
+wipe.validateProps = createPropsValidator(wipe.defaults, wipe.params);
 registerComponent(wipe);
 
 export { crossfade, wipe };

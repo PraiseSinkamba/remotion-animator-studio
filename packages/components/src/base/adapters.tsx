@@ -8,6 +8,7 @@
  * The single documented exception is `AudioWavyLetters`, which analyses a media asset
  * and therefore uses Remotion's `useAudioData`.
  */
+import { sanitizeStaticHtml } from './safe-html';
 import { Gif } from '@remotion/gif';
 import { Circle, Ellipse, Pie, Polygon, Star, Triangle } from '@remotion/shapes';
 import { noise2D } from '@remotion/noise';
@@ -521,7 +522,7 @@ export const HtmlAdapter: React.FC<ComponentRenderContext> = ({ props }) => {
           transform: `scale(${p.contentScale || 1})`,
           transformOrigin: 'top left',
         }}
-        dangerouslySetInnerHTML={{ __html: String(p.html ?? '') }}
+        dangerouslySetInnerHTML={{ __html: sanitizeStaticHtml(String(p.html ?? '')) }}
       />
     </div>
   );

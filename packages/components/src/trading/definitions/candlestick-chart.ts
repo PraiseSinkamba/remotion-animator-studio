@@ -8,7 +8,7 @@
  * See docs/spec/COMPONENT_CONTRACT.md.
  */
 import { createElement } from 'react';
-import { registerComponent } from '@chart-studio/core';
+import { registerComponent, createPropsValidator, validateChartProps, validateChartBars } from '@chart-studio/core';
 import { componentBounds, type ComponentProps, type ElementHandle, type VideoComponentDefinition } from '@chart-studio/core';
 import { CandlestickChart, readCurve, type ChartEvaluation, type CandlestickChartProps } from '../chart';
 import { CandlestickChartInspector } from '../inspectors/candlestick-chart';
@@ -232,4 +232,15 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
   defaultDuration: (props: ComponentProps) => barsToFrames(props.bars ?? [], props.framesPerBar),
 };
 
+candlestickChartDefinition.validateProps = (raw) => {
+ const result=createPropsValidator(candlestickChartDefinition.defaults)(raw);
+ if(!result.ok) return result;
+ const bars=validateChartBars(result.value.bars);
+ if(!bars.ok) return {ok:false,issues:bars.issues.map(issue=>({...issue,path:`bars.${issue.path}`}))};
+ if(result.value.seriesId!==undefined || result.value.panes!==undefined || result.value.clock!==undefined) {
+   const domain=validateChartProps(result.value);
+   if(!domain.ok) return domain;
+ }
+ return result;
+};
 registerComponent(candlestickChartDefinition);

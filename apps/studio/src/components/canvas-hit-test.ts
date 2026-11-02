@@ -5,7 +5,7 @@
  * component boxes, never the DOM. The pointer conversion stays in
  * `PreviewPanel`, which owns the stage rect.
  */
-import { componentBounds, getComponent } from '@chart-studio/components';
+import { componentBounds, getComponent, normalizeComponentProps } from '@chart-studio/components';
 import {
   elementRegion,
   isClipActive,
@@ -44,11 +44,8 @@ export const projectClips = (project: Project): Clip[] => project.tracks.flatMap
 export const clipProps = (clip: Clip): Record<string, unknown> | null => {
   const definition = getComponent(clip.element);
   if (!definition) return null;
-  const merged: Record<string, unknown> = { ...definition.defaults };
-  for (const [key, value] of Object.entries(clip.props)) {
-    if (value !== undefined) merged[key] = value;
-  }
-  return merged;
+  const normalized=normalizeComponentProps(definition,clip.props);
+  return normalized.ok ? normalized.value : null;
 };
 
 /**

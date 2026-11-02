@@ -329,7 +329,9 @@ const clipSchema = z.looseObject({
   props: z.record(z.string(), z.unknown()),
   effects: z.array(effectInstanceSchema),
   groupId: z.string().optional(),
-  propsVersion: z.number().int().optional(),
+  propsVersion: z.number().int().positive().optional(),
+  hidden: z.boolean().optional(),
+  locked: z.boolean().optional(),
 });
 
 const trackTransitionSchema = z.looseObject({
@@ -676,3 +678,6 @@ const projectScalarsSchema = z.object({
  */
 export const validateProjectScalars = (raw: unknown): ValidationResult<ProjectScalars> =>
   toResult(projectScalarsSchema.safeParse(raw) as z.ZodSafeParseResult<ProjectScalars>);
+
+/** Legacy chart arrays remain supported without inventing market values. */
+export const validateChartBars = (raw:unknown):ValidationResult<unknown> => toResult(z.array(ohlcBarSchema.omit({id:true})).safeParse(raw));

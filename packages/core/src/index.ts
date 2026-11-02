@@ -12,3 +12,5 @@ export * from './time';
 export * from './validation';
 export * from './transition';
 export * from './duration';
+
+export * from './component-props';

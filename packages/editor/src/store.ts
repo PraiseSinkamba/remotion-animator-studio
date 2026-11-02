@@ -1,3 +1,4 @@
+import { normalizeComponentProps, validateProjectDocument } from '@chart-studio/core';
 import { create } from 'zustand';
 import { EFFECTS } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
@@ -595,9 +596,14 @@ export const useStore = create<EditorState>((set, get) => ({
     }));
   },
   updateClip: (clipId, patch) =>
-    set((s) => ({ project: mapClips(s.project, clipId, (c) => c.locked ? c : ({ ...c, ...patch })) })),
+    set((s) => {
+      const project=mapClips(s.project,clipId,c=>c.locked?c:({...c,...patch}));
+      const validated=validateProjectDocument(project);
+      return validated.ok ? {project} : {notice:`${validated.issues[0].path}: ${validated.issues[0].message}`};
+    }),
   shiftClips: (moves) =>
     set((s) => {
+      if(moves.some(move=>!Number.isInteger(move.from)||move.from<0)) return {notice:'Clip from must be a nonnegative integer'};
       const byId = new Map(moves.map((m) => [m.clipId, m.from]));
       return {
         project: {
@@ -613,12 +619,17 @@ export const useStore = create<EditorState>((set, get) => ({
   updateClipsProps: (patches) => set((s) => {
     const byId = new Map(patches.map(({clipId, patch}) => [clipId, patch]));
     let changed = false;
+    let invalid: string | undefined;
     const tracks = s.project.tracks.map((track) => ({ ...track, clips: track.clips.map((clip) => {
       const patch = byId.get(clip.id);
       if (clip.locked || !patch || Object.entries(patch).every(([key,value]) => JSON.stringify(clip.props[key]) === JSON.stringify(value))) return clip;
+      const definition=getComponent(clip.element);
+      const normalized=definition ? normalizeComponentProps(definition,{...clip.props,...patch}) : undefined;
+      if(normalized && !normalized.ok) {invalid=`Clip "${clip.id}" props.${normalized.issues[0].path}: ${normalized.issues[0].message}`;return clip;}
       changed = true;
-      return { ...clip, props: { ...clip.props, ...patch } };
+      return { ...clip, props: normalized?.ok ? normalized.value : { ...clip.props, ...patch } };
     }) }));
+    if(invalid) return {notice:invalid};
     return changed ? {project: {...s.project, tracks}} : s;
   }),
   // no history push — callers commit at gesture start
