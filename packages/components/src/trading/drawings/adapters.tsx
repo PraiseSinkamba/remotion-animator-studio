@@ -16,7 +16,7 @@
  * money.
  */
 import React from 'react';
-import { arrowShape } from './arrow-geometry';
+import { arrowShape, DEFAULT_ARROW_LINE_WIDTH } from './arrow-geometry';
 import type { DrawingPoint, DrawingStyle } from '@chart-studio/core';
 
 /**
@@ -288,8 +288,9 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
   const to = points?.to;
   if (!from || !to) return null;
 
-  const shape = arrowShape(from, to);
-  const padding = Math.max(8, widthOf(style) / 2 + 1);
+  const lineWidth = style?.lineWidth ?? DEFAULT_ARROW_LINE_WIDTH;
+  const shape = arrowShape(from, to, lineWidth);
+  const padding = Math.max(8, lineWidth / 2 + 1);
   const vertices = [from, to, ...shape.head];
   const left = Math.min(...vertices.map(p => p.x)) - padding;
   const top = Math.min(...vertices.map(p => p.y)) - padding;
@@ -306,7 +307,7 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
       height={box.height}
       viewBox={`0 0 ${box.width} ${box.height}`}
     >
-      <line x1={x1} y1={y1} x2={baseX} y2={baseY} stroke={color} strokeWidth={widthOf(style)} />
+      <line x1={x1} y1={y1} x2={baseX} y2={baseY} stroke={color} strokeWidth={lineWidth} />
       <polygon
         points={headPoints}
         fill={color}

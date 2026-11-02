@@ -50,6 +50,29 @@ const draw = (element: string, props: Record<string, unknown>, clip?: Partial<Cl
 };
 
 describe('the drawing tools', () => {
+  it('starts arrows with a stronger shaft while preserving an authored width', () => {
+    const defaults = draw('arrow', {}).container.querySelector('line');
+    expect(defaults?.getAttribute('stroke-width')).toBe('5');
+    const authored = draw('arrow', {style:{color:'#ffffff',lineWidth:12}}).container.querySelector('line');
+    expect(authored?.getAttribute('stroke-width')).toBe('12');
+  });
+  it.each([1.5,12,32])('fits a %spx arrow and its head inside the SVG and pick geometry', lineWidth => {
+    const {container,definition}=draw('arrow',{style:{lineWidth},points:{from:{x:100,y:100},to:{x:300,y:100}}});
+    const svg=container.querySelector('svg')!;
+    const head=container.querySelector('polygon')!;
+    const points=head.getAttribute('points')!.split(' ').map(p=>p.split(',').map(Number));
+    const width=Number(svg.getAttribute('width')),height=Number(svg.getAttribute('height'));
+    for(const [x,y] of points) {
+      expect(x).toBeGreaterThan(0);expect(x).toBeLessThan(width);
+      expect(y).toBeGreaterThan(0);expect(y).toBeLessThan(height);
+    }
+    const geometry=definition.geometry!({style:{lineWidth},points:{from:{x:100,y:100},to:{x:300,y:100}}});
+    const left=parseFloat(svg.style.left),top=parseFloat(svg.style.top);
+    expect(geometry.pickPolygons?.[0]).toEqual(points.map(([x,y])=>({x:x+left,y:y+top})));
+    expect(geometry.pickStrokes?.[0].width).toBe(lineWidth);
+    const headWidth=Math.abs(points[1][1]-points[2][1]);
+    expect(headWidth).toBeGreaterThanOrEqual(lineWidth*1.8);
+  });
   it('draws both extended position zones inside its level-derived viewBox',()=>{
     const {container}=draw('position',{x:430,y:270,left:270,width:320,height:240,
       points:{entry:{x:270,y:310},target:{x:270,y:120},stop:{x:270,y:440}},position:{direction:'long',showRiskReward:true}});

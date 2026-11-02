@@ -13,7 +13,7 @@
  * alone, and its region is derived from them.
  */
 import React from 'react';
-import { arrowShape } from './arrow-geometry';
+import { arrowShape, DEFAULT_ARROW_LINE_WIDTH } from './arrow-geometry';
 import {guideGeometry,positionGeometry} from './purpose-geometry';
 import {
   componentBounds,
@@ -173,11 +173,12 @@ const drawingDefinition = (
     if (type === 'horizontalLine' || type === 'verticalLine') {
       return guideGeometry(type==='horizontalLine'?'y':'x',anchor,composition);
     }
-    const arrow = type === 'arrow' && points.from && points.to ? arrowShape(points.from, points.to) : undefined;
-    const pickPolygons = arrow ? [arrow.head] : undefined;
     const style = props.style as DrawingStyle | undefined;
+    const arrowWidth = style?.lineWidth ?? DEFAULT_ARROW_LINE_WIDTH;
+    const arrow = type === 'arrow' && points.from && points.to ? arrowShape(points.from, points.to, arrowWidth) : undefined;
+    const pickPolygons = arrow ? [arrow.head] : undefined;
     const pickStrokes = arrow ? [
-      {from: points.from, to: arrow.shaftEnd, width: style?.lineWidth ?? 1.5},
+      {from: points.from, to: arrow.shaftEnd, width: arrowWidth},
       ...arrow.head.map((from, i) => ({from, to: arrow.head[(i + 1) % arrow.head.length], width: 1})),
     ] : undefined;
     return {anchor,origin:anchor,pickPolygons,pickStrokes,box:ownShape ? {left:b.x-b.width/2,top:b.y-b.height/2,width:b.width,height:b.height} : null,points};
@@ -314,7 +315,10 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     'Arrow',
     '➡️',
     'An arrow between two points.',
-    baseDefaults({ points: { from: { x: 880, y: 585 }, to: { x: 1040, y: 495 } } }),
+    baseDefaults({
+      points: { from: { x: 880, y: 585 }, to: { x: 1040, y: 495 } },
+      style: { color: '#e8eaf0', lineWidth: DEFAULT_ARROW_LINE_WIDTH },
+    }),
     endpointShape,
     pointBounds,
     [OPACITY_PARAM],
