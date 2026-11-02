@@ -212,7 +212,7 @@ describe('the edit declarations', () => {
   ];
   const sizeElements = ['blob', 'cursor', 'neonSun'];
   const gridElements = ['isoCity'];
-  const textElements = ['text', 'counter', 'nodeTrail', 'remocnMarkerHighlight', 'remocnSoftBlurIn', 'remocnTypewriter'];
+  const textElements = ['text', 'remocnMarkerHighlight', 'remocnSoftBlurIn', 'remocnTypewriter'];
   const emojiElements = ['emoji'];
   const pointElements = ['horizontalLine', 'verticalLine'];
   const segmentElements: [string, string[]][] = [
@@ -258,7 +258,7 @@ describe('the edit declarations', () => {
       expect(edit.pick).toBe('box');
       for (const handle of edit.handles) {
         expect(handle.effect).toBe('scale');
-        expect(handle.props).toEqual(['gridSize', 'tileSize']);
+        expect(handle.props).toEqual(['tileSize']);
       }
     }
   });
@@ -274,9 +274,7 @@ describe('the edit declarations', () => {
         'sw',
       ]);
       expect(edit.handles.filter((handle) => handle.effect === 'wrap').map((handle) => handle.id)).toEqual([
-        'n',
         'e',
-        's',
         'w',
       ]);
       for (const handle of edit.handles.filter((entry) => entry.effect === 'font')) {
@@ -393,4 +391,24 @@ describe('content edit fallback', () => {
    expect(moveElement(clip,region,{x:10,y:20})).toEqual({x:310,y:320});
   } finally { definition.edit=edit; }
  });
+});
+
+ describe('authoritative capabilities', () => {
+ it('does not offer unsupported wraps or path scaling', () => {
+ expect(getComponent('counter')!.edit!.handles.every(h => h.effect === 'font')).toBe(true);
+ expect(getComponent('nodeTrail')!.edit!.handles).toEqual([]);
+ });
+ it('uses the actual clamped city dimensions', () => {
+ for (const n of [2,9]) {
+ const c = {...makeClip('isoCity'), props: {gridSize:n,tileSize:10,buildingHeight:40,x:-20,y:30}};
+ expect(elementRegion(c, project)!.box).toEqual({left:-20-(2*n+1)*5,top:30-((n+1)*10+40)/2,width:(2*n+1)*10,height:(n+1)*10+40});
+ }
+ });
+ });
+
+describe('component geometry regressions',()=>{
+ it('keeps the actual opposite scalar corner on a non-square drag',()=>{for(const element of ['blob','isoCity','shape'] as const){const clip=makeClip(element,{x:-100,y:-50,kind:'triangle',width:200,height:100});const r=regionOf(clip);const fixed=handleAt(r,{id:'nw',effect:'scale'})!;const h=getComponent(element)!.edit!.handles.find(h=>h.id==='se')!;const start=handleAt(r,h)!;const patch=dragEffect(clip,h,r,{x:start.x+80,y:start.y+10},start)!;const next=regionOf({...clip,props:{...clip.props,...patch}});expect(handleAt(next,{id:'nw',effect:'scale'})!.x).toBeCloseTo(fixed.x,3);expect(handleAt(next,{id:'nw',effect:'scale'})!.y).toBeCloseTo(fixed.y,3);}});
+ it('matches circle and triangle dimensions',()=>{expect(regionOf(makeClip('shape',{kind:'circle',width:200,height:100})).box?.width).toBe(100);expect(regionOf(makeClip('shape',{kind:'triangle',width:200,height:100})).box?.height).toBeCloseTo(100*Math.sqrt(3));});
+ it('includes non-centered trail labels without recentering the wrapper origin',()=>{const r=regionOf(makeClip('nodeTrail',{x:-100,y:30,data:JSON.stringify([{x:300,y:-50,label:'Long waypoint label'},{x:600,y:100,label:'End'}])}));expect(r.origin).toEqual({x:-100,y:30});expect(r.box!.left).toBeLessThan(200);expect(r.box!.left+r.box!.width).toBeGreaterThan(500);});
+ it('ignores measurements for authored size and props versions for coordinates',()=>{const c=makeClip('shape',{width:100,height:80});expect(elementRegion(c,project,{left:0,top:0,width:800,height:900})!.box?.width).toBe(100);expect(regionOf(makeClip('trendline',{points:{start:{x:-10,y:20},end:{x:40,y:50}}},1)).points.start).toEqual({x:-10,y:20});});
 });

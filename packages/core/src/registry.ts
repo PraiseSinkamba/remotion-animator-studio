@@ -1,4 +1,4 @@
-import type { ComponentCategory, ComponentProps, VideoComponentDefinition } from './contract';
+import type { ElementEditModel, ComponentCategory, ComponentProps, VideoComponentDefinition } from './contract';
 import type { ElementType, Project } from './schemas';
 
 /**
@@ -11,6 +11,8 @@ import type { ElementType, Project } from './schemas';
 const registry = new Map<ElementType, VideoComponentDefinition>();
 
 export const registerComponent = (definition: VideoComponentDefinition): void => {
+  if (registry.has(definition.type)) throw new Error('Duplicate component ID: ' + definition.type);
+  validateDefinition(definition);
   registry.set(definition.type, definition);
 };
 
@@ -29,3 +31,18 @@ export const buildComponentProps = (definition: VideoComponentDefinition, projec
   ...definition.defaults,
   ...('x' in definition.defaults ? { x: project.width / 2, y: project.height / 2 } : {}),
 });
+
+const validateDefinition = (definition: VideoComponentDefinition): void => {
+  const ids = new Set<string>();
+  for (const h of definition.edit?.handles ?? []) {
+    const corner = ['nw','ne','se','sw'].includes(h.id);
+    if (ids.has(h.id) || !h.id || ((h.effect === 'scale' || h.effect === 'font') && !corner) || (h.effect === 'wrap' && !['e','w'].includes(h.id)) || (['scale','font','wrap'].includes(h.effect) && !h.props?.length)) throw new Error('Invalid handle ' + definition.type + '.' + h.id);
+    ids.add(h.id);
+  }
+};
+/** Explicit replacement is reserved for callers intentionally restoring test registrations. */
+export const replaceComponent = (definition: VideoComponentDefinition): void => {
+ validateDefinition(definition); registry.set(definition.type, definition);
+};
+export const resolveEditModel = (definition: VideoComponentDefinition): ElementEditModel | undefined =>
+ (definition.renderMode !== undefined && definition.renderMode !== 'content') ? undefined : definition.edit ?? {pick:'box',handles:[]};

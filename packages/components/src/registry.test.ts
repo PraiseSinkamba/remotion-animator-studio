@@ -118,3 +118,7 @@ describe('component registry', () => {
     expect(listComponentsByCategory('base').map((d) => d.type)).toContain(type);
   });
 });
+
+it('rejects duplicate IDs without replacing their definition',()=> { const original=getComponent('text')!; expect(()=>registerComponent({...original,label:'replacement'})).toThrow(/duplicate/i); expect(getComponent('text')).toBe(original); });
+
+it('rejects invalid handles for every declaration without replacing the original',()=>{const original=getComponent('text')!; for(const edit of [{pick:'box' as const,handles:[{id:'n',effect:'wrap' as const,props:['maxWidth']}]},{pick:'box' as const,handles:[{id:'se',effect:'scale' as const}]}]) {expect(()=>registerComponent({...original,type:('invalid-'+edit.handles[0].id) as ElementType,edit})).toThrow(/Invalid handle/);} });

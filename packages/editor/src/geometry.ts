@@ -10,7 +10,7 @@
  * (screen pixels per composition pixel) — that is what makes a pick feel the
  * same at every zoom level.
  */
-import { getComponent, type Clip, type ElementHandle, type Project } from '@chart-studio/core';
+import { componentBounds, resolveEditModel, getComponent, type Clip, type ElementHandle, type Project } from '@chart-studio/core';
 
 /** A point in composition pixels. */
 export interface Point {
@@ -48,23 +48,16 @@ export interface Region {
   points: Record<string, Point>;
   /** True when the props store their points as absolute composition pixels. */
   pointsAreAbsolute: boolean;
+  origin?: Point;
+  rotation?: number;
 }
 
 /** Tolerance for a line's body, in screen pixels. */
 export const LINE_TOLERANCE_PX = 6;
 /** Tolerance for a point element, in screen pixels. */
 export const POINT_TOLERANCE_PX = 8;
-/**
- * Props version at which the drawing kinds store their points as absolute
- * composition pixels. Below it a point is a fraction of the element's frame.
- */
-export const ABSOLUTE_POINTS_PROPS_VERSION = 3;
-
 /** The smallest size a drag may leave an element at, in composition pixels. */
 export const MIN_SIZE = 1;
-
-const CORNERS = ['nw', 'ne', 'se', 'sw'] as const;
-const SIDES = ['n', 'e', 's', 'w'] as const;
 
 const OPPOSITE: Record<string, string> = { nw: 'se', ne: 'sw', se: 'nw', sw: 'ne' };
 
@@ -102,126 +95,6 @@ const rawPoints = (props: Record<string, unknown>): Record<string, Point> => {
     points[key] = { x, y };
   }
   return points;
-};
-
-/** The size of the element, from the props its scale handle writes. */
-const spanFromHandle = (
-  props: Record<string, unknown>,
-  handle: ElementHandle,
-): { width: number; height: number } | null => {
-  const names = handle.props ?? [];
-  if (names.includes('width') || names.includes('height')) {
-    const width = num(props.width);
-    const height = num(props.height);
-    if (width !== undefined && height !== undefined) return { width, height };
-  }
-  if (names.includes('size')) {
-    const size = num(props.size);
-    if (size !== undefined) return { width: size, height: size };
-  }
-  if (names.includes('gridSize') || names.includes('tileSize')) {
-    const tile = num(props.tileSize);
-    if (tile !== undefined) {
-      const side = (num(props.gridSize) ?? 1) * tile;
-      return { width: side, height: side };
-    }
-  }
-  return null;
-};
-
-/** The waypoints of a path-like element, when its props carry them. */
-const parseWaypoints = (data: unknown): Point[] | null => {
-  if (typeof data !== 'string' || data.length === 0) return null;
-  try {
-    const parsed: unknown = JSON.parse(data);
-    if (!Array.isArray(parsed)) return null;
-    const points: Point[] = [];
-    for (const entry of parsed) {
-      if (!entry || typeof entry !== 'object') continue;
-      const point = entry as Record<string, unknown>;
-      points.push({ x: num(point.x) ?? 0, y: num(point.y) ?? 0 });
-    }
-    return points.length > 0 ? points : null;
-  } catch {
-    return null;
-  }
-};
-
-/** How many characters the element's content holds. */
-const textLength = (props: Record<string, unknown>): number => {
-  if (typeof props.text === 'string') return Math.max(1, props.text.length);
-  if (typeof props.before === 'string' || typeof props.after === 'string' || typeof props.highlight === 'string') {
-    const text = [props.before, props.highlight, props.after]
-      .filter((part): part is string => typeof part === 'string')
-      .join('');
-    return Math.max(1, text.length);
-  }
-  if (typeof props.char === 'string') return 1;
-  if (num(props.to) !== undefined) return Math.max(1, String(props.to).length);
-  if (typeof props.label === 'string') return Math.max(1, props.label.length);
-  return 1;
-};
-
-/**
- * The box of an element that has no size of its own — a text element, whose
- * real box is measured from the rendered text. Until the shell measures it,
- * this is the estimate the handles work on.
- */
-const estimateBox = (
-  props: Record<string, unknown>,
-  anchor: Point,
-  project: Project,
-): Box => {
-  const waypoints = parseWaypoints(props.data);
-  if (waypoints) {
-    const xs = waypoints.map((point) => point.x);
-    const ys = waypoints.map((point) => point.y);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    return {
-      left: anchor.x + minX,
-      top: anchor.y + minY,
-      width: Math.min(project.width, maxX - minX),
-      height: Math.min(project.height, maxY - minY),
-    };
-  }
-  const fontSize = num(props.fontSize);
-  const size = num(props.size);
-  if (fontSize === undefined && size !== undefined) {
-    return centredBox(anchor, size, size);
-  }
-  const em = fontSize ?? size ?? 48;
-  return centredBox(
-    anchor,
-    Math.min(project.width, em * 0.6 * textLength(props)),
-    Math.min(project.height, em * 1.25),
-  );
-};
-
-/** The element's own box — the frame its fractional points live in. */
-const frameFor = (
-  props: Record<string, unknown>,
-  edit: { pick: PickKind; handles: ElementHandle[] },
-  anchor: Point,
-  project: Project,
-  measured?: Box | null,
-): Box | null => {
-  if (edit.pick === 'point') return null;
-  // A measured box is the element's own size, read from the rendered frame:
-  // it beats any estimate the props can offer.
-  if (measured && !edit.handles.some((handle) => handle.effect === 'scale')) return centredBox(anchor, measured.width, measured.height);
-  const scale = edit.handles.find((handle) => handle.effect === 'scale');
-  if (scale) {
-    const span = spanFromHandle(props, scale);
-    if (span) return centredBox(anchor, span.width, span.height);
-  }
-  const width = num(props.width);
-  const height = num(props.height);
-  if (width !== undefined && height !== undefined) return centredBox(anchor, width, height);
-  if (edit.pick === 'box') return estimateBox(props, anchor, project);
-  return null;
 };
 
 /** A point from the props, in composition pixels. */
@@ -299,16 +172,20 @@ export const elementRegion = (
   measured?: Box | null,
 ): Region | null => {
   const definition = getComponent(clip.element);
-  const edit = definition?.edit ?? (definition && (definition.renderMode === undefined || definition.renderMode === 'content') ? { pick: 'box' as const, handles: [] } : undefined);
+  const edit = definition ? resolveEditModel(definition) : undefined;
   if (!definition || !edit) return null;
 
   const props = mergedProps(clip);
   const anchor: Point = { x: num(props.x) ?? 0, y: num(props.y) ?? 0 };
-  const version = clip.propsVersion ?? definition.propsVersion ?? 1;
-  const pointsAreAbsolute = version >= ABSOLUTE_POINTS_PROPS_VERSION;
-  const frame = frameFor(props, edit, anchor, project, measured);
+  const pointsAreAbsolute = edit.coordinates === 'absolute';
+  const declared = definition.geometry?.(props, edit.contentSized && measured ? measured : undefined);
+  const bounds = (definition.bounds ?? componentBounds)(props);
+  const frame = declared ? declared.box : (edit.pick === 'point' ? null : centredBox({x:bounds.x,y:bounds.y}, bounds.width,bounds.height));
+  if (declared) {
+    anchor.x = declared.anchor.x; anchor.y = declared.anchor.y;
+  }
 
-  const points: Record<string, Point> = {};
+  const points: Record<string, Point> = {...declared?.points};
   for (const handle of edit.handles) {
     if (handle.effect !== 'point' && handle.effect !== 'level') continue;
     const raw = rawPoints(props)[handle.id];
@@ -317,7 +194,7 @@ export const elementRegion = (
   }
 
   if (edit.pick === 'point') {
-    return { pick: 'point', box: null, frame, anchor, points, pointsAreAbsolute };
+    return { pick: 'point', box: null, frame, anchor, points, pointsAreAbsolute, origin: declared?.origin ?? anchor, rotation: declared?.rotation };
   }
   if (edit.pick === 'segment') {
     const ends = Object.values(points);
@@ -330,7 +207,7 @@ export const elementRegion = (
       pointsAreAbsolute,
     };
   }
-  return { pick: 'box', box: frame, frame, anchor, points, pointsAreAbsolute };
+  return { pick: 'box', box: frame, frame, anchor, points, pointsAreAbsolute, origin: declared?.origin ?? anchor, rotation: declared?.rotation };
 };
 
 /**
@@ -398,6 +275,7 @@ const scaleDrag = (
   handle: ElementHandle,
   region: Region,
   pointer: Point,
+  clip: Clip,
 ): Record<string, unknown> | null => {
   const box = region.box;
   const oppositeId = OPPOSITE[handle.id];
@@ -414,26 +292,21 @@ const scaleDrag = (
   const ky = box.height > 0 ? height / box.height : 1;
   const k = (kx + ky) / 2;
 
+  const definition = getComponent(clip.element);
+  const resize = definition?.edit?.resize;
+  const uniform = (typeof resize === 'function' ? resize(props) : resize) === 'uniform';
   const patch: Record<string, unknown> = {};
   for (const name of handle.props ?? []) {
-    if (name === 'width') {
-      patch.width = round(width);
-    } else if (name === 'height') {
-      patch.height = round(height);
-    } else if (name === 'size') {
-      const size = num(props.size);
-      if (size !== undefined) patch.size = Math.max(MIN_SIZE, Math.round(size * k));
-    } else if (name === 'tileSize') {
-      const tile = num(props.tileSize);
-      if (tile !== undefined) patch.tileSize = Math.max(MIN_SIZE, Math.round(tile * Math.sqrt(k)));
-    } else if (name === 'gridSize') {
-      const grid = num(props.gridSize);
-      if (grid !== undefined) patch.gridSize = Math.max(2, Math.round(grid * Math.sqrt(k)));
-    }
+    const value = num(props[name]);
+    if (value === undefined) continue;
+    patch[name] = round(Math.max(MIN_SIZE, uniform ? value * k : name === 'width' ? width : name === 'height' ? height : value * k));
   }
-  if (Object.keys(patch).length === 0) return null;
-  patch.x = round(fixed.x + (signX * width) / 2);
-  patch.y = round(fixed.y + (signY * height) / 2);
+  if (!Object.keys(patch).length) return null;
+  const next = definition?.geometry?.({...props,...patch});
+  const nextBounds = definition ? (definition.bounds ?? componentBounds)({...props,...patch}) : null;
+  const actual = next?.box ?? (nextBounds ? centredBox({x:nextBounds.x,y:nextBounds.y},nextBounds.width,nextBounds.height) : box);
+  patch.x = round(fixed.x + signX * actual.width / 2);
+  patch.y = round(fixed.y + signY * actual.height / 2);
   return patch;
 };
 
@@ -544,7 +417,7 @@ export const dragEffect = (
   const props = mergedProps(clip);
   switch (handle.effect) {
     case 'scale':
-      return scaleDrag(props, handle, region, pointer);
+      return scaleDrag(props, handle, region, pointer, clip);
     case 'font':
       return fontDrag(props, handle, region, pointer, start);
     case 'wrap':

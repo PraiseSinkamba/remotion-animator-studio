@@ -142,7 +142,21 @@ export interface ElementHandle {
  *
  * An element that declares no edit model keeps the plain box behaviour.
  */
+export interface EditPoint { x: number; y: number }
+export interface EditBox { left: number; top: number; width: number; height: number }
+export interface ComponentGeometry {
+  anchor: EditPoint;
+  box: EditBox | null;
+  /** CSS wrapper origin for pose projection; may differ from the pick box center. */
+  origin: EditPoint;
+  /** Intrinsic renderer rotation in degrees, applied before clip effects. */
+  rotation?: number;
+  points?: Record<string, EditPoint>;
+}
 export interface ElementEditModel {
+  coordinates?: 'absolute' | 'fractional';
+  resize?: 'axes' | 'uniform' | ((props: Record<string, unknown>) => 'axes' | 'uniform');
+  contentSized?: boolean;
   /** How the element is picked. */
   pick: ElementPickKind;
   /** The handles the editor draws on the element while it is selected. */
@@ -239,6 +253,7 @@ export interface VideoComponentDefinition {
    * pixels. The selection overlay draws this rectangle; it is metadata and
    * never reaches the composition, so it cannot change a rendered pixel.
    */
+  geometry?: (props: Record<string, unknown>, measured?: { width: number; height: number }) => ComponentGeometry;
   bounds?: (props: Record<string, unknown>) => ComponentBounds;
   /**
    * Optional edit model: how the element is picked and which handles the

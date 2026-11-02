@@ -135,3 +135,7 @@ The verbatim upstream tree lives in `vendor/remocn/source/` and sits outside eve
 TypeScript configuration, so it is a record rather than code that compiles. The two upstream
 module paths it imports — `@/components/remocn/caret` and `@/lib/remocn-ui` — are the upstream
 project's own layout, not this repository's, and are not resolved here.
+
+## 2026-11-02 editing capability repair
+
+All three adapted components now accept an optional maxWidth prop. A positive width enables normal wrapping and overflow-wrap:anywhere on the title span; omitted/zero width preserves the original nowrap output. The registered east/west wrap handles pass this prop through their render adapters. Animation maths and verbatim vendor sources remain unchanged. Local props interfaces therefore include this additional optional field.

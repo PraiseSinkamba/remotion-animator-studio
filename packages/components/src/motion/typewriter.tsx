@@ -38,6 +38,7 @@ export interface TypewriterProps {
   color?: string;
   cursorColor?: string;
   fontWeight?: number;
+  maxWidth?: number;
   className?: string;
 }
 
@@ -50,6 +51,7 @@ export function Typewriter({
   color = "#171717",
   cursorColor = "#171717",
   fontWeight = 600,
+  maxWidth,
   className,
 }: TypewriterProps) {
   const tw = useTypewriter(text, { cps: charsPerSecond, speed });
@@ -70,7 +72,9 @@ export function Typewriter({
           color,
           letterSpacing: "-0.03em",
           fontFamily: "Helvetica, Arial, sans-serif",
-          whiteSpace: "nowrap",
+          maxWidth: maxWidth && maxWidth > 0 ? maxWidth : undefined,
+          whiteSpace: maxWidth && maxWidth > 0 ? 'normal' : 'nowrap',
+          overflowWrap: maxWidth && maxWidth > 0 ? 'anywhere' : undefined,
         }}
       >
         {tw.text}

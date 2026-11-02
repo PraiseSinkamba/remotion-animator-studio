@@ -60,24 +60,12 @@ export const clipProps = (clip: Clip): Record<string, unknown> | null => {
  */
 export const clipGeometry = (clip: Clip): ClipGeometry | null => {
   const props = clipProps(clip);
-  if (!props) return null;
   const definition = getComponent(clip.element);
-  if (!definition) return null;
-  // Audio and background layers are not drawn as a positioned box.
-  if (definition.renderMode === 'audio' || definition.renderMode === 'background') return null;
-  if (typeof props.x !== 'number' || typeof props.y !== 'number') return null;
-  const bounds = definition.bounds ? definition.bounds(props) : componentBounds(props);
-  return {
-    anchor: { x: props.x, y: props.y },
-    // The compositor centres the content on the anchor, so the box spans
-    // `anchor ± size / 2` — the same rectangle the selection overlay draws.
-    box: {
-      left: props.x - bounds.width / 2,
-      top: props.y - bounds.height / 2,
-      width: bounds.width,
-      height: bounds.height,
-    },
-  };
+  if (!props || !definition || (definition.renderMode && definition.renderMode !== 'content')) return null;
+  const geometry = definition.geometry?.(props);
+  if (geometry) return geometry.box ? {anchor:geometry.anchor,box:geometry.box} : null;
+  const bounds = (definition.bounds ?? componentBounds)(props);
+  return {anchor:{x:bounds.x,y:bounds.y},box:{left:bounds.x-bounds.width/2,top:bounds.y-bounds.height/2,width:bounds.width,height:bounds.height}};
 };
 
 /**

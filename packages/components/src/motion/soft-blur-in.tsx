@@ -31,6 +31,7 @@ export interface SoftBlurInProps {
   color?: string;
   fontWeight?: number;
   speed?: number;
+  maxWidth?: number;
   className?: string;
 }
 
@@ -41,6 +42,7 @@ export function SoftBlurIn({
   color = "#171717",
   fontWeight = 600,
   speed = 1,
+  maxWidth,
   className,
 }: SoftBlurInProps) {
   const frame = useCurrentFrame() * speed;
@@ -66,7 +68,9 @@ export function SoftBlurIn({
           color,
           letterSpacing: "-0.05em",
           fontFamily: "Helvetica, Arial, sans-serif",
-          whiteSpace: "nowrap",
+          maxWidth: maxWidth && maxWidth > 0 ? maxWidth : undefined,
+          whiteSpace: maxWidth && maxWidth > 0 ? 'normal' : 'nowrap',
+          overflowWrap: maxWidth && maxWidth > 0 ? 'anywhere' : undefined,
         }}
       >
         {chars.map((char, i) => {

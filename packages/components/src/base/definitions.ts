@@ -1,3 +1,4 @@
+import {makeStar, makePolygon, makePie} from '@remotion/shapes';
 /**
  * The 22 base elements inherited from the upstream editor, expressed as
  * registry definitions. Importing this module registers all of them.
@@ -55,7 +56,7 @@ const scaleCorners = (props: string[]): ElementHandle[] =>
 /** The corners and sides of a content element — the content is the truth. */
 const contentHandles = (fontProps: string[], wrapProps: string[] = ['maxWidth']): ElementHandle[] => [
   ...['nw', 'ne', 'se', 'sw'].map((id): ElementHandle => ({ id, effect: 'font', props: fontProps })),
-  ...['n', 'e', 's', 'w'].map((id): ElementHandle => ({ id, effect: 'wrap', props: wrapProps })),
+  ...['e', 'w'].map((id): ElementHandle => ({ id, effect: 'wrap', props: wrapProps })),
 ];
 
 const definitions: VideoComponentDefinition[] = [
@@ -122,7 +123,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'fontWeight', label: 'Weight', kind: 'select', options: ['300', '400', '500', '700', '900'] },
       ...POSITION,
     ],
-    edit: { pick: 'box', handles: contentHandles(['fontSize']) },
+    edit: { pick: 'box', handles: contentHandles(['fontSize']).filter(h=>h.effect==='font') },
     render: CounterAdapter,
   },
   {
@@ -527,7 +528,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
-    edit: { pick: 'box', handles: scaleCorners(['gridSize', 'tileSize']) },
+    edit: { pick: 'box', handles: scaleCorners(['tileSize']) },
     render: IsoCityAdapter,
   },
   {
@@ -682,7 +683,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'opacity', label: 'Opacity', kind: 'number', min: 0, max: 1, step: 0.01 },
       ...POSITION,
     ],
-    edit: { pick: 'box', handles: contentHandles(['fontSize']) },
+    edit: { pick: 'box', handles: [] },
     render: NodeTrailAdapter,
   },
   {
@@ -698,7 +699,7 @@ const definitions: VideoComponentDefinition[] = [
       { key: 'size', label: 'Size', kind: 'number', min: 16, max: 1200, step: 1 },
       ...POSITION,
     ],
-    edit: { pick: 'box', handles: contentHandles(['size'], ['size']) },
+    edit: { pick: 'box', handles: contentHandles(['size'], []).filter(h => h.effect === 'font') },
     render: EmojiAdapter,
   },
   {
@@ -720,8 +721,44 @@ const definitions: VideoComponentDefinition[] = [
   },
 ];
 
+const baseBounds = (definition: VideoComponentDefinition, p: Record<string, unknown>, measured?: {width:number;height:number}) => {
+ const anchor = {x:Number(p.x ?? 0),y:Number(p.y ?? 0)};
+ if (definition.type === 'nodeTrail') {
+   let points: {x:number;y:number;label?:string}[] = [];
+   try { const parsed: unknown = JSON.parse(String(p.data)); if(Array.isArray(parsed)) points = parsed.filter(q => q && typeof q.x === 'number' && typeof q.y === 'number'); } catch { /* empty geometry */ }
+   const font=Number(p.fontSize), radius=Number(p.nodeSize);
+   const left=Math.min(0,...points.map(q=>q.x-Math.max(radius,String(q.label ?? '').length*font*0.35)));
+   const right=Math.max(0,...points.map(q=>q.x+Math.max(radius,String(q.label ?? '').length*font*0.35)));
+   const top=Math.min(0,...points.map((q,i)=>q.y-(i%2===0?radius*2+font:radius)));
+   const bottom=Math.max(0,...points.map((q,i)=>q.y+(i%2?radius*2+font:radius)));
+   return {x:anchor.x+(left+right)/2,y:anchor.y+(top+bottom)/2,width:right-left,height:bottom-top};
+ }
+ if(measured) return {...anchor,...measured};
+ if(definition.type === 'isoCity') { const n=Math.max(2,Math.min(9,Math.round(Number(p.gridSize)))); const t=Number(p.tileSize); return {...anchor,width:(2*n+1)*t,height:(n+1)*t+Number(p.buildingHeight)}; }
+ if(['blob','cursor','neonSun'].includes(definition.type)) return {...anchor,width:Number(p.size),height:Number(p.size)};
+ if(definition.type === 'shape') {
+   const w=Number(p.width),h=Number(p.height);
+   if(p.kind==='circle') return {...anchor,width:Math.min(w,h),height:Math.min(w,h)};
+   if(p.kind==='triangle') { const altitude=w*Math.sqrt(3)/2; return {...anchor,width:['left','right'].includes(String(p.direction))?altitude:w,height:['left','right'].includes(String(p.direction))?w:altitude}; }
+   if(p.kind==='star') {const b=makeStar({points:Number(p.points)||5,outerRadius:w/2,innerRadius:w/2*Number(p.innerRatio??0.5)});return {...anchor,width:b.width,height:b.height};}
+   if(p.kind==='polygon') {const b=makePolygon({points:Number(p.points)||6,radius:w/2});return {...anchor,width:b.width,height:b.height};}
+   if(p.kind==='pie') {const b=makePie({radius:w/2,progress:Number(p.progress??0.75)});return {...anchor,width:b.width,height:b.height};}
+ }
+ if(['text','counter','emoji'].includes(definition.type)) {const em=Number(p.fontSize ?? p.size ?? 48); const length=String(p.text ?? p.char ?? p.to ?? '').length || 1; const width=em*0.6*length; const wrap=Number(p.maxWidth);return {...anchor,width:wrap>0?Math.min(width,wrap):width,height:em*1.25*(wrap>0?Math.ceil(width/wrap):1)};}
+ return componentBounds(p);
+};
+
 // Every legacy element reports its selection box: the anchor it sits on plus
 // its own size, so the editor overlay can frame it.
 definitions.forEach((definition) =>
-  registerComponent({ ...definition, bounds: definition.bounds ?? componentBounds }),
+  registerComponent({
+    ...definition,
+    edit: definition.edit ? {...definition.edit, coordinates: 'fractional', contentSized: ['text','counter','emoji'].includes(definition.type), resize: definition.type === 'shape' ? (props) => ['rect','ellipse'].includes(String(props.kind)) ? 'axes' : 'uniform' : ['blob','cursor','neonSun','isoCity'].includes(definition.type) ? 'uniform' : 'axes'} : undefined,
+    geometry: (props, measured) => {
+      const b = baseBounds(definition, props, measured);
+      const anchor = {x:Number(props.x ?? 0),y:Number(props.y ?? 0)};
+      return {anchor, origin: anchor, rotation: definition.type === 'shape' ? Number(props.rotation ?? 0) : 0, box:{left:b.x-b.width/2,top:b.y-b.height/2,width:b.width,height:b.height}};
+    },
+    bounds: (props) => baseBounds(definition, {...definition.defaults,...props}),
+  }),
 );

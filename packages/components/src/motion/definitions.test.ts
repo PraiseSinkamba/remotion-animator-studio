@@ -189,3 +189,5 @@ describe('render adapters', () => {
     }
   });
 });
+
+it.each([remocnSoftBlurInDefinition,remocnTypewriterDefinition])('renders supported wrap width through $type',definition=>{const props={...definition.defaults,maxWidth:120};const clip=makeClip(definition.type,props);const ui=render(createElement(definition.render,{clip,props,frame:30,fps:30}));const span=ui.container.querySelector('span')!;expect(span.style.maxWidth).toBe('120px');expect(span.style.whiteSpace).toBe('normal');});

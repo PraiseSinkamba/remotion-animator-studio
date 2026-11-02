@@ -150,7 +150,18 @@ const drawingDefinition = (
   propsVersion: 3,
   defaults,
   params,
-  edit,
+  edit: {...edit, coordinates: 'absolute', resize: 'axes'},
+  geometry: (props) => {
+    const ownShape = shape(props);
+    const b = bounds(props);
+    const anchor = {x: ownShape?.x ?? 0, y: ownShape?.y ?? 0};
+    const points: Record<string, DrawingPoint> = {};
+    const raw = props.points;
+    if (raw && typeof raw === 'object') for(const [id, value] of Object.entries(raw)) {
+      if(value && typeof value === 'object' && 'x' in value && 'y' in value && typeof value.x === 'number' && typeof value.y === 'number') points[id] = {x:value.x,y:value.y};
+    }
+    return {anchor,origin:anchor,box:ownShape ? {left:b.x-b.width/2,top:b.y-b.height/2,width:b.width,height:b.height} : null,points};
+  },
   render: ({ clip, props }: ComponentRenderContext): React.ReactElement | null => {
     if (clip.hidden) return null;
     // The definition's defaults under the clip's own props: a drawing that

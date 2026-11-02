@@ -39,6 +39,7 @@ export interface MarkerHighlightProps {
   fontSize?: number;
   fontWeight?: number;
   speed?: number;
+  maxWidth?: number;
   className?: string;
 }
 
@@ -52,6 +53,7 @@ export function MarkerHighlight({
   fontSize = 72,
   fontWeight = 600,
   speed = 1,
+  maxWidth,
   className,
 }: MarkerHighlightProps) {
   const frame = useCurrentFrame() * speed;
@@ -90,7 +92,9 @@ export function MarkerHighlight({
           fontFamily: 'Helvetica, Arial, sans-serif',
           // The compositor places this component at (x, y) inside a shrink-to-fit
           // box, so a long title would otherwise wrap at the canvas edge.
-          whiteSpace: 'nowrap',
+          maxWidth: maxWidth && maxWidth > 0 ? maxWidth : undefined,
+          whiteSpace: maxWidth && maxWidth > 0 ? 'normal' : 'nowrap',
+          overflowWrap: maxWidth && maxWidth > 0 ? 'anywhere' : undefined,
         }}
       >
         {before}
