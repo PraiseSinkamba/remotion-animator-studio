@@ -12,3 +12,19 @@ describe('encoded visual data',()=>{
  expect(normalizeComponentProps(getComponent('commitGraph')!,{data:'[{"m":5,"b":"wrong"}]'}).ok).toBe(false);
  });
 });
+
+it('rejects counter decimal counts outside the toFixed domain', () => {
+ const def=getComponent('counter')!;
+ for (const decimals of [-1,101,1.5]) {
+  expect(normalizeComponentProps(def,{decimals})).toMatchObject({ok:false,issues:[{path:'decimals'}]});
+ }
+ for (const decimals of [0,100]) expect(normalizeComponentProps(def,{decimals}).ok).toBe(true);
+});
+
+it('rejects point counts the shape helpers cannot render', () => {
+ const def=getComponent('shape')!;
+ for (const [kind,points] of [['star',-1],['star',2.5],['polygon',2],['polygon',3.5]] as const) {
+  expect(normalizeComponentProps(def,{kind,points})).toMatchObject({ok:false,issues:[{path:'points'}]});
+ }
+ for (const [kind,points] of [['star',1],['polygon',3]] as const) expect(normalizeComponentProps(def,{kind,points}).ok).toBe(true);
+});

@@ -5,6 +5,23 @@ export function createBasePropsValidator(definition: VideoComponentDefinition): 
   const validateScalars = createPropsValidator(definition.defaults, definition.params);
   return (raw) => {
     const normalized = validateScalars(raw);
+    if (normalized.ok && definition.type === 'counter') {
+      const decimals = normalized.value.decimals;
+      if (typeof decimals !== 'number' || !Number.isInteger(decimals) || decimals < 0 || decimals > 100) {
+        return { ok: false, issues: [{ path: 'decimals', message: 'Expected an integer from 0 to 100' }] };
+      }
+    }
+    if (normalized.ok && definition.type === 'shape') {
+      const {kind, points} = normalized.value;
+      if ((kind === 'star' || kind === 'polygon') && typeof points === 'number' && points !== 0) {
+        // Remotion allocates points*2 for a star and points for a polygon.
+        const max = kind === 'star' ? 0x7fffffff : 0xffffffff;
+        const min = kind === 'star' ? 1 : 3;
+        if (!Number.isInteger(points) || points < min || points > max) {
+          return {ok:false, issues:[{path:'points',message:`Expected an integer from ${min} to ${max}`} ]};
+        }
+      }
+    }
     if (!normalized.ok || !['nodeTrail', 'commitGraph'].includes(definition.type)) return normalized;
     const data = normalized.value.data;
     if (typeof data !== 'string') return { ok: false, issues: [{path:'data',message:'Expected JSON text'}] };

@@ -890,3 +890,16 @@ it('rejects missing required current fields while preserving permitted legacy de
  const doc=legacyProject();Object.assign(doc.tracks[0],{id:undefined,name:undefined});
  expect(migrateProject(doc).tracks[0]).toMatchObject({id:'t-0',name:'Track 1'});
 });
+
+it('rejects malformed effects and counter decimals on import with useful paths',()=>{
+ for (const effect of [
+  {id:'bad',type:'unknown',params:{}},
+  {id:'bad',type:'fadeIn',params:{duration:0}},
+  {id:'bad',type:'fadeIn',params:{easing:'unknown'}},
+ ]) {
+  const doc=legacyProject(); doc.schemaVersion=4; doc.tracks[0].clips[0].effects=[effect] as never;
+  expect(()=>migrateProject(doc)).toThrow(/effect/i);
+ }
+ const doc=legacyProject(); doc.schemaVersion=4; doc.tracks[0].clips[0].element='counter';doc.tracks[0].clips[0].props={decimals:101};
+ expect(()=>migrateProject(doc)).toThrow(/c1.*decimals/);
+});

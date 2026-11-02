@@ -4,7 +4,8 @@ import { EFFECTS, bezierToCurve, curveToBezier, getEasing } from '@chart-studio/
 import { useStore } from '@chart-studio/editor';
 import type { Clip, Curve } from '@chart-studio/core';
 import { CURVE_PRESETS, PRESET_CONTROL_POINTS } from '@chart-studio/core';
-import { Button, CurveEditor, ParamControl } from '@chart-studio/ui';
+import { Button, CurveEditor } from '@chart-studio/ui';
+import { TransactionalParamControl } from './transactional-param-control';
 
 /**
  * The curve of a custom bezier, snapped back to a preset when it matches one.
@@ -83,12 +84,11 @@ export const EffectList: React.FC<{ clip: Clip; commit: () => void }> = ({ clip,
                     : def;
                 return (
                   <React.Fragment key={def.key}>
-                    <ParamControl
+                    <TransactionalParamControl
                       def={framed}
                       value={fx.params[def.key] ?? fxDef.defaults[def.key]}
                       idPrefix={`${clip.id}-fx-${fx.id}`}
-                      onCommit={commit}
-                      onChange={(v) => updateEffectParams(clip.id, fx.id, { [def.key]: v })}
+                      onChange={(v, recordHistory) => updateEffectParams(clip.id, fx.id, { [def.key]: v }, recordHistory)}
                     />
                     {def.key === 'easing' ? (
                       <EasingPreview

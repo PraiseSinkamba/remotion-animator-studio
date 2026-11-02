@@ -53,42 +53,8 @@ export type ElementType =
   | 'crossfade'
   | 'wipe';
 
-export type EffectType =
-  | 'fadeIn'
-  | 'fadeOut'
-  | 'slideIn'
-  | 'slideOut'
-  | 'zoomIn'
-  | 'zoomOut'
-  | 'springPop'
-  | 'spinIn'
-  | 'rotate'
-  | 'pulse'
-  | 'wiggle'
-  | 'blurIn'
-  | 'typewriter'
-  | 'wipeIn'
-  | 'wipeOut'
-  | 'kenBurns'
-  | 'shake'
-  | 'glitch'
-  | 'rgbSplit'
-  | 'glow'
-  | 'shadow'
-  | 'shine'
-  | 'strobe'
-  | 'letterPop'
-  | 'drift'
-  | 'transform'
-  | 'motionPath'
-  | 'bounceDrop'
-  | 'flipIn'
-  | 'flipOut'
-  | 'colorAdjust'
-  | 'flicker'
-  | 'float'
-  | 'clickPulse'
-  | 'letterWave';
+export const EFFECT_TYPES = ['fadeIn', 'fadeOut', 'slideIn', 'slideOut', 'zoomIn', 'zoomOut', 'springPop', 'spinIn', 'rotate', 'pulse', 'wiggle', 'blurIn', 'typewriter', 'wipeIn', 'wipeOut', 'kenBurns', 'shake', 'glitch', 'rgbSplit', 'glow', 'shadow', 'shine', 'strobe', 'letterPop', 'drift', 'transform', 'motionPath', 'bounceDrop', 'flipIn', 'flipOut', 'colorAdjust', 'flicker', 'float', 'clickPulse', 'letterWave'] as const;
+export type EffectType = (typeof EFFECT_TYPES)[number];
 
 export interface EffectInstance {
   id: string;

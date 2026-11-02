@@ -116,3 +116,34 @@ check known fields. Static HTML is deliberately narrow; no vulnerability audit w
 projection remains a planar model, not a separate 3D engine. Browser coverage is one installed
 Windows Chromium, not Safari/Firefox/mobile/codec/storage-failure coverage. Final broad
 independent review remains controller-owned. No complete future creator release gate is claimed.
+
+## Final review fix wave — 2026-11-02
+
+The final review's lock, validation and arrow findings were addressed in the subsequent fix wave.
+User mutations filter locked members from mixed clip selections; destructive track removal and layer
+swaps involving locked clips are rejected; chart-group relayout is rejected when a member is locked.
+Project settings and edits through an unlocked chart can still affect derived appearance or shared data.
+The common inspector and effect controls record a snapshot only on the first accepted change in a
+focus/drag gesture; custom controls retain their own history policies. Tests cover locked deletion,
+layer movement, grouping, path completion, drawing updates and actual inspector/effect undo.
+
+Known effect names, supplied parameter types/options and render-sensitive frame/spring constraints
+are checked at migration and edit boundaries, while allowed extension fields survive. Counter
+precision uses the JavaScript `toFixed` integer range 0–100. Shape point counts respect the installed
+Remotion helper and JavaScript array preconditions; pie progress is clamped by the helper and finite
+star inner radii remain supported. Shared arrow head and stroke geometry supplies both SVG rendering
+and generic editor picking; coincident endpoints render as a diamond.
+
+The isolated browser verifier exited 0 after idempotent test-only stage alignment. It measured stage
+origin (338,134) at all sampled frames, non-null visible rectangle bounds at 10/25/59, and chart-label
+mean RGB error 2.528098/255 at frames 0/10/25/59 and 0 at 60, retaining the original <3 threshold.
+An earlier run while source changed failed that threshold at 6.689850/255 and is superseded. The
+updated [browser results](element-repair-browser-results.json) contain the actual frame measurements.
+These observations remain limited to the synthetic fixture, rectangle geometry and chart-label crop;
+they do not claim whole-frame or all-catalogue pixel parity.
+
+Final frozen-source gates: full Vitest **37 files / 582 tests**, six typechecks **6/6**, and
+production build **1/1** all exited 0. The real R1 verifier exited 0 after producing six Main
+stills, three AuthoredPath stills, and the 240-frame H.264 MP4 (212,711 bytes). Main frame 45 and
+browser preview frame 25 were inspected. Build retained the existing third-party PURE-annotation
+and large-chunk warnings. No lint script is available.

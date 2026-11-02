@@ -81,6 +81,12 @@
         "exported": null,
         "chartLabelMeanRgbError": 2.5280982905982907
       },
+      "stage": {
+        "x": 338,
+        "y": 134,
+        "width": 960,
+        "height": 540
+      },
       "toleranceCompositionPx": 3
     },
     {
@@ -101,6 +107,12 @@
           "count": 178
         },
         "chartLabelMeanRgbError": 2.5280982905982907
+      },
+      "stage": {
+        "x": 338,
+        "y": 134,
+        "width": 960,
+        "height": 540
       },
       "toleranceCompositionPx": 3
     },
@@ -123,6 +135,12 @@
         },
         "chartLabelMeanRgbError": 2.5280982905982907
       },
+      "stage": {
+        "x": 338,
+        "y": 134,
+        "width": 960,
+        "height": 540
+      },
       "toleranceCompositionPx": 3
     },
     {
@@ -144,6 +162,12 @@
         },
         "chartLabelMeanRgbError": 2.5280982905982907
       },
+      "stage": {
+        "x": 338,
+        "y": 134,
+        "width": 960,
+        "height": 540
+      },
       "toleranceCompositionPx": 3
     },
     {
@@ -152,6 +176,12 @@
         "preview": null,
         "exported": null,
         "chartLabelMeanRgbError": 0
+      },
+      "stage": {
+        "x": 338,
+        "y": 134,
+        "width": 960,
+        "height": 540
       },
       "toleranceCompositionPx": 3
     }

@@ -15,6 +15,7 @@
  * `migrateProject(migrateProject(p))` deep-equals `migrateProject(p)`.
  */
 import { getComponent } from './registry';
+import { validateEffect } from './base/effects';
 import { computePriceRange, materialiseSeries, validateProjectScalars, validateProjectDocument, normalizeComponentProps } from '@chart-studio/core';
 import type {
   Clip,
@@ -939,7 +940,20 @@ export const migrateProject = (raw: unknown): Project => {
     schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
   };
   const validated=validateProjectDocument(result);
-  if(!validated.ok) fail(`Invalid project file: ${validated.issues[0].path}: ${validated.issues[0].message}`);
+  if(!validated.ok) {
+    const issue = validated.issues[0];
+    const match = /^tracks\.(\d+)\.clips\.(\d+)\.effects\.(\d+)(?:\.(.*))?$/.exec(issue.path);
+    if (match) {
+      const clip = result.tracks[Number(match[1])]?.clips[Number(match[2])];
+      const effect = clip?.effects[Number(match[3])];
+      fail(`Clip "${clip?.id}" effect "${effect?.id}" ${match[4] ?? ''}: ${issue.message}`);
+    }
+    fail(`Invalid project file: ${issue.path}: ${issue.message}`);
+  }
+  for (const track of result.tracks) for (const clip of track.clips) for (const effect of clip.effects) {
+    const issue = validateEffect(effect);
+    if (issue) fail(`Clip "${clip.id}" effect "${effect.id}" ${issue.path}: ${issue.message}`);
+  }
   const ids=new Set<string>();
   for(const track of result.tracks) for(const clip of track.clips) {
     if(ids.has(clip.id)) fail(`Duplicate clip ID "${clip.id}"`);

@@ -116,7 +116,6 @@ export const TrackRow: React.FC<{
           if (e.target === e.currentTarget) {
             const sel = useStore.getState().selectedClipIds;
             if (sel.length === 1 && e.shiftKey) {
-              useStore.getState().commit();
               moveClipToTrack(sel[0], track.id);
             } else if (!isAdditive(e)) useStore.getState().selectClip(null);
           }

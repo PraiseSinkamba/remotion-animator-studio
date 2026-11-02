@@ -49,6 +49,8 @@ export interface Region {
   points: Record<string, Point>;
   /** True when the props store their points as absolute composition pixels. */
   pointsAreAbsolute: boolean;
+  pickPolygons?: Point[][];
+  pickStrokes?: {from: Point; to: Point; width: number}[];
   origin?: Point;
   rotation?: number;
   pose?: ElementPose;
@@ -209,6 +211,8 @@ const authoredRegion = (
     const ends = Object.values(points);
     return {
       pick: 'segment',
+      pickPolygons: declared?.pickPolygons,
+      pickStrokes: declared?.pickStrokes,
       box: ends.length === 2 ? boundsOf(ends[0], ends[1]) : null,
       frame,
       anchor,
@@ -243,6 +247,16 @@ export const projectedCorners = (region:Region):Point[] => {
  * composition pixels inside. The same pointer therefore hits the same
  * element at every zoom level.
  */
+const inPolygon = (point: Point, polygon: Point[]): boolean => {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i], b = polygon[j];
+    if (distanceToSegment(point, a, b) < 1e-9) return true;
+    if ((a.y > point.y) !== (b.y > point.y) && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+};
+
 export const hitsElement = (
   pick: PickKind,
   region: Region,
@@ -258,6 +272,10 @@ export const hitsElement = (
     }
     const tolerance = tolerancePx / (scale > 0 ? scale : 1);
     if (pick === 'segment') {
+      const authored = region.pose.toAuthored(point);
+      if (authored && region.pickStrokes?.some(s => distanceToSegment(authored, s.from, s.to) <= s.width / 2)) return true;
+      const polygons = region.pickPolygons?.map(p => region.pose!.projectVisible(p, true)) ?? [];
+      if (polygons.some(p => p.length >= 3 && inPolygon(point, p))) return true;
       const ends = region.pose.projectVisible(Object.values(region.points), false);
       return ends.length === 2 && distanceToSegment(point, ends[0], ends[1]) <= tolerance;
     }
@@ -278,6 +296,8 @@ export const hitsElement = (
   if (pick === 'point') {
     return distance(point, region.anchor) <= tolerance;
   }
+  if (region.pickPolygons?.some(p => inPolygon(point, p))) return true;
+  if (region.pickStrokes?.some(s => distanceToSegment(point, s.from, s.to) <= s.width / 2 + tolerance)) return true;
   const ends = Object.values(region.points);
   if (ends.length !== 2) return false;
   return distanceToSegment(point, ends[0], ends[1]) <= tolerance;

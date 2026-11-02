@@ -4,12 +4,12 @@ import { getComponent, TRANSITION_TYPES } from '@chart-studio/components';
 import { CHART_GROUP_LAYOUTS, CHART_GROUP_LAYOUT_LABELS, findClip, useStore } from '@chart-studio/editor';
 import { clampTransitionDuration, type Clip, type ElementType, type VideoComponentDefinition } from '@chart-studio/core';
 import { EffectList } from './inspector/effect-list';
+import { TransactionalParamControl } from './inspector/transactional-param-control';
 import {
   Button,
   Input,
   InspectorHeader,
   numberFieldClass,
-  ParamControl,
   Row,
   Section,
   Tabs,
@@ -116,7 +116,7 @@ const CustomInspector: React.FC<{
     onChange: (patch: Record<string, any>) => updateClipProps(clip.id, patch),
     updateClip: (patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) =>
       updateClip(clip.id, patch),
-    commit,
+    commit: () => { if (!useStore.getState().project.tracks.flatMap(t => t.clips).find(c => c.id === clip.id)?.locked) commit(); },
     sceneFrame: currentFrame,
     evaluated,
   });
@@ -131,6 +131,7 @@ export const Inspector: React.FC = () => {
   const renameClipId = useStore((s) => s.renameClipId);
   const clearRenameRequest = useStore((s) => s.clearRenameRequest);
   const nameRef = useRef<HTMLInputElement>(null);
+  const clipEditChanged = useRef(false);
 
   // The canvas menu asks for a rename: the name field takes the focus so the
   // creator can type straight away. The focus waits for the menu to finish
@@ -232,7 +233,8 @@ export const Inspector: React.FC = () => {
     );
   }
 
-  const { updateClipProps, updateClip, commit } = useStore.getState();
+  const { updateClipProps, updateClip } = useStore.getState();
+  const commit = () => { if (!findClip(useStore.getState().project, clip.id)?.locked) useStore.getState().commit(); };
   // A chart in a group: the group lays its charts out and gives them one clock.
   const chartGroup = clip.groupId
     ? project.chartGroups?.find((group) => group.id === clip.groupId)
@@ -278,8 +280,8 @@ export const Inspector: React.FC = () => {
                 type="text"
                 className="h-6 min-w-0 flex-1 text-xs md:text-xs"
                 value={clip.name}
-                onFocus={commit}
-                onChange={(e) => updateClip(clip.id, { name: e.target.value })}
+                onFocus={() => { clipEditChanged.current = false; }}
+                onChange={(e) => { if (updateClip(clip.id, { name: e.target.value }, !clipEditChanged.current)) clipEditChanged.current = true; }}
               />
             </Row>
             <Row label="Start (frame)" htmlFor={`${clip.id}-from`}>
@@ -290,12 +292,12 @@ export const Inspector: React.FC = () => {
                 min={0}
                 max={project.durationInFrames - 1}
                 value={clip.from}
-                onFocus={commit}
-                onChange={(e) =>
-                  updateClip(clip.id, {
+                onFocus={() => { clipEditChanged.current = false; }}
+                onChange={(e) => {
+                  if (updateClip(clip.id, {
                     from: Math.max(0, Math.min(project.durationInFrames - 1, Number(e.target.value))),
-                  })
-                }
+                  }, !clipEditChanged.current)) clipEditChanged.current = true;
+                }}
               />
             </Row>
             <Row label="Length (frames)" htmlFor={`${clip.id}-length`}>
@@ -305,8 +307,8 @@ export const Inspector: React.FC = () => {
                 className={numberFieldClass}
                 min={2}
                 value={clip.durationInFrames}
-                onFocus={commit}
-                onChange={(e) => updateClip(clip.id, { durationInFrames: Math.max(2, Number(e.target.value)) })}
+                onFocus={() => { clipEditChanged.current = false; }}
+                onChange={(e) => { if (updateClip(clip.id, { durationInFrames: Math.max(2, Number(e.target.value)) }, !clipEditChanged.current)) clipEditChanged.current = true; }}
               />
             </Row>
             <Row label="Locked">
@@ -336,13 +338,12 @@ export const Inspector: React.FC = () => {
           {positionParams.length > 0 ? (
             <Section title="POSITION">
               {positionParams.map((def) => (
-                <ParamControl
+                <TransactionalParamControl
                   key={def.key}
                   def={def}
                   value={clip.props[def.key]}
                   idPrefix={clip.id}
-                  onCommit={commit}
-                  onChange={(v) => updateClipProps(clip.id, { [def.key]: v })}
+                  onChange={(v, recordHistory) => updateClipProps(clip.id, { [def.key]: v }, recordHistory)}
                 />
               ))}
             </Section>
@@ -351,12 +352,11 @@ export const Inspector: React.FC = () => {
           <Section title="PROPERTIES">
             {ownParams.map((def) => (
               <React.Fragment key={def.key}>
-                <ParamControl
+                <TransactionalParamControl
                   def={def}
                   value={clip.props[def.key]}
                   idPrefix={clip.id}
-                  onCommit={commit}
-                  onChange={(v) => updateClipProps(clip.id, { [def.key]: v })}
+                  onChange={(v, recordHistory) => updateClipProps(clip.id, { [def.key]: v }, recordHistory)}
                 />
                 {(def.key === 'src' && ['image', 'gif'].includes(clip.element)) ||
                 (def.key === 'imageSrc' && clip.element === 'particles') ? (

@@ -38,6 +38,7 @@ export const ClipChip: React.FC<{
     }
     const s = useStore.getState();
     if (!s.selectedClipIds.includes(clip.id)) selectClip(clip.id);
+    if (clip.locked) return;
     commit();
     const ids = useStore.getState().selectedClipIds;
     const group =
@@ -46,7 +47,7 @@ export const ClipChip: React.FC<{
             .map((id) => {
               for (const t of useStore.getState().project.tracks) {
                 const c = t.clips.find((c) => c.id === id);
-                if (c) return { clipId: id, from: c.from, dur: c.durationInFrames };
+                if (c && !c.locked) return { clipId: id, from: c.from, dur: c.durationInFrames };
               }
               return null;
             })
@@ -112,7 +113,7 @@ export const ClipChip: React.FC<{
         }
       }
       if (target && target !== trackId) {
-        useStore.getState().moveClipToTrack(clip.id, target);
+        useStore.getState().moveClipToTrack(clip.id, target, false);
       }
     }
   };

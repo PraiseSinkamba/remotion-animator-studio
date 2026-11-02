@@ -12,6 +12,7 @@
  * alone, and its region is derived from them.
  */
 import React from 'react';
+import { arrowShape } from './arrow-geometry';
 import {
   componentBounds,
   createPropsValidator,
@@ -154,7 +155,7 @@ const drawingDefinition = (
   params,
   edit: {...edit, coordinates: 'absolute', resize: 'axes'},
   geometry: (input) => {
-    const props = {...defaults, ...input, points: {...defaults.points, ...(input.points as Record<string, unknown> | undefined)}};
+    const props: Record<string, unknown> = {...defaults, ...input, points: {...defaults.points, ...(input.points as Record<string, unknown> | undefined)}};
     const ownShape = shape(props);
     const b = bounds(props);
     const anchor = {x: ownShape?.x ?? 0, y: ownShape?.y ?? 0};
@@ -163,7 +164,14 @@ const drawingDefinition = (
     if (raw && typeof raw === 'object') for(const [id, value] of Object.entries(raw)) {
       if(value && typeof value === 'object' && 'x' in value && 'y' in value && typeof value.x === 'number' && typeof value.y === 'number') points[id] = {x:value.x,y:value.y};
     }
-    return {anchor,origin:anchor,box:ownShape ? {left:b.x-b.width/2,top:b.y-b.height/2,width:b.width,height:b.height} : null,points};
+    const arrow = type === 'arrow' && points.from && points.to ? arrowShape(points.from, points.to) : undefined;
+    const pickPolygons = arrow ? [arrow.head] : undefined;
+    const style = props.style as DrawingStyle | undefined;
+    const pickStrokes = arrow ? [
+      {from: points.from, to: arrow.shaftEnd, width: style?.lineWidth ?? 1.5},
+      ...arrow.head.map((from, i) => ({from, to: arrow.head[(i + 1) % arrow.head.length], width: 1})),
+    ] : undefined;
+    return {anchor,origin:anchor,pickPolygons,pickStrokes,box:ownShape ? {left:b.x-b.width/2,top:b.y-b.height/2,width:b.width,height:b.height} : null,points};
   },
   render: ({ clip, props }: ComponentRenderContext): React.ReactElement | null => {
     if (clip.hidden) return null;

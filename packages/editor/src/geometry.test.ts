@@ -509,3 +509,12 @@ describe('camera-plane picking and overlay', () => {
   expect(hitsElement('segment',region,{x:1745,y:0},6)).toBe(false);
  });
 });
+
+it.each([
+ [{x:0,y:0},{x:200,y:0},{x:178,y:9}],
+ [{x:0,y:0},{x:0,y:200},{x:9,y:178}],
+ [{x:0,y:0},{x:0,y:0},{x:0,y:7}],
+])('picks the painted arrowhead for aligned and coincident endpoints', (from,to,point) => {
+ const clip=makeClip('arrow',{points:{from,to}});
+ expect(hitsElement('segment',regionOf(clip),point,0)).toBe(true);
+});

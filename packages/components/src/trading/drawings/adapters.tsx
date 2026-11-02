@@ -16,6 +16,7 @@
  * money.
  */
 import React from 'react';
+import { arrowShape } from './arrow-geometry';
 import type { DrawingPoint, DrawingStyle } from '@chart-studio/core';
 
 /**
@@ -287,24 +288,15 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
   const to = points?.to;
   if (!from || !to) return null;
 
-  const box = endpointBox([from, to]);
-  const x1 = from.x - box.left;
-  const y1 = from.y - box.top;
-  const x2 = to.x - box.left;
-  const y2 = to.y - box.top;
-
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const length = Math.hypot(dx, dy) || 1;
-  // The head is a triangle on the line's direction. It is drawn at the size a
-  // head reads at — a smaller one is a dot on a line, and the drawing stops
-  // looking like an arrow.
-  const head = Math.min(22, Math.max(12, length * 0.22));
-  const half = head * 0.42;
-  const ux = dx / length;
-  const uy = dy / length;
-  const baseX = x2 - ux * head;
-  const baseY = y2 - uy * head;
+  const shape = arrowShape(from, to);
+  const padding = Math.max(8, widthOf(style) / 2 + 1);
+  const vertices = [from, to, ...shape.head];
+  const left = Math.min(...vertices.map(p => p.x)) - padding;
+  const top = Math.min(...vertices.map(p => p.y)) - padding;
+  const box = {left, top, width: Math.max(...vertices.map(p => p.x)) - left + padding, height: Math.max(...vertices.map(p => p.y)) - top + padding};
+  const x1 = from.x - left, y1 = from.y - top;
+  const baseX = shape.shaftEnd.x - left, baseY = shape.shaftEnd.y - top;
+  const headPoints = shape.head.map(p => `${p.x-left},${p.y-top}`).join(' ');
   const color = colorOf(style);
   return (
     <svg
@@ -316,7 +308,7 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
     >
       <line x1={x1} y1={y1} x2={baseX} y2={baseY} stroke={color} strokeWidth={widthOf(style)} />
       <polygon
-        points={`${x2},${y2} ${baseX - uy * half},${baseY + ux * half} ${baseX + uy * half},${baseY - ux * half}`}
+        points={headPoints}
         fill={color}
         stroke={color}
         strokeWidth={1}

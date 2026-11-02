@@ -43,7 +43,8 @@ try {
   await evaluate(async () => { const { seekTo } = await import('/__verification/editor/src/playerRef.ts'); seekTo(0); });
   await settle();
   // Raster comparisons use one display pixel per composition pixel.
-  await evaluate(() => { const stage=document.querySelector('.preview-stage'); stage.style.width='960px';stage.style.height='540px';stage.style.maxWidth='none';stage.style.flexShrink='0';const r=stage.getBoundingClientRect();stage.style.transform='translate('+(Math.round(r.x)-r.x)+'px,'+(Math.round(r.y)-r.y)+'px)'; });
+  const alignStage = () => evaluate(() => { const stage=document.querySelector('.preview-stage'); stage.style.width='960px';stage.style.height='540px';stage.style.maxWidth='none';stage.style.flexShrink='0';stage.style.transform='none';const r=stage.getBoundingClientRect();stage.style.transform='translate('+(Math.round(r.x)-r.x)+'px,'+(Math.round(r.y)-r.y)+'px)'; });
+  await alignStage();
   await settle();
   evidence.catalogue = await evaluate(async () => {
     const {listComponents,resolveEditModel}=await import('/__verification/components/src/index.ts');
@@ -150,7 +151,7 @@ try {
   await page.goto({ url: 'http://localhost:5197', timeout: 60000 });
   for (let i=0;i<100;i++) { if ((await state()).project.name === saved.name) break; await new Promise(resolve=>setTimeout(resolve,100)); }
   assert.deepEqual((await state()).project, saved);
-  await evaluate(() => { const stage=document.querySelector('.preview-stage'); stage.style.width='960px';stage.style.height='540px';stage.style.maxWidth='none';stage.style.flexShrink='0';const r=stage.getBoundingClientRect();stage.style.transform='translate('+(Math.round(r.x)-r.x)+'px,'+(Math.round(r.y)-r.y)+'px)'; });
+  await alignStage();
   await settle();
   evidence.checks.push('actual application autosave/reload restores edited project');
   const storageBadge = await evaluate(() => {
@@ -170,6 +171,8 @@ try {
   for (const frame of [0,10,25,59,60]) {
     await evaluate(async frame => { const { seekTo } = await import('/__verification/editor/src/playerRef.ts'); seekTo(frame); }, frame);
     await command('selectClip', null);
+    await settle();
+    await alignStage();
     await settle();
     const bounds = await stage();
     const previewName = `preview-${frame}.png`;
@@ -195,9 +198,10 @@ try {
       return {preview:await scan(preview,bounds),exported:await scan(exported,{x:0,y:0,width:960,height:540}),chartLabelMeanRgbError:difference/(a.length*0.75)};
     }, { preview: `data:image/png;base64,${readFileSync(path.join(out,previewName)).toString('base64')}`, exported: `data:image/png;base64,${readFileSync(path.join(out,`export-${frame}.png`)).toString('base64')}`, bounds });
     assert.equal(raster.preview === null, raster.exported === null, `frame ${frame} visibility parity`);
+    if ([10,25,59].includes(frame)) assert.notEqual(raster.preview, null, `frame ${frame} must contain the visible rectangle`);
     if(raster.preview) for(const key of ['left','top','right','bottom']) assert.ok(Math.abs(raster.preview[key]-raster.exported[key])<3, `raster ${frame} ${key}`);
-    assert.ok(raster.chartLabelMeanRgbError<3, `chart label raster ${frame}: ${raster.chartLabelMeanRgbError}`);
-    evidence.frames.push({frame,raster,toleranceCompositionPx:3});
+    assert.ok(raster.chartLabelMeanRgbError<3, `chart label raster ${frame}: ${raster.chartLabelMeanRgbError}; stage ${JSON.stringify(bounds)}`);
+    evidence.frames.push({frame,raster,stage:bounds,toleranceCompositionPx:3});
   }
   evidence.checks.push('same edited project actual preview/export magenta raster bounds agree within 3 composition pixels at 0/10/25/59/60; null bounds agree at singular/inactive frames; editor overlay excluded by composition ownership');
   evidence.fixtureInitial = fixture.name;

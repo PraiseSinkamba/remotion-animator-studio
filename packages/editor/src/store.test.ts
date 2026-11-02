@@ -288,8 +288,8 @@ describe('store — the drawing tools', () => {
       height: 24,
     });
 
-    useStore.getState().setClipLocked(id, true);
     useStore.getState().setClipHidden(id, true);
+    useStore.getState().setClipLocked(id, true);
 
     const clip = useStore.getState().project.tracks.flatMap((t) => t.clips).find((c) => c.id === id);
     expect(clip?.locked).toBe(true);
@@ -813,4 +813,67 @@ it('rejects chart enum and timing mutations without changing project or history'
   expect(useStore.getState().project).toBe(before.project);expect(useStore.getState().history).toBe(before.history);
   expect(useStore.getState().notice).toMatch(/revealMode|framesPerBar/);
  }
+});
+
+it('rejects locked clip mutations without recording history', () => {
+ useStore.setState({project:emptyProject(),history:[],future:[],notice:null});
+ useStore.getState().addClip('shape','t-empty',0);
+ const id=useStore.getState().project.tracks[0].clips[0].id;
+ useStore.getState().setClipLocked(id,true);
+ const before=useStore.getState();
+ before.removeClips([id]); before.addEffect(id,'fadeIn'); before.setClipHidden(id,true);
+ before.updateDrawing(id,{width:2}); before.bringToFront(id); before.sendToBack(id);
+ before.moveClipToTrack(id,'t-empty'); before.removeTrack('t-empty');
+ expect(useStore.getState().project).toBe(before.project);
+ expect(useStore.getState().history).toBe(before.history);
+});
+
+it('rejects invalid effect edits while preserving project and history', () => {
+ useStore.setState({project:emptyProject(),history:[],future:[],notice:null});
+ useStore.getState().addClip('shape','t-empty',0);
+ const id=useStore.getState().project.tracks[0].clips[0].id;
+ useStore.getState().addEffect(id,'fadeIn');
+ const before=useStore.getState(); const effect=before.project.tracks[0].clips[0].effects[0];
+ for (const patch of [{duration:0},{duration:'bad'},{easing:'bad'}]) {
+  useStore.getState().updateEffectParams(id,effect.id,patch);
+  expect(useStore.getState().project).toBe(before.project);
+  expect(useStore.getState().history).toBe(before.history);
+  expect(useStore.getState().notice).toContain(effect.id);
+ }
+});
+
+it('filters locked clips from mixed deletion and grouping', () => {
+ useStore.setState({project:emptyProject(),history:[],future:[]});
+ for(let i=0;i<3;i++) useStore.getState().addClip('shape','t-empty',0);
+ const [a,b,c]=useStore.getState().project.tracks[0].clips;
+ useStore.getState().setClipLocked(c.id,true);
+ useStore.setState({selectedClipIds:[a.id,b.id,c.id]});
+ useStore.getState().groupSelection();
+ let clips=useStore.getState().project.tracks[0].clips;
+ expect(clips[0].groupId).toBe(clips[1].groupId); expect(clips[2].groupId).toBeUndefined();
+ useStore.getState().removeClips([a.id,c.id]);
+ clips=useStore.getState().project.tracks[0].clips;
+ expect(clips.map(x=>x.id)).toEqual([b.id,c.id]);
+});
+
+it('rejects completion of a path locked during drawing', () => {
+ useStore.setState({project:emptyProject(),history:[],future:[]});
+ useStore.getState().addClip('shape','t-empty',0);
+ const id=useStore.getState().project.tracks[0].clips[0].id;
+ useStore.getState().startDrawingTrail(id);
+ useStore.getState().addDrawingPoint({x:1,y:1});useStore.getState().addDrawingPoint({x:2,y:2});
+ useStore.getState().setClipLocked(id,true);
+ const before=useStore.getState();useStore.getState().finishDrawingPath();
+ expect(useStore.getState().project).toBe(before.project);expect(useStore.getState().history).toBe(before.history);
+});
+
+it('rejects a path whose finite endpoints overflow relative coordinates', () => {
+ useStore.setState({project:emptyProject(),history:[],future:[]});
+ useStore.getState().addClip('nodeTrail','t-empty',0);
+ const id=useStore.getState().project.tracks[0].clips[0].id;
+ useStore.getState().startDrawingTrail(id);
+ useStore.getState().addDrawingPoint({x:-Number.MAX_VALUE,y:0});
+ useStore.getState().addDrawingPoint({x:Number.MAX_VALUE,y:0});
+ const before=useStore.getState();useStore.getState().finishDrawingPath();
+ expect(useStore.getState().project).toBe(before.project);expect(useStore.getState().history).toBe(before.history);
 });

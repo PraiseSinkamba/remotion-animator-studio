@@ -152,6 +152,10 @@ export interface ComponentGeometry {
   /** Intrinsic renderer rotation in degrees, applied before clip effects. */
   rotation?: number;
   points?: Record<string, EditPoint>;
+  /** Filled component geometry used for generic canvas picking. */
+  pickPolygons?: EditPoint[][];
+  /** Painted strokes in authored coordinates, including their width. */
+  pickStrokes?: { from: EditPoint; to: EditPoint; width: number }[];
 }
 export interface ElementEditModel {
   coordinates?: 'absolute' | 'fractional';

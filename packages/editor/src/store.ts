@@ -1,6 +1,6 @@
 import { normalizeComponentProps, validateProjectDocument } from '@chart-studio/core';
 import { create } from 'zustand';
-import { EFFECTS } from '@chart-studio/components';
+import { EFFECTS, validateEffect } from '@chart-studio/components';
 import { buildComponentProps, getComponent } from '@chart-studio/components';
 import type { DrawingDraft } from './drawings';
 import { buildPresetClips, PRESETS } from './presets';
@@ -92,15 +92,15 @@ interface EditorState {
   ungroupSelection: () => void;
   addClip: (element: ElementType, trackId: string, atFrame: number) => void;
   removeClips: (clipIds: string[]) => void;
-  updateClip: (clipId: string, patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>) => void;
+  updateClip: (clipId: string, patch: Partial<Pick<Clip, 'from' | 'durationInFrames' | 'name'>>, recordHistory?: boolean) => boolean;
   /** Move several clips horizontally by the same frame delta (multi-drag). No history push. */
   shiftClips: (moves: Array<{ clipId: string; from: number }>) => void;
-  updateClipProps: (clipId: string, patch: Record<string, unknown>) => void;
-  updateClipsProps: (patches: ReadonlyArray<{clipId: string; patch: Record<string, unknown>}>) => void;
-  moveClipToTrack: (clipId: string, trackId: string) => void;
+  updateClipProps: (clipId: string, patch: Record<string, unknown>, recordHistory?: boolean) => boolean;
+  updateClipsProps: (patches: ReadonlyArray<{clipId: string; patch: Record<string, unknown>}>, recordHistory?: boolean) => boolean;
+  moveClipToTrack: (clipId: string, trackId: string, recordHistory?: boolean) => void;
   addEffect: (clipId: string, type: EffectType) => void;
   removeEffect: (clipId: string, effectId: string) => void;
-  updateEffectParams: (clipId: string, effectId: string, patch: Record<string, any>) => void;
+  updateEffectParams: (clipId: string, effectId: string, patch: Record<string, any>, recordHistory?: boolean) => boolean;
 
   startDrawingPath: (clipId: string, effectId: string) => void;
   startDrawingTrail: (clipId: string) => void;
@@ -246,6 +246,11 @@ export const findClip = (project: Project, clipId: string | null | undefined): C
   return null;
 };
 
+const editableClip = (project: Project, clipId: string): Clip | null => {
+  const clip = findClip(project, clipId);
+  return clip && !clip.locked ? clip : null;
+};
+
 const findTrackOf = (project: Project, clipId: string): Track | null =>
   project.tracks.find((t) => t.clips.some((c) => c.id === clipId)) ?? null;
 
@@ -375,7 +380,7 @@ export const useStore = create<EditorState>((set, get) => ({
         height,
         tracks: state.project.tracks.map((t) => ({
           ...t,
-          clips: t.clips.map((c) => ({ ...c, props: scaleProps(c.props) })),
+          clips: t.clips.map((c) => c.locked ? c : ({ ...c, props: scaleProps(c.props) })),
         })),
       },
     }));
@@ -477,6 +482,8 @@ export const useStore = create<EditorState>((set, get) => ({
     }));
   },
   removeTrack: (trackId) => {
+    const track = get().project.tracks.find(t => t.id === trackId);
+    if (!track || track.clips.some(c => c.locked)) return;
     get().commit();
     set((s) => ({
       project: { ...s.project, tracks: s.project.tracks.filter((t) => t.id !== trackId) },
@@ -488,7 +495,7 @@ export const useStore = create<EditorState>((set, get) => ({
     const s = get();
     const idx = s.project.tracks.findIndex((t) => t.id === trackId);
     const target = idx + dir;
-    if (idx < 0 || target < 0 || target >= s.project.tracks.length) return;
+    if (idx < 0 || target < 0 || target >= s.project.tracks.length || s.project.tracks[idx].clips.some(c => c.locked) || s.project.tracks[target].clips.some(c => c.locked)) return;
     get().commit();
     set((state) => {
       const tracks = [...state.project.tracks];
@@ -505,10 +512,11 @@ export const useStore = create<EditorState>((set, get) => ({
     })),
   groupSelection: () => {
     const s = get();
-    if (s.selectedClipIds.length < 2) return;
+    const editable = s.selectedClipIds.filter(id => editableClip(s.project, id));
+    if (editable.length < 2) return;
     get().commit();
     const gid = uid('g');
-    const sel = new Set(s.selectedClipIds);
+    const sel = new Set(editable);
     set((state) => ({
       project: {
         ...state.project,
@@ -521,9 +529,10 @@ export const useStore = create<EditorState>((set, get) => ({
   },
   ungroupSelection: () => {
     const s = get();
-    if (s.selectedClipIds.length === 0) return;
+    const editable = s.selectedClipIds.filter(id => editableClip(s.project, id)?.groupId);
+    if (!editable.length) return;
     get().commit();
-    const sel = new Set(s.selectedClipIds);
+    const sel = new Set(editable);
     set((state) => ({
       project: {
         ...state.project,
@@ -584,9 +593,9 @@ export const useStore = create<EditorState>((set, get) => ({
     });
   },
   removeClips: (clipIds) => {
-    if (clipIds.length === 0) return;
+    const gone = new Set(clipIds.filter(id => editableClip(get().project, id)));
+    if (gone.size === 0) return;
     get().commit();
-    const gone = new Set(clipIds);
     set((s) => ({
       project: {
         ...s.project,
@@ -595,15 +604,23 @@ export const useStore = create<EditorState>((set, get) => ({
       selectedClipIds: s.selectedClipIds.filter((id) => !gone.has(id)),
     }));
   },
-  updateClip: (clipId, patch) =>
+  updateClip: (clipId, patch, recordHistory = false) => {
+    let changed = false;
     set((s) => {
+      const clip = editableClip(s.project, clipId);
+      if (!clip || Object.entries(patch).every(([key, value]) => clip[key as keyof Clip] === value)) return s;
       const project=mapClips(s.project,clipId,c=>c.locked?c:({...c,...patch}));
       const validated=validateProjectDocument(project);
-      return validated.ok ? {project} : {notice:`${validated.issues[0].path}: ${validated.issues[0].message}`};
-    }),
+      if (!validated.ok) return {notice:`${validated.issues[0].path}: ${validated.issues[0].message}`};
+      changed = true;
+      return {project, ...(recordHistory ? {history: [...s.history.slice(-MAX_HISTORY + 1), s.project], future: []} : {})};
+    });
+    return changed;
+  },
   shiftClips: (moves) =>
     set((s) => {
       if(moves.some(move=>!Number.isInteger(move.from)||move.from<0)) return {notice:'Clip from must be a nonnegative integer'};
+      if (!moves.some(move => { const clip = editableClip(s.project, move.clipId); return clip && clip.from !== move.from; })) return s;
       const byId = new Map(moves.map((m) => [m.clipId, m.from]));
       return {
         project: {
@@ -615,8 +632,10 @@ export const useStore = create<EditorState>((set, get) => ({
         },
       };
     }),
-  updateClipProps: (clipId, patch) => get().updateClipsProps([{ clipId, patch }]),
-  updateClipsProps: (patches) => set((s) => {
+  updateClipProps: (clipId, patch, recordHistory) => get().updateClipsProps([{ clipId, patch }], recordHistory),
+  updateClipsProps: (patches, recordHistory = false) => {
+   let accepted = false;
+   set((s) => {
     const byId = new Map(patches.map(({clipId, patch}) => [clipId, patch]));
     let changed = false;
     let invalid: string | undefined;
@@ -630,12 +649,17 @@ export const useStore = create<EditorState>((set, get) => ({
       return { ...clip, props: normalized?.ok ? normalized.value : { ...clip.props, ...patch } };
     }) }));
     if(invalid) return {notice:invalid};
-    return changed ? {project: {...s.project, tracks}} : s;
-  }),
-  // no history push — callers commit at gesture start
-  moveClipToTrack: (clipId, trackId) => {
+    if (!changed) return s;
+    accepted = true;
+    return {project: {...s.project, tracks}, ...(recordHistory ? {history: [...s.history.slice(-MAX_HISTORY + 1), s.project], future: []} : {})};
+   });
+   return accepted;
+  },
+  // A track transfer is one undoable action; rejected transfers create no snapshot.
+  moveClipToTrack: (clipId, trackId, recordHistory = true) => {
     const clip = findClip(get().project, clipId);
-    if (!clip) return;
+    if (!clip || clip.locked || !get().project.tracks.some(t => t.id === trackId) || findTrackOf(get().project, clipId)?.id === trackId) return;
+    if (recordHistory) get().commit();
     set((s) => ({
       project: {
         ...s.project,
@@ -648,6 +672,7 @@ export const useStore = create<EditorState>((set, get) => ({
   },
 
   addEffect: (clipId, type) => {
+    if (!editableClip(get().project, clipId) || !Object.hasOwn(EFFECTS, type)) return;
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({
@@ -657,6 +682,7 @@ export const useStore = create<EditorState>((set, get) => ({
     }));
   },
   removeEffect: (clipId, effectId) => {
+    if (!editableClip(get().project, clipId)?.effects.some(e => e.id === effectId)) return;
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({
@@ -665,17 +691,30 @@ export const useStore = create<EditorState>((set, get) => ({
       })),
     }));
   },
-  updateEffectParams: (clipId, effectId, patch) =>
-    set((s) => ({
-      project: mapClips(s.project, clipId, (c) => ({
-        ...c,
-        effects: c.effects.map((e) => (e.id === effectId ? { ...e, params: { ...e.params, ...patch } } : e)),
-      })),
-    })),
+  updateEffectParams: (clipId, effectId, patch, recordHistory = false) => {
+   let changed = false;
+   set((s) => {
+    const clip = editableClip(s.project, clipId);
+    const effect = clip?.effects.find(e => e.id === effectId);
+    if (!effect) return s;
+    const updated = { ...effect, params: { ...effect.params, ...patch } };
+    const issue = validateEffect(updated);
+    if (issue) return { notice: `Clip "${clipId}" effect "${effectId}" ${issue.path}: ${issue.message}` };
+    if (JSON.stringify(updated.params) === JSON.stringify(effect.params)) return s;
+    changed = true;
+    return { project: mapClips(s.project, clipId, c => ({ ...c, effects: c.effects.map(e => e.id === effectId ? updated : e) })), ...(recordHistory ? {history: [...s.history.slice(-MAX_HISTORY + 1), s.project], future: []} : {}) };
+   });
+   return changed;
+  },
 
-  startDrawingPath: (clipId, effectId) =>
-    set({ drawingPath: { clipId, effectId, points: [] }, selectedClipIds: [clipId] }),
-  startDrawingTrail: (clipId) => set({ drawingPath: { clipId, points: [] }, selectedClipIds: [clipId] }),
+  startDrawingPath: (clipId, effectId) => {
+    if (!editableClip(get().project, clipId)?.effects.some(e => e.id === effectId)) return;
+    set({ drawingPath: { clipId, effectId, points: [] }, selectedClipIds: [clipId] });
+  },
+  startDrawingTrail: (clipId) => {
+    if (!editableClip(get().project, clipId)) return;
+    set({ drawingPath: { clipId, points: [] }, selectedClipIds: [clipId] });
+  },
   addDrawingPoint: (pt) =>
     set((s) => (s.drawingPath ? { drawingPath: { ...s.drawingPath, points: [...s.drawingPath.points, pt] } } : s)),
   cancelDrawingPath: () => set({ drawingPath: null }),
@@ -683,15 +722,20 @@ export const useStore = create<EditorState>((set, get) => ({
     const s = get();
     const d = s.drawingPath;
     if (!d) return;
-    if (d.points.length < 2) {
+    const clip = editableClip(s.project, d.clipId);
+    if (!clip) { set({drawingPath: null}); return; }
+    if (d.points.length < 2 || d.points.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y)) ||
+        (d.effectId !== undefined && !clip.effects.some(e => e.id === d.effectId))) {
       set({ drawingPath: null });
       return;
     }
-    get().commit();
     const [first, ...rest] = d.points;
     const rel = rest.map((pt) => ({ x: Math.round(pt.x - first.x), y: Math.round(pt.y - first.y) }));
-    set((state) => ({
-      project: mapClips(state.project, d.clipId, (c) => ({
+    if (rel.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) {
+      set({drawingPath: null, notice: 'Path coordinates are out of range'});
+      return;
+    }
+    const project = mapClips(s.project, d.clipId, (c) => ({
         ...c,
         // move the element to the first drawn point so the route starts where you clicked
         props: {
@@ -729,9 +773,20 @@ export const useStore = create<EditorState>((set, get) => ({
                   ? { ...e, params: { ...e.params, path: `M 0 0 ` + rel.map((pt) => `L ${pt.x} ${pt.y}`).join(' ') } }
                   : e,
               ),
-      })),
-      drawingPath: null,
-    }));
+      }));
+    const updated = findClip(project, d.clipId)!;
+    const definition = getComponent(updated.element);
+    const props = definition ? normalizeComponentProps(definition, updated.props) : undefined;
+    const effect = d.effectId === undefined ? undefined : updated.effects.find(e => e.id === d.effectId);
+    const issue = effect && validateEffect(effect);
+    if ((props && !props.ok) || issue) {
+      const detail = issue ?? (props && !props.ok ? props.issues[0] : undefined);
+      set({drawingPath: null, notice: `Clip "${d.clipId}" ${detail?.path}: ${detail?.message}`});
+      return;
+    }
+    if (JSON.stringify(updated) === JSON.stringify(clip)) { set({drawingPath: null}); return; }
+    get().commit();
+    set({ project, drawingPath: null });
   },
 
   /* ---------------------------------------------------------------- */
@@ -741,7 +796,7 @@ export const useStore = create<EditorState>((set, get) => ({
   startSwingPath: (clipId) => {
     const s = get();
     const clip = findClip(s.project, clipId);
-    if (!clip || clip.element !== 'candlestickChart') return;
+    if (!clip || clip.locked || clip.element !== 'candlestickChart') return;
     set({ swingPath: { clipId } });
 
     // A chart that already draws an authored path is opened as it is.
@@ -822,7 +877,7 @@ export const useStore = create<EditorState>((set, get) => ({
 
   addSwingAnchor: (clipId, anchor) => {
     const s = get();
-    const series = chartSeries(s.project, findClip(s.project, clipId));
+    const series = chartSeries(s.project, editableClip(s.project, clipId));
     if (!series || series.origin !== 'authored-path') return;
     s.commit();
     set((state) => ({
@@ -839,7 +894,7 @@ export const useStore = create<EditorState>((set, get) => ({
 
   moveSwingAnchor: (clipId, anchorId, patch) => {
     const s = get();
-    const series = chartSeries(s.project, findClip(s.project, clipId));
+    const series = chartSeries(s.project, editableClip(s.project, clipId));
     if (!series || series.origin !== 'authored-path') return;
     s.commit();
     set((state) => ({
@@ -851,7 +906,7 @@ export const useStore = create<EditorState>((set, get) => ({
 
   removeSwingAnchor: (clipId, anchorId) => {
     const s = get();
-    const series = chartSeries(s.project, findClip(s.project, clipId));
+    const series = chartSeries(s.project, editableClip(s.project, clipId));
     if (!series || series.origin !== 'authored-path') return;
     s.commit();
     set((state) => ({
@@ -861,7 +916,7 @@ export const useStore = create<EditorState>((set, get) => ({
 
   replaceSwingPath: (clipId, anchors) => {
     const s = get();
-    const series = chartSeries(s.project, findClip(s.project, clipId));
+    const series = chartSeries(s.project, editableClip(s.project, clipId));
     if (!series || series.origin !== 'authored-path') return;
     s.commit();
     set((state) => ({
@@ -885,7 +940,7 @@ export const useStore = create<EditorState>((set, get) => ({
   ensureChartMarket: (clipId) => {
     const s = get();
     const clip = findClip(s.project, clipId);
-    if (!clip || clip.element !== 'candlestickChart') return;
+    if (!clip || clip.locked || clip.element !== 'candlestickChart') return;
     // A chart that already resolves its panes needs nothing.
     if (
       typeof clip.props.seriesId === 'string' &&
@@ -903,7 +958,7 @@ export const useStore = create<EditorState>((set, get) => ({
     const s = get();
     const charts = chartClipIds
       .map((id) => findClip(s.project, id))
-      .filter((clip): clip is Clip => clip !== null && clip.element === 'candlestickChart');
+      .filter((clip): clip is Clip => clip !== null && !clip.locked && clip.element === 'candlestickChart');
     if (charts.length === 0) return '';
 
     const groupId = uid('g');
@@ -922,7 +977,8 @@ export const useStore = create<EditorState>((set, get) => ({
 
   setChartGroupLayout: (groupId, layout) => {
     const s = get();
-    if (!s.project.chartGroups?.some((group) => group.id === groupId)) return;
+    const group = s.project.chartGroups?.find((group) => group.id === groupId);
+    if (!group || group.chartClipIds.some(id => findClip(s.project, id)?.locked)) return;
     get().commit();
     set((state) => ({ project: relayoutChartGroup(state.project, groupId, layout) }));
   },
@@ -987,15 +1043,11 @@ export const useStore = create<EditorState>((set, get) => ({
     return id;
   },
 
-  updateDrawing: (clipId, patch) =>
-    set((s) => ({
-      project: mapClips(s.project, clipId, (c) => ({
-        ...c,
-        props: { ...c.props, ...patch },
-      })),
-    })),
+  updateDrawing: (clipId, patch) => get().updateClipProps(clipId, patch),
 
   setClipLocked: (clipId, locked) => {
+    const clip = findClip(get().project, clipId);
+    if (!clip || Boolean(clip.locked) === locked) return;
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({ ...c, locked })),
@@ -1003,6 +1055,8 @@ export const useStore = create<EditorState>((set, get) => ({
   },
 
   setClipHidden: (clipId, hidden) => {
+    const clip = editableClip(get().project, clipId);
+    if (!clip || Boolean(clip.hidden) === hidden) return;
     get().commit();
     set((s) => ({
       project: mapClips(s.project, clipId, (c) => ({ ...c, hidden })),
@@ -1013,7 +1067,7 @@ export const useStore = create<EditorState>((set, get) => ({
     const s = get();
     const clip = findClip(s.project, clipId);
     const top = s.project.tracks[0];
-    if (!clip || !top) return;
+    if (!clip || clip.locked || !top) return;
     get().commit();
     set((state) => ({
       project: {
@@ -1040,7 +1094,7 @@ export const useStore = create<EditorState>((set, get) => ({
     const s = get();
     const clip = findClip(s.project, clipId);
     const last = s.project.tracks[s.project.tracks.length - 1];
-    if (!clip || !last) return;
+    if (!clip || clip.locked || !last) return;
     get().commit();
     set((state) => ({
       project: {
@@ -1134,7 +1188,7 @@ export const useStore = create<EditorState>((set, get) => ({
   togglePaneHold: (clipId, paneId, barId) => {
     const s = get();
     const clip = findClip(s.project, clipId);
-    if (!clip) return;
+    if (!clip || clip.locked) return;
     // The hold's frames are relative to the chart clip's own start.
     const localFrame = Math.max(0, s.currentFrame - clip.from);
 
@@ -1195,6 +1249,7 @@ export const useStore = create<EditorState>((set, get) => ({
   /* ---------------------------------------------------------------- */
 
   addHold: (clipId, paneId, barId, inFrame, outFrame) => {
+    if (!editableClip(get().project, clipId)) return;
     get().commit();
     set((s) => ({
       project: withPane(s.project, clipId, paneId, (pane) => {
@@ -1206,6 +1261,7 @@ export const useStore = create<EditorState>((set, get) => ({
   },
 
   updateHold: (clipId, paneId, holdId, patch) => {
+    if (!editableClip(get().project, clipId)) return;
     get().commit();
     set((s) => ({
       project: withPane(s.project, clipId, paneId, (pane) => ({
@@ -1218,6 +1274,7 @@ export const useStore = create<EditorState>((set, get) => ({
   },
 
   removeHold: (clipId, paneId, holdId) => {
+    if (!editableClip(get().project, clipId)) return;
     get().commit();
     set((s) => ({
       project: withPane(s.project, clipId, paneId, (pane) => ({
@@ -1228,6 +1285,7 @@ export const useStore = create<EditorState>((set, get) => ({
   },
 
   updateZoomTrack: (clipId, paneId, track) => {
+    if (!editableClip(get().project, clipId)) return;
     get().commit();
     set((s) => ({
       project: withPane(s.project, clipId, paneId, (pane) => ({ ...pane, zoom: track })),

@@ -87,7 +87,8 @@ surface used by the Player, picker and overlay.
 
 `renderMode` decides how the compositor frames the adapter's output: `content` is positioned
 at `(x, y)` and receives the clip's effects; `audio` and `background` are full-frame layers
-and are not wrapped in the positioned box.
+and are not wrapped in the positioned box. `transition` renders between adjacent clips
+and does not participate in canvas picking.
 
 ### The clip flags
 

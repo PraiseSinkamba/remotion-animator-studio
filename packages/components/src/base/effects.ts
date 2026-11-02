@@ -551,6 +551,48 @@ export const EFFECTS: Record<EffectType, EffectDef> = {
   },
 };
 
+/** Validate supplied parameters without discarding extension fields or applying defaults. */
+export function validateEffect(effect: EffectInstance): { path: string; message: string } | undefined {
+  const definition = EFFECTS[effect.type];
+  if (!definition) return { path: 'type', message: 'Unsupported effect type' };
+  for (const [key, value] of Object.entries(effect.params)) {
+    if (typeof value !== 'string' && (typeof value !== 'number' || !Number.isFinite(value))) {
+      return { path: `params.${key}`, message: 'Expected a string or finite number' };
+    }
+  }
+  for (const param of definition.params) {
+    const value = effect.params[param.key];
+    if (value === undefined) continue;
+    const expected = param.kind === 'number' ? 'number' : 'string';
+    if (typeof value !== expected || (typeof value === 'number' && !Number.isFinite(value))) {
+      return { path: `params.${param.key}`, message: `Expected ${expected}` };
+    }
+    if (param.kind === 'select' && param.options && !param.options.includes(String(value))) {
+      return { path: `params.${param.key}`, message: 'Unsupported option' };
+    }
+    if (param.key === 'duration' && typeof value === 'number' && (!Number.isSafeInteger(value) || value < 1)) {
+      return { path: `params.${param.key}`, message: 'Expected a positive integer frame count' };
+    }
+    if (['start', 'at'].includes(param.key) && typeof value === 'number' && (!Number.isSafeInteger(value) || value < 0)) {
+      return { path: `params.${param.key}`, message: 'Expected a nonnegative integer frame' };
+    }
+    if (((effect.type === 'springPop' && param.key === 'mass') || (effect.type === 'letterWave' && param.key === 'wavelength')) && typeof value === 'number' && value <= 0) {
+      return { path: `params.${param.key}`, message: 'Must be greater than zero' };
+    }
+  }
+  if (effect.type === 'springPop' && Number(effect.params.damping ?? definition.defaults.damping) < 0) {
+    return { path: 'params.damping', message: 'Must be nonnegative' };
+  }
+  if (effect.type === 'transform') {
+    const start = Number(effect.params.start ?? definition.defaults.start);
+    const duration = Number(effect.params.duration ?? definition.defaults.duration);
+    if (!Number.isFinite(start + duration) || start + duration <= start) {
+      return { path: 'params.duration', message: 'Must produce a finite increasing frame range' };
+    }
+  }
+  return undefined;
+}
+
 const clampOpts = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 
 export interface ComputedStyle {

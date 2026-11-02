@@ -441,6 +441,8 @@ export const PreviewPanel: React.FC = () => {
       return;
     }
     if (s.swingPath) {
+      const target = s.project.tracks.flatMap(t => t.clips).find(c => c.id === s.swingPath!.clipId);
+      if (!target || target.locked) return;
       // The path session owns the canvas: a press on an anchor drags it, and
       // a press anywhere else starts a freehand stroke.
       const point = swingPoint(e.clientX, e.clientY);
