@@ -10,7 +10,7 @@
  *   node scripts/verify-r1.mjs            # stills + mp4
  *   node scripts/verify-r1.mjs --stills   # stills only (fast)
  */
-import { bundle } from '@remotion/bundler';
+import { bundleVideo } from '../packages/video/tools/bundle.mjs';
 import { renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -165,7 +165,7 @@ const project = {
 mkdirSync(OUT_DIR, { recursive: true });
 
 console.log('Bundling composition...');
-const serveUrl = await bundle({ entryPoint: path.resolve('packages/video/remotion/index.ts') });
+const serveUrl = await bundleVideo();
 
 const inputProps = { project };
 const composition = await selectComposition({ serveUrl, id: 'Main', inputProps });

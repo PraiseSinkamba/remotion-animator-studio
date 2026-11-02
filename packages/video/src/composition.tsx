@@ -180,7 +180,9 @@ const ClipRenderer: React.FC<{
 
 export const MainComposition: React.FC<{ project: Project }> = ({ project }) => {
   return (
-    <AbsoluteFill style={{ backgroundColor: project.backgroundColor }}>
+    <AbsoluteFill className="chartstudio-video" style={{ backgroundColor: project.backgroundColor, fontFamily: 'Arial, sans-serif', lineHeight: 1.2 }}>
+      {/* Scene-owned media layout: editor preflight must not change wrapper origins. */}
+      <style>{'.chartstudio-video svg,.chartstudio-video img,.chartstudio-video video{display:block;vertical-align:middle}'}</style>
       {/* tracks[0] is the top layer, so render in reverse order */}
       {[...project.tracks].reverse().map((track) => {
         const plans = planTrackTransitions(track);

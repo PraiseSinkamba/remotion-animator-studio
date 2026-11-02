@@ -2,6 +2,10 @@
 
 Date: 2026-11-02 · Baseline: `ad39ed4` plus the existing uncommitted working tree.
 
+**Historical assessment:** findings below describe that baseline. The repair closure appendix
+and [final verification record](evidence/element-repair-verification.md) describe the repaired
+branch; original source excerpts/line numbers are retained as historical evidence.
+
 ## Assessment
 
 **The reported selection separation has a confirmed implementation cause. The element system also has architectural gaps that would allow similar failures after that bug is fixed.** A complete editor rewrite or a replacement video framework is unnecessary. A focused redesign of geometry evaluation, element capabilities, and edit commands is justified before extending the catalogue.
@@ -234,7 +238,8 @@ The local Node runner needed execution outside the filesystem sandbox after an i
 
 No typecheck, production build, real render verification, complete SC-01 workflow, browser export or pixel parity test was run. No claim of feature completion or video parity is made. This review changes documentation and diagnostic files only.
 
-Evidence: [diagnostic suite](evidence/element-system.test.tsx), [isolated test configuration](evidence/vitest.config.ts).
+Evidence: the original diagnostic suite/configuration were retired after repair; the
+[durable reproduction guide](evidence/element-system.md) points to permanent correct-behavior tests.
 
 ## Repository/documentation discrepancies
 
@@ -258,3 +263,30 @@ Browser/platform tested: Windows, Node 24.20.0, Vitest 3.2.7, jsdom; no interact
 Dependencies/licenses added: none. SQLite/schema/archive migrations: none. Preview/export visual evidence: none; controlled DOM evidence only.
 
 Known limitations and follow-ups: report reflects a changing uncommitted checkout; no production fixes; proposed contract requires design approval, browser validation and render verification before implementation can be called complete.
+
+## Repair closure appendix — 2026-11-02
+
+The original findings above remain historical. The owner-authorized five-task repair addresses
+EL-01…EL-10 without replacing Remotion or introducing a second renderer. The [verification
+record](evidence/element-repair-verification.md) records executed commands, browser/render artifacts,
+parity tolerances and limitations. Permanent test entry points are in the [reproduction guide](evidence/element-system.md).
+
+| Finding | Repair and permanent regression evidence |
+|---|---|
+| EL-01 | Content-only local-size measurements, current props/pose positions, same-count replacement/font/layout invalidation: `apps/studio/src/components/element-interaction.test.tsx`; real move/reselect screenshots. |
+| EL-02 | Shared `evaluateElementPose`, oriented/projected picking, inverse edits and camera clipping: `packages/components/src/element-pose.test.ts`, `packages/editor/src/geometry.test.ts`; actual CSS/raster parity at representative frames. |
+| EL-03 | Half-open lifetime and hidden/locked/canvas eligibility shared by picking/overlay: interaction tests plus browser out-frame disappearance. |
+| EL-04 | Central mutation locks, grouped unlocked targets and atomic batches: `packages/editor/src/store.test.ts`; trusted browser grouped-lock manipulation. |
+| EL-05 | Registered runtime validators, non-destructive normalization, strict post-migration project checks, invalid-batch rejection: core component-props, component props-validation/project-migrate and store tests. Legacy any compatibility remains disclosed. |
+| EL-06 | parse5 AST plus safe static emitter shared by preview/export; authored HTML preserved: `packages/components/src/base/safe-html.test.ts`; exact parser adoption and production module retention recorded. |
+| EL-07 | Free absolute endpoints, no accidental collinearity constraint: geometry and drawing tests. |
+| EL-08 | Meaningful catalogue handles only: east/west supported wraps, counter font-only, NodeTrail inspector label font, no scale/wrap grips: registry/catalogue/geometry tests. |
+| EL-09 | Content box fallback; explicit audio/background/transition exclusion; duplicate registration rejection: registry/geometry tests. |
+| EL-10 | Definition-owned geometry, uniform scalar resize, IsoCity tileSize/topology separation, renderer/pose alignment: catalogue/geometry tests and browser wrapper/raster comparison. |
+
+Integration also corrected source-package ESM resolution in all Remotion bundle callers,
+validated the authored render fixture's current clock field, isolated video typography/media
+layout from editor CSS, and removed the stage border's content-size discrepancy with an inset
+outline. These were discovered by actual render/browser checks, not inferred from unit tests.
+This is closure of the reviewed element defects within the recorded scope, not completion of
+future SC-01/import/archive/SMT/MTF roadmap workflows.

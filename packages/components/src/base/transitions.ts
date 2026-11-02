@@ -38,6 +38,7 @@ const beforeCut = (durationInFrames: number): number => Math.floor(Math.max(0, d
  * shown outside its own frames.
  */
 const crossfade: VideoComponentDefinition = {
+  renderMode: 'transition',
   type: 'crossfade',
   label: 'Crossfade',
   icon: '◐',
@@ -71,6 +72,7 @@ const crossfade: VideoComponentDefinition = {
  * clip path, so the incoming clip's own content is never touched.
  */
 const wipe: VideoComponentDefinition = {
+  renderMode: 'transition',
   type: 'wipe',
   label: 'Wipe',
   icon: '▚',

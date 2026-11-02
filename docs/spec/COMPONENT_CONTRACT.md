@@ -17,6 +17,44 @@ model, schema version 2 and the datasource seam),
 Machine-readable form: `packages/core/src/contract.ts`. The registry implementation lives in
 `packages/core/src/registry.ts`.
 
+### Repair contract, 2026-11-02
+
+Definitions own `geometry(props, measured?)`: anchor, local box/origin, named points and
+intrinsic rotation. `bounds` delegates to the same geometry. Coordinates and uniform/axis
+resize capabilities are explicit metadata, independent of props versions. Registration rejects
+duplicate IDs and invalid grips. Missing edit metadata on content resolves to box fallback;
+audio/background/transitions remain outside canvas selection.
+
+`evaluateElementPose(clip, sceneFrame, fps, geometry?)` supplies the existing effect style,
+CSS transform and forward/inverse planar mappings for both video and editor. Picking uses
+oriented/projected geometry; singular and camera-hidden points cannot be manipulated. Visible
+polygon/segment clipping precedes perspective division. DOM caches hold only local content
+sizes for `contentSized` definitions, with font/media/layout invalidation and cleanup.
+
+Canvas eligibility is `[from, from + durationInFrames)`, visible, unlocked and canvas-capable.
+Timeline selection outside it exposes no canvas grips. Store mutation boundaries enforce lock;
+group edits skip locked members and validate other patches atomically. Drags capture immutable
+originals, pause playback, and add one history entry on the first actual change; no-op clicks add
+none. Cancellation/capture loss finalizes the last valid change; seeking clears the gesture.
+
+Every registered definition has a plain props validator (installed from metadata when omitted).
+`normalizeComponentProps` merges missing defaults recursively, rejects supplied malformed known
+fields and retains extensions. Loading validates versions before conversion and validates the
+whole converted project; user mutations reject invalid batches with a notice and unchanged
+project/history. Scalar/domain/encoded fields are checked, not arbitrary future extensions.
+Compatibility `ComponentProps` remains any-based in legacy adapters; this repair adds runtime
+validation and does not claim a complete static-type rewrite.
+
+HTML authored source remains unchanged. Preview/export share parser-based `sanitizeStaticHtml`
+and emit only the [documented static subset](../decisions/2026-11-02-PARSE5-ADOPTION.md), with
+no active/resource/navigation attributes or resource-loading styles. No project/SQLite/archive
+schema version changes are introduced by runtime capabilities.
+
+The composition owns baseline font/line-height and media display; the static HTML adapter owns
+its safe semantic tag defaults. Editor Tailwind preflight is not a video dependency. Explicit
+authored/component inline styles retain precedence. Stage chrome must not shrink the coordinate
+surface used by the Player, picker and overlay.
+
 ## 1. Identity
 
 - `ElementType` (`packages/core/src/schemas.ts`) is the closed union of component IDs. The ID is what a
@@ -45,7 +83,7 @@ Machine-readable form: `packages/core/src/contract.ts`. The registry implementat
 | `defaultDuration` | no | Frames a new instance occupies. |
 | `propsVersion` | no | Version of the component's props schema. Bump on breaking prop changes. |
 | `provenance` | no | Required for adapted third-party source: `source`, `license`, `revision`, `notes`. |
-| `renderMode` | no | `content` (default) \| `audio` \| `background`. |
+| `renderMode` | no | `content` (default) \| `audio` \| `background` \| `transition`. |
 
 `renderMode` decides how the compositor frames the adapter's output: `content` is positioned
 at `(x, y)` and receives the clip's effects; `audio` and `background` are full-frame layers
@@ -87,6 +125,9 @@ export interface ElementHandle {
 
 export interface ElementEditModel {
   /** How the element is picked. */
+  coordinates?: 'absolute' | 'fractional';
+  resize?: 'axes' | 'uniform' | ((props: Record<string, unknown>) => 'axes' | 'uniform');
+  contentSized?: boolean;
   pick: ElementPickKind;
   /** The handles the editor draws on the element while it is selected. */
   handles: ElementHandle[];
@@ -106,7 +147,7 @@ executes*. The shell's obligation is therefore:
   position of its own, because a line's two ends are not at the corners of its bounding box.
 - **Fall back to the box model** when a definition declares none. The field is optional, so an
   element that declares no `edit` keeps today's behaviour and any element can be moved back by
-  removing its declaration.
+  removing its declaration. Audio, background and transition render modes remain explicitly excluded.
 
 **The pick rule.** The canvas picks the topmost clip whose **shape** contains the pointer, and the
 shape is the one the element declares:
@@ -137,13 +178,10 @@ root and the editor measures that element's box; the measurement is editor-only 
 stays pure. The **font size is the single master**: a corner handle scales it, a side handle sets
 the wrap width (a new optional `maxWidth` prop), and the box follows. The inspector's width and
 height fields are gone for a text — it shows the font size and the wrap width. Within the content
-group the emoji writes its `size` from both the corner and the side handles, and the counter and
-the node trail declare wrap handles whose `maxWidth` the inspector does not yet expose as a
-field.
+group emoji writes `size` from corner and east/west handles. Counter exposes font corners only; NodeTrail has no scale/wrap grips and retains inspector label-font control. Supported text wrapping has east/west grips only.
 
 **The chart's corner handles drive its outer box.** The chart's plot has no props of its own yet,
-so the handles scale the box and driving the plot is deferred. **Rotation is not part of this**; it
-is recorded as a deferred item in the roadmap.
+so the handles scale the box and driving the plot is deferred. Existing intrinsic rotation and effect rotation/perspective are respected by the shared pose; adding a universal authored rotation control remains deferred.
 
 ## 3. Lifecycle
 
@@ -405,7 +443,7 @@ its shape needs is left exactly as it was.
 | CV-006 | The v3 → v4 migration makes the drawings store the shapes they are — two absolute points and no box for a trend line, an arrow and a high/low line; `{x, y, width}` for a horizontal line; `{x, y, height}` for a vertical line; `{x, y, points: {at}}` and no box for a text label; the box unchanged for a rectangle; the box plus absolute levels for the position tool; the ray dropped — and is non-destructive and idempotent. |
 | EM-001 | A component definition may declare an optional edit model — a pick kind and its handles — and the shell reads that declaration rather than branching on the element's kind. |
 | EM-002 | A handle declares no place: the shell derives a `scale`, `font` or `wrap` handle from the region's corners and sides, a `point` or `level` handle from the element's own named point, and a `move` handle from the element's own anchor. |
-| EM-003 | The 34 elements declare their edit model as the shipped groups: 18 box-the-truth elements with four `scale` corners; 7 content-the-truth elements with four `font` corners and four `wrap` sides; 3 one-anchor elements with one `move` handle; 3 two-endpoint elements with two `point` handles; the position tool with three `level` handles; and the audio and background elements, which are not on the canvas, with none. |
+| EM-003 | The 32 scene-object types (30 canvas-capable) and 2 separate non-canvas transition definitions declare their capabilities as follows: 18 box-the-truth elements with four `scale` corners; content elements with supported font corners and east/west wrap grips; Counter has font corners only and NodeTrail has no scaling or wrapping grips; 2 one-anchor elements with one `move` handle; 2 two-endpoint elements with two `point` handles; the position tool with three `level` handles; and the audio and background elements, which are not on the canvas, with none. |
 | EM-004 | The canvas picks by shape: a box anywhere inside it, a segment within 6 screen pixels of the stroke, a point within 8 screen pixels — the tolerances in screen pixels, so the same pointer hits the same element at every zoom. |
 | EM-005 | The pick order is unchanged (tracks top-down, later clip on top within a track), and the selected element's own control points take precedence over its body. |
 | EM-006 | One selection overlay draws the declared control points in one style; the separate drawing point overlay is gone, and a line is drawn with no rectangle. |

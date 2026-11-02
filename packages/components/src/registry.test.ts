@@ -5,6 +5,7 @@ import {
   listComponents,
   listComponentsByCategory,
   registerComponent,
+  resolveEditModel,
   type ElementType,
   type Project,
 } from '@chart-studio/core';
@@ -36,6 +37,12 @@ const LEGACY_TYPES: ElementType[] = [
 ];
 
 describe('component registry', () => {
+  it('explicitly excludes both transition definitions from content box fallback', () => {
+    for (const type of ['crossfade','wipe'] as const) {
+      expect(getComponent(type)?.renderMode).toBe('transition');
+      expect(resolveEditModel(getComponent(type)!)).toBeUndefined();
+    }
+  });
   it('registers every inherited element', () => {
     for (const type of LEGACY_TYPES) {
       expect(getComponent(type), type).toBeDefined();

@@ -514,7 +514,15 @@ export const ParticlesAdapter: React.FC<ComponentRenderContext> = ({ props, fram
 export const HtmlAdapter: React.FC<ComponentRenderContext> = ({ props }) => {
   const p = props;
   return (
-    <div style={{ width: Number(p.width), height: Number(p.height), opacity: p.opacity, overflow: 'hidden' }}>
+    <div className="chartstudio-static-html" style={{ width: Number(p.width), height: Number(p.height), opacity: p.opacity, overflow: 'hidden', fontFamily: 'Arial, sans-serif', fontSize: 16, lineHeight: 1.2, color: '#e8eaf0' }}>
+      <style>{`
+        .chartstudio-static-html :where(p,blockquote,pre,h1,h2,h3,h4,h5,h6,ul,ol){margin:0}
+        .chartstudio-static-html :where(h1,h2,h3,h4,h5,h6){font-size:1em;font-weight:normal}
+        .chartstudio-static-html ul{list-style-type:disc;padding-left:1.5em}
+        .chartstudio-static-html ol{list-style-type:decimal;padding-left:1.5em}
+        .chartstudio-static-html :where(pre,code){font-family:monospace;font-size:1em;line-height:inherit}
+        .chartstudio-static-html hr{height:0;margin:0;border:0;border-top:1px solid currentColor}
+      `}</style>
       <div
         style={{
           width: `${100 / Number(p.contentScale || 1)}%`,

@@ -1,7 +1,7 @@
 // Renders a saved project JSON to an MP4 using Remotion's server-side renderer.
 // Usage: npm run render            (renders ./project.json)
 //        npm run render -- path/to/project.json [output.mp4]
-import { bundle } from '@remotion/bundler';
+import { bundleVideo } from './bundle.mjs';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -21,7 +21,7 @@ const project = JSON.parse(readFileSync(projectPath, 'utf8'));
 mkdirSync(path.dirname(outPath), { recursive: true });
 
 console.log(`Bundling composition...`);
-const serveUrl = await bundle({ entryPoint: path.resolve('packages/video/remotion/index.ts') });
+const serveUrl = await bundleVideo();
 
 const inputProps = { project };
 const composition = await selectComposition({ serveUrl, id: 'Main', inputProps });

@@ -14,7 +14,7 @@ export type ComponentProps = Record<string, any>;
  * - `audio`    — an audio layer, not wrapped in the positioned box.
  * - `background` — fills the frame, not wrapped in the positioned box.
  */
-export type RenderMode = 'content' | 'audio' | 'background';
+export type RenderMode = 'content' | 'audio' | 'background' | 'transition';
 
 /** Library grouping shown in the left-hand panel. */
 export type ComponentCategory = 'base' | 'trading' | 'motion';

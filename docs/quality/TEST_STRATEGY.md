@@ -312,6 +312,17 @@ Performance regression policy: capture frame evaluation time, SVG node count, DB
 
 ## 9. Release gates
 
+Element repair regression coverage (2026-11-02): actual PreviewPanel/SelectionOverlay tests,
+pure component geometry/pose tests, store lock/history/atomic validation, migration and safe HTML
+tests live beside their owners. `node scripts/verify-element-repair.mjs` adds a real Windows
+Chromium SC-01 manipulation subset (synthetic chart/title/rectangle/arrow), trusted mouse
+move/reselect/resize, posed selection, lock/group/lifecycle, undo/redo and actual SQLite OPFS
+autosave/reload. It compares component pose to browser geometry, scene layout with/without
+editor CSS, and actual preview/export rectangle and chart-label rasters at selected frames.
+`node scripts/verify-r1.mjs` remains the independent complete still/MP4 gate. Observed results,
+tolerances and limits are in [the durable verification record](../reviews/evidence/element-repair-verification.md).
+This subset does not satisfy the complete future SC-01/import/archive/SMT/MTF release gates.
+
 - **Gate A (architecture feasibility):** actual supported Chromium shows SQLite WASM OPFS save/reload, Remotion 1080p SVG + audio MP4 export, timeline usability and offline app shell.
 - **Gate B (domain correctness):** candle origins/validation, timestamp alignment and no-lookahead tests pass; deterministic simulated path and user-confirmed SMT pairwise semantics are verified.
 - **Gate C (creator experience):** SC-01 and SC-04 work in editor; manually add candles, transform HTF/LTF, add lines/rectangles/position tools, control lifecycle.

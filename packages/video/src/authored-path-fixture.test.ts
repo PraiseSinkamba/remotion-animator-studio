@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { materialiseSeries } from '@chart-studio/core';
+import { migrateProject } from '@chart-studio/components';
 import { authoredPathProject, AUTHORED_SERIES_ID } from '../remotion/authored-path-fixture';
 
 describe('the authored path verification fixture', () => {
+  it('passes the same input boundary as the real Remotion render', () => {
+    expect(() => migrateProject(authoredPathProject)).not.toThrow();
+  });
   const series = authoredPathProject.series?.find((entry) => entry.id === AUTHORED_SERIES_ID);
   const anchors = series?.origin === 'authored-path' ? series.path.anchors : [];
 

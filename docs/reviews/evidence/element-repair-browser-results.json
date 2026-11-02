@@ -1,0 +1,445 @@
+{
+  "synthetic": true,
+  "checks": [
+    "trusted pointer move beyond old box, old-position miss, reselect, corner resize, one history entry per drag, undo/redo",
+    "grouped unlocked body moves; locked member geometry remains unchanged",
+    "actual cloned scene without editor CSS retains SVG wrapper dimensions within 1px and identical computed chart font family",
+    "rotated and perspective CSS geometry agrees with pure pose within 1 composition pixel at 10/25/59/25; trusted posed body selection and drag",
+    "out frame 60 removes rendered rectangle and selected handles",
+    "actual application autosave/reload restores edited project",
+    "same edited project actual preview/export magenta raster bounds agree within 3 composition pixels at 0/10/25/59/60; null bounds agree at singular/inactive frames; editor overlay excluded by composition ownership"
+  ],
+  "frames": [
+    {
+      "frame": 10,
+      "expected": {
+        "left": 354.2156539602168,
+        "top": 168.64209354361032,
+        "width": 188.40149638738427,
+        "height": 169.86031093753024
+      },
+      "chromium": {
+        "left": 354.2156982421875,
+        "top": 168.64208984375,
+        "width": 188.40142822265625,
+        "height": 169.86032104492188
+      },
+      "toleranceCompositionPx": 1
+    },
+    {
+      "frame": 25,
+      "expected": {
+        "left": 353.54325661806183,
+        "top": 168.88015736988774,
+        "width": 192.91348676387634,
+        "height": 172.23968526022452
+      },
+      "chromium": {
+        "left": 353.543212890625,
+        "top": 168.88015747070312,
+        "width": 192.91351318359375,
+        "height": 172.23968505859375
+      },
+      "toleranceCompositionPx": 1
+    },
+    {
+      "frame": 59,
+      "expected": {
+        "left": 353.54325661806183,
+        "top": 168.88015736988774,
+        "width": 192.91348676387634,
+        "height": 172.23968526022452
+      },
+      "chromium": {
+        "left": 353.543212890625,
+        "top": 168.88015747070312,
+        "width": 192.91351318359375,
+        "height": 172.23968505859375
+      },
+      "toleranceCompositionPx": 1
+    },
+    {
+      "frame": 25,
+      "expected": {
+        "left": 353.54325661806183,
+        "top": 168.88015736988774,
+        "width": 192.91348676387634,
+        "height": 172.23968526022452
+      },
+      "chromium": {
+        "left": 353.543212890625,
+        "top": 168.88015747070312,
+        "width": 192.91351318359375,
+        "height": 172.23968505859375
+      },
+      "toleranceCompositionPx": 1
+    },
+    {
+      "frame": 0,
+      "raster": {
+        "preview": null,
+        "exported": null,
+        "chartLabelMeanRgbError": 2.5280982905982907
+      },
+      "toleranceCompositionPx": 3
+    },
+    {
+      "frame": 10,
+      "raster": {
+        "preview": {
+          "left": 380,
+          "top": 185,
+          "right": 566,
+          "bottom": 352,
+          "count": 178
+        },
+        "exported": {
+          "left": 380,
+          "top": 185,
+          "right": 566,
+          "bottom": 352,
+          "count": 178
+        },
+        "chartLabelMeanRgbError": 2.5280982905982907
+      },
+      "toleranceCompositionPx": 3
+    },
+    {
+      "frame": 25,
+      "raster": {
+        "preview": {
+          "left": 379,
+          "top": 185,
+          "right": 570,
+          "bottom": 354,
+          "count": 404
+        },
+        "exported": {
+          "left": 379,
+          "top": 185,
+          "right": 570,
+          "bottom": 354,
+          "count": 412
+        },
+        "chartLabelMeanRgbError": 2.5280982905982907
+      },
+      "toleranceCompositionPx": 3
+    },
+    {
+      "frame": 59,
+      "raster": {
+        "preview": {
+          "left": 379,
+          "top": 185,
+          "right": 570,
+          "bottom": 354,
+          "count": 403
+        },
+        "exported": {
+          "left": 379,
+          "top": 185,
+          "right": 570,
+          "bottom": 354,
+          "count": 411
+        },
+        "chartLabelMeanRgbError": 2.5280982905982907
+      },
+      "toleranceCompositionPx": 3
+    },
+    {
+      "frame": 60,
+      "raster": {
+        "preview": null,
+        "exported": null,
+        "chartLabelMeanRgbError": 0
+      },
+      "toleranceCompositionPx": 3
+    }
+  ],
+  "catalogue": [
+    {
+      "type": "text",
+      "canvas": true
+    },
+    {
+      "type": "counter",
+      "canvas": true
+    },
+    {
+      "type": "shape",
+      "canvas": true
+    },
+    {
+      "type": "image",
+      "canvas": true
+    },
+    {
+      "type": "video",
+      "canvas": true
+    },
+    {
+      "type": "audio",
+      "renderMode": "audio",
+      "canvas": false
+    },
+    {
+      "type": "gif",
+      "canvas": true
+    },
+    {
+      "type": "html",
+      "canvas": true
+    },
+    {
+      "type": "cursor",
+      "canvas": true
+    },
+    {
+      "type": "wave",
+      "canvas": true
+    },
+    {
+      "type": "blob",
+      "canvas": true
+    },
+    {
+      "type": "particles",
+      "canvas": true
+    },
+    {
+      "type": "synthGrid",
+      "canvas": true
+    },
+    {
+      "type": "neonSun",
+      "canvas": true
+    },
+    {
+      "type": "isoCity",
+      "canvas": true
+    },
+    {
+      "type": "skyCycle",
+      "canvas": true
+    },
+    {
+      "type": "sunMoon",
+      "canvas": true
+    },
+    {
+      "type": "ridge",
+      "canvas": true
+    },
+    {
+      "type": "commitGraph",
+      "canvas": true
+    },
+    {
+      "type": "nodeTrail",
+      "canvas": true
+    },
+    {
+      "type": "emoji",
+      "canvas": true
+    },
+    {
+      "type": "background",
+      "renderMode": "background",
+      "canvas": false
+    },
+    {
+      "type": "crossfade",
+      "renderMode": "transition",
+      "canvas": false
+    },
+    {
+      "type": "wipe",
+      "renderMode": "transition",
+      "canvas": false
+    },
+    {
+      "type": "candlestickChart",
+      "canvas": true
+    },
+    {
+      "type": "horizontalLine",
+      "canvas": true
+    },
+    {
+      "type": "verticalLine",
+      "canvas": true
+    },
+    {
+      "type": "trendline",
+      "canvas": true
+    },
+    {
+      "type": "rectangle",
+      "canvas": true
+    },
+    {
+      "type": "arrow",
+      "canvas": true
+    },
+    {
+      "type": "position",
+      "canvas": true
+    },
+    {
+      "type": "remocnMarkerHighlight",
+      "canvas": true
+    },
+    {
+      "type": "remocnSoftBlurIn",
+      "canvas": true
+    },
+    {
+      "type": "remocnTypewriter",
+      "canvas": true
+    }
+  ],
+  "isolatedScene": {
+    "rectangle": {
+      "preview": {
+        "width": 192.91351318359375,
+        "height": 172.23968505859375
+      },
+      "isolated": {
+        "width": 192.91348266601562,
+        "height": 172.23968505859375
+      }
+    },
+    "chart": {
+      "preview": {
+        "width": 360,
+        "height": 240
+      },
+      "isolated": {
+        "width": 360,
+        "height": 240
+      }
+    },
+    "font": {
+      "preview": "Arial, sans-serif",
+      "isolated": "Arial, sans-serif"
+    },
+    "html": {
+      "preview": [
+        {
+          "tag": "h1",
+          "fontFamily": "Arial, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "ul",
+          "fontFamily": "Arial, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px 0px 0px 24px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "li",
+          "fontFamily": "Arial, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "pre",
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "code",
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        }
+      ],
+      "isolated": [
+        {
+          "tag": "h1",
+          "fontFamily": "Arial, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "ul",
+          "fontFamily": "Arial, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px 0px 0px 24px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "li",
+          "fontFamily": "Arial, sans-serif",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "pre",
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        },
+        {
+          "tag": "code",
+          "fontFamily": "monospace",
+          "fontSize": "16px",
+          "fontWeight": "400",
+          "lineHeight": "19.2px",
+          "margin": "0px",
+          "padding": "0px",
+          "listStyleType": "disc"
+        }
+      ]
+    },
+    "stageWidth": 960
+  },
+  "storageBackend": "SQLite (OPFS) — stored in this browser",
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.8080.0 Safari/537.36",
+    "isolated": true,
+    "opfs": true,
+    "status": [
+      "Saved locally",
+      "SQLite"
+    ]
+  },
+  "fixtureInitial": "SYNTHETIC element repair workflow"
+}

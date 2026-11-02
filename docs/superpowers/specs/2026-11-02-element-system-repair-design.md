@@ -36,3 +36,14 @@ Regressions must assert correct behavior, replacing the review's defect-assertin
 Run the workspace tests, all package/app typechecks and production build, and `node scripts/verify-r1.mjs` (real stills and MP4). A browser-based SC-01 manipulation subset and preview/export comparison are required where runnable with installed Chromium tooling; record exact evidence and any environmental limitation. Synthetic data must be labelled. No claim of full SC-01/manual OHLC/import/archive features that are not implemented.
 
 No new project schema version is required if only runtime metadata changes. If serialization must change, version it and test old/current round trips without input mutation. Keep `docs/reference/` untouched.
+
+## Execution status — 2026-11-02
+
+- [x] Geometry/lifecycle/lock/fallback repair with permanent correct-behavior regressions.
+- [x] Component-owned geometry and meaningful handles.
+- [x] Shared evaluated planar pose and camera visibility.
+- [x] Runtime component validation and static HTML isolation.
+- [x] Browser integration, actual preview/export comparison and real render evidence.
+
+See [durable verification](../../reviews/evidence/element-repair-verification.md) for exact commands,
+observed results, scope and limitations. The final broad independent review is controller-owned.

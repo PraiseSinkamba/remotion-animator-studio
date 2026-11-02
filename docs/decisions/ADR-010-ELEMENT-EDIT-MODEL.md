@@ -86,9 +86,7 @@ around it.
 8. **The elements that genuinely are boxes keep their box**: the corners scale them from a fixed
    opposite corner, and the chart's corners scale its **outer box**; the plot has no props of its own yet, so driving the plot is deferred.
 
-9. **Rotation is not part of this.** It is a new prop on every element, a new transform in every
-   renderer and a new rule in the hit test — roughly double the size of this work, and meaningless for a
-   chart. It is recorded as a follow-up.
+9. **Existing rotation and projected effects use the shared frame pose.** The 2026-11-02 repair adds forward/inverse planar projection for picking and manipulation without adding universal rotation props. A new universal authored rotation control remains a follow-up.
 
 ## Consequences
 
@@ -117,6 +115,16 @@ around it.
 | **Keep the box for every element and add the points on top** | That is what the editor has now, and it is the complaint: two overlays, a box that describes nothing, and handles that adjust the wrong thing. |
 
 ## Exit strategy
+
+The 2026-11-02 repair adds component-owned geometry, explicit coordinate/resize capabilities,
+shared frame pose (including existing projected effects), content-only local measurements,
+strict lifetime/lock gating and validated mutation boundaries. Scalar objects resize uniformly;
+IsoCity corners change tileSize while gridSize remains topology. Content wrap grips are east/west
+only where supported. Runtime validation and safe static HTML are defined by the
+[current component contract](../spec/COMPONENT_CONTRACT.md#repair-contract-2026-11-02).
+Audio/background/transition render modes are explicitly excluded from box fallback. Registration
+rejects duplicate IDs and malformed handles; removing metadata does not remove a content object
+from picking. This supersedes the original rotation exclusion for already-rendered effects.
 
 The `edit` field is optional. An element that declares none keeps the current behaviour — the shell
 falls back to the box model — so the contract can be rolled back by dropping the field and the shell's

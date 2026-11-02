@@ -92,24 +92,34 @@ declaration and never names an element kind for selection, editing or picking.
 
 - **EM-001:** A component definition MUST be able to declare an optional edit model — a pick kind (`box`, `segment` or `point`) and the control points it shows — and the editor MUST read that declaration rather than derive a model from the element's props. An element that declares no edit model MUST keep the plain box behaviour.
 - **EM-002:** A handle MUST NOT declare where it sits. The shell MUST derive it: a `scale`, `font` or `wrap` handle is a corner or a side of the element's region, a `point` or `level` handle is the element's own named point, and a `move` handle is the element's own anchor. A line's two ends are not at the corners of its bounding box, so a handle placed as a fraction of the region could not name them.
-- **EM-003:** The 34 elements MUST declare their edit model as follows — 32 of them are on the canvas, and the two that are not, the audio and the background, declare none.
+- **EM-003:** The 32 scene-object types MUST declare their edit model as follows — 30 are canvas-capable; audio and background declare none. Two additional transition definitions are not canvas objects.
 
   | Group | Elements | Pick | Handles |
   |---|---|---|---|
   | 1 — the box is the truth | `shape` `image` `video` `gif` `html` `wave` `synthGrid` `ridge` `commitGraph` `particles` `sunMoon` `skyCycle` `rectangle` `blob` `cursor` `neonSun` `isoCity` `candlestickChart` | `box` | four corners, `scale` |
-  | 2 — the content is the truth | `text` `counter` `emoji` `nodeTrail` `remocnMarkerHighlight` `remocnSoftBlurIn` `remocnTypewriter` | `box` | four corners, `font`; four sides, `wrap` |
+  | 2 — the content is the truth | `text` `emoji` `remocnMarkerHighlight` `remocnSoftBlurIn` `remocnTypewriter` | `box` | four corners, `font`; east/west `wrap` where supported |
+  | Content capability exceptions | `counter`; `nodeTrail` | `box` | counter: font corners only; NodeTrail: no scale/wrap grips, inspector label font only |
   | 3 — one anchor | `horizontalLine` `verticalLine` | `point` | one handle, `move` |
   | 4 — two endpoints | `trendline` `arrow` | `segment` | two handles, `point` |
   | 5 — a box with levels | `position` | `box` | three handles, `level` |
   | 6 — not on the canvas | `audio` `background` | — | none |
 
-  A `scale` handle writes the props the element's size lives in: `width` and `height` for most, `size` for `blob`, `cursor` and `neonSun`, `gridSize` and `tileSize` for `isoCity`, and `width` and `height` for `particles`, `sunMoon` and `skyCycle`. Within the content group the emoji writes its `size` for both the corner and the side handles, and the counter and the node trail declare wrap handles whose `maxWidth` the inspector does not yet expose as a field.
+  A `scale` handle writes the props the element's size lives in: `width` and `height` for most, `size` for `blob`, `cursor` and `neonSun`, `tileSize` for `isoCity`, and `width` and `height` for `particles`, `sunMoon` and `skyCycle`. Within the content group emoji writes `size` for both corner and east/west side handles. Counter has font corners only; NodeTrail has a movable measured path region and inspector label-font control, with no scaling or wrapping grips. IsoCity corners change `tileSize` uniformly; `gridSize` remains topology. Scalar-sized objects resize uniformly.
 - **EM-004:** The canvas MUST pick an element by the shape it declares: a `box` element anywhere inside its region, a `segment` within **6 screen pixels** of its stroke, a `point` within **8 screen pixels** of its point. The tolerance MUST be in screen pixels, so the same pointer hits the same element at every zoom. A line's own endpoints MUST be grabbable, because they are the element's declared control points and take precedence over its body. The geometry module declares a 10-screen-pixel endpoint tolerance, but the pick test does not yet consume it; the endpoints are grabbed as control points instead.
 - **EM-005:** The pick order MUST be unchanged: tracks top-down, and within a track the later clip on top. The selected element's own control points MUST take precedence over its body.
 - **EM-006:** The selection overlay MUST be one layer that draws the control points the element declares, in one style. The drawings' separate point overlay MUST NOT survive alongside it. A line MUST get **no rectangle**: its region is the bounding box of its two ends, but drawing that rectangle is exactly what the change removes.
 - **EM-007:** A text's box MUST be derived from the rendered text, not stored as a number the creator sets. The composition MUST stamp each clip's id onto its rendered root so the editor can measure it; the measurement MUST be editor-only and the renderer MUST stay pure. The font size MUST be the single master: a corner handle scales it and a side handle sets the wrap width, and the box follows. The inspector MUST show the font size and the wrap width for a text, and MUST NOT show width and height.
 - **EM-008:** The trend line's ray option MUST be retired. A trend line has no box to run to the edge of.
 - **EM-009:** The chart's corner handles MUST scale the chart's outer box. The chart's plot has no props of its own yet, so driving the plot is deferred; the corners do not claim to move it.
+
+The 2026-11-02 repair makes these rules frame-specific: eligibility is the half-open clip
+lifetime, visible, unlocked and canvas-capable; timeline selection outside that range has no
+canvas grips. Shared evaluated pose drives rendering, projected picking and inverse pointer
+editing, with singular/camera-hidden geometry excluded. Locks apply at mutation boundaries,
+including grouped operations. Known props validate at load and edit boundaries; invalid batches
+retain prior state/history and report an actionable notice. Local content measurement caches
+sizes only. HTML preview/export use the same safe static subset with authored source preserved.
+See the [component contract](COMPONENT_CONTRACT.md#repair-contract-2026-11-02).
 
 ### CV — Document conversion (CV-005, CV-006)
 

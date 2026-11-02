@@ -1,6 +1,6 @@
 // Local render server: lets the editor's "Export" button render real MP4s.
 // Started automatically by `npm run dev` (see package.json).
-import { bundle } from '@remotion/bundler';
+import { bundleVideo } from './bundle.mjs';
 import { renderMedia, renderStill, selectComposition } from '@remotion/renderer';
 import { createReadStream, mkdirSync, readFileSync, statSync } from 'node:fs';
 import http from 'node:http';
@@ -19,7 +19,7 @@ const getBundle = () => {
   // Bundle once per server run; restart the dev server if you edit src/remotion/*.
   if (!bundlePromise) {
     console.log('[render] bundling composition (first render only)...');
-    bundlePromise = bundle({ entryPoint: path.resolve('packages/video/remotion/index.ts') });
+    bundlePromise = bundleVideo();
   }
   return bundlePromise;
 };

@@ -9,3 +9,15 @@
 - Exit: `sanitizeStaticHtml(string):string` isolates parser use in one module. A replacement parser must pass the same malformed-markup, namespace, attribute, CSS and formatting tests. Authored markup remains unchanged in project props, so replacement does not require archive/schema migration.
 
 Static subset: div/p/span, b/strong/i/em/u/s/small/sub/sup, br/hr, blockquote/pre/code, ul/ol/li and h1–h6. Supported styles: color/background-color (named/hex/rgb/hsl), font-size/letter-spacing/line-height/padding/margin/border-radius (nonnegative unit values), font-weight, font-style, text-align, text-decoration and white-space. Other tags unwrap their text unless active/foreign; links have no navigation and images/media are omitted. Arbitrary CSS, classes, layouts, image URLs and embedded media are intentionally outside this subset. The existing HTML element's outer positioning/size remains ordinary typed component props.
+
+Final production evidence (Task5): app JS 1,351.22kB / 417.11kB gzip; CSS 66.31kB / 11.19kB
+gzip. A production Rollup `generateBundle` measurement retained 14 parse5 modules with 274,350
+rendered source bytes and 3 entities modules with 66,109. These are pre-minification module
+lengths, not marginal minified/gzip costs; no dependency-free baseline was built. See the
+[verification record](../reviews/evidence/element-repair-verification.md). Existing >500kB chunk
+and third-party PURE annotation warnings remain disclosed.
+
+HtmlAdapter owns Arial/16px/line-height/color and narrow semantic heading/list/code/hr defaults
+so editor preflight cannot change the safe output in export. Safe inline authored styles still
+override those defaults. Actual browser clone checks cover unstyled h1/ul/li/pre/code without
+editor CSS; this is not a claim that every possible allowed markup layout has a pixel fixture.
