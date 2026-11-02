@@ -12,6 +12,7 @@ import {
   hitsElement,
   LINE_TOLERANCE_PX,
   POINT_TOLERANCE_PX,
+  projectedCorners,
   type Box,
   type PickKind,
   type Region,
@@ -106,11 +107,13 @@ export const pickableClips = (
     if (clip.hidden || clip.locked || (sceneFrame !== undefined && !isClipActive(clip, sceneFrame))) continue;
     // The region comes from what the element declares, so a line is picked by
     // its stroke and a point by its point — not by a rectangle around them.
-    const region = elementRegion(clip, project, measured?.get(clip.id) ?? null);
-    if (!region) continue;
-    const box = region.box
+    const region = elementRegion(clip, project, measured?.get(clip.id) ?? null, sceneFrame ?? clip.from);
+    if (!region || region.pose?.invertible===false) continue;
+    const corners=projectedCorners(region);
+    const projectedBox=corners.length===4?{left:Math.min(...corners.map(p=>p.x)),top:Math.min(...corners.map(p=>p.y)),width:Math.max(...corners.map(p=>p.x))-Math.min(...corners.map(p=>p.x)),height:Math.max(...corners.map(p=>p.y))-Math.min(...corners.map(p=>p.y))}:null;
+    const box = projectedBox ?? (region.box
       ? { left: region.box.left, top: region.box.top, width: region.box.width, height: region.box.height }
-      : { left: region.anchor.x, top: region.anchor.y, width: 0, height: 0 };
+      : { left: region.anchor.x, top: region.anchor.y, width: 0, height: 0 });
     out.push({ clip, box, region, pick: region.pick });
   }
   return out;

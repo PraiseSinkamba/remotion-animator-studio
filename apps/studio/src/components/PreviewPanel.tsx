@@ -262,7 +262,10 @@ export const PreviewPanel: React.FC = () => {
   const [measured, setMeasured] = useState<Map<string, Box>>(new Map());
   useEffect(() => {
     let id = 0;
+    let disposed = false;
+    const observed = new Set<Element>();
     const measure = () => {
+      if (disposed) return;
       window.cancelAnimationFrame(id);
       id = window.requestAnimationFrame(() => {
         const stage = wrapperRef.current;
@@ -271,11 +274,13 @@ export const PreviewPanel: React.FC = () => {
         const { scale } = canvasMetrics(stageRect);
         if (scale <= 0) return;
         const next = new Map<string, Box>();
+        const elements=new Map(Array.from(stage.querySelectorAll<HTMLElement>('[data-clip-id]')).map(el=>[el.dataset.clipId,el]));
         for (const clip of projectClips(project)) {
-          const el = stage.querySelector(`[data-clip-id="${clip.id}"]`);
+          const el = elements.get(clip.id);
           if (!el) continue;
           const definition = getComponent(clip.element);
-          if (!definition || (definition.renderMode !== undefined && definition.renderMode !== 'content') || definition.edit?.handles.some((handle) => handle.effect === 'scale')) continue;
+          if (!definition?.edit?.contentSized) continue;
+          if (!observed.has(el)) { observed.add(el); resize.observe(el); }
           const width = (el as HTMLElement).offsetWidth;
           const height = (el as HTMLElement).offsetHeight;
           if (width <= 0 || height <= 0) continue;
@@ -308,13 +313,14 @@ export const PreviewPanel: React.FC = () => {
     const mutations = new MutationObserver(measure);
     if (stage) {
       resize.observe(stage);
-      stage.querySelectorAll('[data-clip-id]').forEach((el) => resize.observe(el));
       mutations.observe(stage, {childList: true, subtree: true, characterData: true});
       stage.addEventListener('load', measure, true);
     }
     document.fonts?.addEventListener('loadingdone', measure);
+    void document.fonts?.ready?.then(measure);
     measure();
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(id);
       resize.disconnect();
       mutations.disconnect();
@@ -465,14 +471,16 @@ export const PreviewPanel: React.FC = () => {
     // on an already selected clip keeps the multi-selection, so a group can be
     // grabbed by any of its members.
     else if (!alreadySelected) s.selectClip(hit.id);
+    playerRef.current?.pause();
+    s.setPlaying(false);
     const next = useStore.getState();
     // The grabbed clip always moves; the rest of the selection moves with it.
     const moving = new Set([...next.selectedClipIds, hit.id]);
     const origins: Array<{ clipId: string; clip: Clip; region: ReturnType<typeof elementRegion> }> = [];
     for (const c of projectClips(next.project)) {
       if (!moving.has(c.id) || !isClipActive(c, next.currentFrame)) continue;
-      const region = elementRegion(c, next.project, measured.get(c.id) ?? null);
-      if (region) origins.push({ clipId: c.id, clip: c, region });
+      const region = elementRegion(c, next.project, measured.get(c.id) ?? null, next.currentFrame);
+      if (region && region.pose?.invertible!==false) origins.push({ clipId: c.id, clip: c, region });
     }
     if (!origins.some((o) => o.clipId === hit.id)) return;
     drag.current = {
@@ -521,9 +529,9 @@ export const PreviewPanel: React.FC = () => {
     const dy = (e.clientY - drag.current.startY) / scale;
     const state = useStore.getState();
     // Eligibility is live; geometry remains the immutable pointer-down snapshot.
-    const eligible = drag.current.origins.filter(({clipId}) => {
+    const eligible = drag.current.origins.filter(({clipId,region}) => {
       const live = findClip(state.project, clipId);
-      return live && isClipActive(live, state.currentFrame);
+      return live && isClipActive(live, state.currentFrame) && region?.context?.sceneFrame===state.currentFrame;
     });
     if (eligible.length === 0) {
       drag.current = null;
@@ -831,7 +839,7 @@ export const PreviewPanel: React.FC = () => {
           initiallyMuted={muted}
           acknowledgeRemotionLicense
         />
-        <SelectionOverlay measured={measured} />
+        <SelectionOverlay measured={measured} onManipulationStart={()=>playerRef.current?.pause()} />
         {swingHandles().length > 0 ? (
           <div className="pointer-events-none absolute inset-0 z-20">
             <svg

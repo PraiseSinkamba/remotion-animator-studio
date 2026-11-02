@@ -88,7 +88,7 @@ describe('preview measurement replacement and grouped movement',()=>{
   const flush=()=>act(()=>{const callbacks=[...frames.values()];frames.clear();callbacks.forEach(callback=>callback(0));});
   setText('first',300);flush();
   expect((ui.container.querySelector('.border-dashed.border-primary') as HTMLElement).style.width).toBe('300px');
-  setText('replacement',800);flush();
+  setText('replacement"[id]',800);flush();
   const box=ui.container.querySelector('.border-dashed.border-primary') as HTMLElement;
   expect(box.style.left).toBe('650px');expect(box.style.width).toBe('300px');
   expect(ui.container.querySelector('[data-clip-id="first"]')).toBeNull();
@@ -98,7 +98,7 @@ describe('preview measurement replacement and grouped movement',()=>{
   expect(useStore.getState().selectedClipIds).toEqual([]);
   fireEvent.pointerDown(stage,{button:0,clientX:900,clientY:300});
   fireEvent.pointerUp(stage,{button:0,clientX:900,clientY:300});
-  expect(useStore.getState().selectedClipIds).toEqual(['replacement']);
+  expect(useStore.getState().selectedClipIds).toEqual(['replacement"[id]']);
  });
  it('excludes locked group members from real body-drag targets',()=>{
   const ui=setup();vi.stubGlobal('PointerEvent',MouseEvent);
@@ -162,5 +162,65 @@ describe('live body gesture eligibility and finalization',()=>{
    expect(useStore.getState().history).toHaveLength(1);
    cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();
   }
+ });
+});
+
+describe('projected manipulation at fixed frame',()=>{
+ it.each([0.25,1,4])('tracks animated body and resize pointers at canvas scale %s',scale=>{
+  const ui=setup(scale);
+  const c=useStore.getState().project.tracks[0].clips[0];
+  act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[{...c,effects:[{id:'z',type:'zoomIn',params:{fromScale:2,duration:30}}]}]}]}}));
+  const stage=ui.container.querySelector('.preview-stage')!;
+  fireEvent.pointerDown(stage,{button:0,clientX:300*scale,clientY:300*scale});
+  fireEvent.pointerMove(stage,{clientX:320*scale,clientY:310*scale});
+  fireEvent.pointerUp(stage);
+  let moved=useStore.getState().project.tracks[0].clips[0];
+  expect(moved.props.x).toBe(320);expect(moved.props.y).toBe(310);
+  const grips=ui.container.querySelectorAll('.size-3');const se=grips[2] as HTMLElement;
+  const sx=parseFloat(se.style.left),sy=parseFloat(se.style.top);
+  fireEvent.pointerDown(se,{clientX:sx,clientY:sy});fireEvent.pointerMove(se,{clientX:sx+20*scale,clientY:sy+40*scale});fireEvent.pointerUp(se);
+  moved=useStore.getState().project.tracks[0].clips[0];
+  expect(moved.props.width).toBeCloseTo(110,3);expect(moved.props.height).toBeCloseTo(120,3);
+  const next=ui.container.querySelectorAll('.size-3');expect(parseFloat((next[0] as HTMLElement).style.left)).toBeCloseTo(220*scale,3);
+  expect(parseFloat((next[2] as HTMLElement).style.left)).toBeCloseTo(sx+20*scale,3);
+ });
+});
+
+describe('late content layout',()=>{
+ it('refreshes local sizes after fonts, media and panel resize, then cleans listeners',()=>{
+  const ui=setup();const frames=new Map<number,FrameRequestCallback>();let n=0;
+  vi.stubGlobal('requestAnimationFrame',(cb:FrameRequestCallback)=>{frames.set(++n,cb);return n;});vi.stubGlobal('cancelAnimationFrame',(id:number)=>frames.delete(id));
+  const callbacks:Array<()=>void>=[];const disconnect=vi.fn();
+  vi.stubGlobal('ResizeObserver',class{constructor(cb:()=>void){callbacks.push(cb);}observe(){}disconnect(){disconnect();}});
+  const fonts=new EventTarget();Object.defineProperty(document,'fonts',{configurable:true,value:fonts});
+  const remove=vi.spyOn(fonts,'removeEventListener');let width=200;
+  vi.spyOn(HTMLElement.prototype,'offsetWidth','get').mockImplementation(()=>width);vi.spyOn(HTMLElement.prototype,'offsetHeight','get').mockReturnValue(80);
+  const text={...clip,id:'text',element:'text' as const,from:0,props:{...getComponent('text')!.defaults,text:'Late font',x:300,y:300}};
+  act(()=>useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[text]}]},selectedClipIds:['text']}));
+  const flush=()=>act(()=>{const pending=[...frames.values()];frames.clear();pending.forEach(cb=>cb(0));});
+  const box=()=>ui.container.querySelector('.border-dashed.border-primary') as HTMLElement;
+  flush();expect(box().style.width).toBe('200px');
+  width=240;act(()=>fonts.dispatchEvent(new Event('loadingdone')));flush();expect(box().style.width).toBe('240px');
+  width=280;act(()=>callbacks.forEach(cb=>cb()));flush();expect(box().style.width).toBe('280px');
+  width=320;fireEvent.load(ui.container.querySelector('[data-clip-id]')!);flush();expect(box().style.width).toBe('320px');
+  ui.unmount();expect(disconnect).toHaveBeenCalled();expect(remove).toHaveBeenCalledWith('loadingdone',expect.any(Function));
+  Reflect.deleteProperty(document,'fonts');
+ });
+});
+
+describe('gesture frame stability',()=>{
+ it.each(['body','handle'] as const)('finalizes %s manipulation on a seek within the active interval',target=>{
+  const ui=setup();
+  const el=target==='body'?ui.container.querySelector('.preview-stage')!:ui.container.querySelector('.size-3')!;
+  const start=target==='body'?300:250;
+  fireEvent.pointerDown(el,{button:0,clientX:start,clientY:start});
+  fireEvent.pointerMove(el,{clientX:start+10,clientY:start+10});
+  const original=useStore.getState().project.tracks[0].clips[0].props;
+  act(()=>useStore.getState().setCurrentFrame(1));
+  fireEvent.pointerMove(el,{clientX:start+30,clientY:start+30});
+  act(()=>useStore.getState().setCurrentFrame(0));
+  fireEvent.pointerMove(el,{clientX:start+40,clientY:start+40});
+  expect(useStore.getState().project.tracks[0].clips[0].props).toBe(original);
+  expect(useStore.getState().history).toHaveLength(1);
  });
 });

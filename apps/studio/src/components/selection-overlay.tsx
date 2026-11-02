@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getComponent } from '@chart-studio/components';
-import { dragEffect, elementRegion, handleAt, isClipActive, type Box, type Point, type Region } from '@chart-studio/editor';
+import { dragEffect, projectedCorners, elementRegion, handleAt, isClipActive, type Box, type Point, type Region } from '@chart-studio/editor';
 import { findClip, useStore } from '@chart-studio/editor';
 import type { Clip, ElementHandle } from '@chart-studio/core';
 
@@ -19,7 +19,7 @@ import type { Clip, ElementHandle } from '@chart-studio/core';
 /** The smallest box a handle may drag out, when the component has no minimum. */
 const MIN_SIZE = 8;
 
-export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ measured }) => {
+export const SelectionOverlay: React.FC<{ measured?: Map<string, Box>; onManipulationStart?:()=>void }> = ({ measured, onManipulationStart }) => {
   const project = useStore((s) => s.project);
   const currentFrame = useStore((s) => s.currentFrame);
   const selectedClipIds = useStore((s) => s.selectedClipIds);
@@ -72,10 +72,10 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
         .map((clip) => {
           const definition = getComponent(clip.element);
           const edit = definition?.edit ?? (definition && (definition.renderMode === undefined || definition.renderMode === 'content') ? {pick: 'box' as const, handles: []} : undefined);
-          const region = elementRegion(clip, project, measured?.get(clip.id) ?? null);
+          const region = elementRegion(clip, project, measured?.get(clip.id) ?? null, currentFrame);
           return { clip, edit, region };
         })
-        .filter((entry) => entry.edit && entry.region),
+        .filter((entry) => entry.edit && entry.region && entry.region.pose?.invertible!==false),
     [project, selectedClipIds, measured, currentFrame],
   );
 
@@ -112,6 +112,8 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
     // Keep the stage's move-drag from starting under the handle.
     e.stopPropagation();
     e.preventDefault();
+    onManipulationStart?.();
+    useStore.getState().setPlaying(false);
     drag.current = { changed: false, startX: e.clientX, startY: e.clientY, handle, clip, region };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
@@ -119,6 +121,7 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
   const onHandlePointerMove = (e: React.PointerEvent) => {
     const current = drag.current;
     if (!current) return;
+    if (current.region.context?.sceneFrame!==useStore.getState().currentFrame) {drag.current=null;return;}
     const pointer = compositionPoint(e.clientX, e.clientY);
     const start = compositionPoint(current.startX, current.startY);
     if (!pointer || !start) return;
@@ -152,15 +155,13 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
              * not be drawn: the line is picked and dragged by its ends, and a
              * rectangle around it is exactly what this design removes.
              */
-            const box =
-              region.pick === 'box' && region.box
-                ? {
-                    left: offsetX + region.box.left * scale,
-                    top: offsetY + region.box.top * scale,
-                    width: region.box.width * scale,
-                    height: region.box.height * scale,
-                  }
-                : null;
+            const corners=projectedCorners(region).map(stagePoint);
+            const box = corners.length===4 ? {
+              left:Math.min(...corners.map(p=>p.left)),top:Math.min(...corners.map(p=>p.top)),
+              width:Math.max(...corners.map(p=>p.left))-Math.min(...corners.map(p=>p.left)),
+              height:Math.max(...corners.map(p=>p.top))-Math.min(...corners.map(p=>p.top)),
+            }:null;
+            const oriented=corners.length===4 && (Math.abs(corners[0].top-corners[1].top)>0.01 || Math.abs(corners[1].left-corners[2].left)>0.01);
 
             /** The handles the element declares, placed where they belong. */
             const handles = edit.handles
@@ -188,7 +189,9 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
 
             return (
               <div key={clip.id}>
-                {box ? (
+                {box && oriented ? (
+                  <svg className="absolute inset-0 h-full w-full overflow-visible"><polygon points={corners.map(p=>`${p.left},${p.top}`).join(' ')} fill="none" stroke="var(--primary)" strokeWidth="2" strokeDasharray="5 4" /></svg>
+                ) : box ? (
                   <div
                     className="absolute rounded-sm border-2 border-dashed border-primary"
                     style={{ left: box.left, top: box.top, width: box.width, height: box.height }}

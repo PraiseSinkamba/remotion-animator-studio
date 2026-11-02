@@ -10,6 +10,7 @@
  * (screen pixels per composition pixel) — that is what makes a pick feel the
  * same at every zoom level.
  */
+import {evaluateElementPose, type ElementPose} from '@chart-studio/components';
 import { componentBounds, resolveEditModel, getComponent, type Clip, type ElementHandle, type Project } from '@chart-studio/core';
 
 /** A point in composition pixels. */
@@ -50,6 +51,8 @@ export interface Region {
   pointsAreAbsolute: boolean;
   origin?: Point;
   rotation?: number;
+  pose?: ElementPose;
+  context?: {project:Project;sceneFrame:number;measured?:Box|null};
 }
 
 /** Tolerance for a line's body, in screen pixels. */
@@ -172,7 +175,7 @@ const distanceToSegment = (point: Point, a: Point, b: Point): number => {
  * `null` when the element declares no edit model — it is not picked on the
  * canvas (audio and background).
  */
-export const elementRegion = (
+const authoredRegion = (
   clip: Clip,
   project: Project,
   measured?: Box | null,
@@ -218,6 +221,19 @@ export const elementRegion = (
   return { pick: 'box', box: frame, frame, anchor, points, pointsAreAbsolute, origin: declared?.origin ?? anchor, rotation: declared?.rotation };
 };
 
+/** Optional scene frame opts existing callers into the displayed pose. */
+export const elementRegion = (clip:Clip,project:Project,measured?:Box|null,sceneFrame?:number):Region|null => {
+  const region=authoredRegion(clip,project,measured);
+  if (!region || sceneFrame===undefined) return region;
+  const pose=evaluateElementPose(clip,sceneFrame,project.fps,{anchor:region.anchor,box:region.frame,origin:region.origin??region.anchor,rotation:region.rotation,points:region.points});
+  return {...region,pose,context:{project,sceneFrame,measured}};
+};
+
+export const projectedCorners = (region:Region):Point[] => {
+  if (!region.box || region.pose?.invertible===false) return [];
+  return ['nw','ne','se','sw'].map(id=>cornerOf(region.box!,id)!).map(p=>region.pose?region.pose.toComposition(p):p).filter((p):p is Point=>p!==null);
+};
+
 /**
  * Does the pointer hit the element?
  *
@@ -233,6 +249,17 @@ export const hitsElement = (
   tolerancePx: number,
   scale = 1,
 ): boolean => {
+  if (region.pose) {
+    if (!region.pose.invertible) return false;
+    if (pick==='box') {
+      const authored=region.pose.toAuthored(point);
+      return authored ? hitsElement(pick,{...region,pose:undefined},authored,tolerancePx,scale):false;
+    }
+    const anchor=region.pose.toComposition(region.anchor);
+    const points=Object.fromEntries(Object.entries(region.points).map(([id,p])=>[id,region.pose!.toComposition(p)]));
+    if (!anchor || Object.values(points).some(p=>!p)) return false;
+    return hitsElement(pick,{...region,pose:undefined,anchor,points:points as Record<string,Point>},point,tolerancePx,scale);
+  }
   const tolerance = tolerancePx / (scale > 0 ? scale : 1);
   if (pick === 'box') {
     const box = region.box;
@@ -258,6 +285,11 @@ export const hitsElement = (
  * `null` when the handle has no place on this element.
  */
 export const handleAt = (region: Region, handle: ElementHandle, _clip?: Clip): Point | null => {
+  if (region.pose) {
+    if (!region.pose.invertible) return null;
+    const local=handleAt({...region,pose:undefined},handle,_clip);
+    return local?region.pose.toComposition(local):null;
+  }
   switch (handle.effect) {
     case 'scale':
     case 'font': {
@@ -422,6 +454,21 @@ export const dragEffect = (
   pointer: Point,
   start: Point,
 ): Record<string, unknown> | null => {
+  if (region.pose) {
+    if (!region.pose.invertible) return null;
+    if (handle.effect==='move') return moveElement(clip,region,{x:pointer.x-start.x,y:pointer.y-start.y});
+    const local=region.pose.toAuthored(pointer),localStart=region.pose.toAuthored(start);
+    if (!local || !localStart) return null;
+    // Wrapping stays centered in the renderer; an east/west grip changes
+    // both half-widths, unlike a fixed-opposite-corner scale grip.
+    if (handle.effect==='wrap' && region.box && handle.props?.[0]) {
+      const sign=handle.id==='w'?-1:1;
+      return {[handle.props[0]]:round(Math.max(MIN_SIZE,2*sign*(local.x-region.anchor.x)))};
+    }
+    const patch=dragEffect(clip,handle,{...region,pose:undefined},local,localStart);
+    if (patch && handle.effect==='scale' && region.context) return fitProjectedResize(clip,handle,region,pointer,patch);
+    return patch;
+  }
   const props = mergedProps(clip);
   switch (handle.effect) {
     case 'scale':
@@ -454,6 +501,22 @@ export const moveElement = (
   region: Region,
   delta: Point,
 ): Record<string, unknown> | null => {
+  if (region.pose) {
+    if (!region.pose.invertible) return null;
+    // Anchored wrappers translate their origin too. Their screen delta is
+    // therefore the authored anchor delta, independent of scale/rotation.
+    if (region.pointsAreAbsolute && !region.frame) {
+      const points={...rawPoints(mergedProps(clip))};
+      for (const [id,point] of Object.entries(region.points)) {
+        const displayed=region.pose.toComposition(point);
+        const authored=displayed&&region.pose.toAuthored({x:displayed.x+delta.x,y:displayed.y+delta.y});
+        if (!authored) return null;
+        points[id]={...points[id],x:round(authored.x),y:round(authored.y)};
+      }
+      return {points};
+    }
+    return moveElement(clip,{...region,pose:undefined},delta);
+  }
   const definition = getComponent(clip.element);
   if (!definition || (definition.renderMode !== undefined && definition.renderMode !== 'content')) return null;
   const edit = definition.edit ?? {pick: 'box'};
@@ -461,7 +524,7 @@ export const moveElement = (
   const patch: Record<string, unknown> = {};
 
   const moved = Object.entries(region.points);
-  if (moved.length > 0) {
+  if (moved.length > 0 && region.pointsAreAbsolute) {
     const points = { ...rawPoints(props) };
     for (const [key, point] of moved) {
       points[key] = {...points[key], ...toStoredPoint(
@@ -484,3 +547,89 @@ export const moveElement = (
 /** Canvas lifetime is half-open; hidden and locked clips cannot be manipulated. */
 export const isClipActive = (clip: Clip, sceneFrame: number): boolean =>
   !clip.hidden && !clip.locked && sceneFrame >= clip.from && sceneFrame < clip.from + clip.durationInFrames;
+
+/** Solve displayed corner constraints while re-evaluating the moving pivot.
+ * The two dimension variables use Newton steps; uniform controls use a
+ * least-squares step along their declared one-dimensional resize capability.
+ */
+function fitProjectedResize(
+  clip: Clip,
+  handle: ElementHandle,
+  region: Region,
+  target: Point,
+  initial: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const context = region.context!;
+  const fixedHandle = {...handle, id: OPPOSITE[handle.id]};
+  const fixed = handleAt(region, fixedHandle);
+  if (!fixed) return null;
+  const props = mergedProps(clip);
+  const resize = getComponent(clip.element)?.edit?.resize;
+  const uniform = (typeof resize === 'function' ? resize(props) : resize) === 'uniform';
+  const names = (handle.props ?? []).filter(name => typeof initial[name] === 'number');
+  if (!names.length) return initial;
+  const variables = uniform ? ['ratio'] : names;
+  const values = uniform
+    ? [Number(initial[names[0]]) / Number(props[names[0]])]
+    : names.map(name => Number(initial[name]));
+
+  const sample = (dimensions: number[]) => {
+    const patch = {...initial};
+    names.forEach((name, i) => {
+      patch[name] = Math.max(MIN_SIZE, uniform ? Number(props[name]) * dimensions[0] : dimensions[i]);
+    });
+    const evaluated = () => elementRegion(
+      {...clip, props: {...clip.props, ...patch}},
+      context.project, context.measured, context.sceneFrame,
+    );
+    let next = evaluated();
+    let at = next && handleAt(next, fixedHandle);
+    if (!at) return null;
+    // Translation also moves the pivot, so this correction is in displayed
+    // pixels, not inverse-mapped pixels. Re-evaluate before measuring error.
+    patch.x = Number(patch.x ?? props.x ?? 0) + fixed.x - at.x;
+    patch.y = Number(patch.y ?? props.y ?? 0) + fixed.y - at.y;
+    next = evaluated();
+    at = next && handleAt(next, handle);
+    return at ? {patch, error: [at.x - target.x, at.y - target.y]} : null;
+  };
+
+  for (let iteration = 0; iteration < 16; iteration++) {
+    const current = sample(values);
+    if (!current) return null;
+    if (Math.hypot(...current.error) < 0.00001) return finish(current.patch);
+    const columns = variables.map((_, i) => {
+      const candidate = [...values];
+      const step = Math.max(0.001, Math.abs(candidate[i]) * 0.00001);
+      candidate[i] += step;
+      const next = sample(candidate);
+      return next ? next.error.map((error, j) => (error - current.error[j]) / step) : [0, 0];
+    });
+    if (columns.length === 1) {
+      const [a, b] = columns[0];
+      const norm = a*a + b*b;
+      if (norm < 1e-12) break;
+      values[0] -= (a * current.error[0] + b * current.error[1]) / norm;
+    } else {
+      const [a, c] = columns[0], [b, d] = columns[1];
+      const determinant = a*d - b*c;
+      if (Math.abs(determinant) < 1e-12) break;
+      values[0] -= (d * current.error[0] - b * current.error[1]) / determinant;
+      values[1] -= (-c * current.error[0] + a * current.error[1]) / determinant;
+    }
+  }
+  const final = sample(values);
+  return final ? finish(final.patch) : null;
+}
+
+/** Keep numerical fitting at the same authoring precision as other edits. */
+function finish(patch: Record<string, unknown>): Record<string, unknown> | null {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) return null;
+      result[key] = round(value);
+    } else result[key] = value;
+  }
+  return result;
+}

@@ -1,7 +1,7 @@
 import { noise2D } from '@remotion/noise';
 import React from 'react';
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
-import { computeEffectStyle, type ComputedStyle } from '@chart-studio/components';
+import { evaluateElementPose, type ComputedStyle } from '@chart-studio/components';
 import { getComponent } from '@chart-studio/components';
 import { evaluateClip } from './evaluate';
 import type { Clip, Project } from '@chart-studio/core';
@@ -58,7 +58,8 @@ const ClipRenderer: React.FC<{
 }> = ({ clip, project, transition }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const fx = computeEffectStyle(frame, clip.durationInFrames, fps, clip.effects);
+  const pose = evaluateElementPose(clip, clip.from + frame, fps);
+  const fx = pose.style;
   const definition = getComponent(clip.element);
   if (!definition) return null;
   // A hidden clip is not rendered. The shell honours the flag for every
@@ -145,10 +146,7 @@ const ClipRenderer: React.FC<{
         clipPath: blendClipPath ?? fx.clipPath ?? undefined,
         transform:
           (anchored ? 'translate(-50%, -50%) ' : '') +
-          `translate(${fx.translateX}px, ${fx.translateY}px) scale(${fx.scale}) rotate(${fx.rotate}deg)` +
-          (fx.rotateX !== 0 || fx.rotateY !== 0
-            ? ` perspective(1200px) rotateX(${fx.rotateX}deg) rotateY(${fx.rotateY}deg)`
-            : ''),
+          pose.transform,
       }}
     >
       <div style={{ position: 'relative' }}>

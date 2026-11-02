@@ -434,3 +434,59 @@ describe('review: drawing defaults and projection metadata', () => {
     } finally {definition.geometry = geometry;}
   });
 });
+
+describe('animated pose integration',()=>{
+ it('moves picking and handles 500 pixels and rejects rotated AABB corners',()=>{
+  const c={...makeClip('shape',{x:300,y:300,width:200,height:100}),effects:[{id:'s',type:'slideIn' as const,params:{direction:'right',distance:500,duration:30}}]};
+  const r=elementRegion(c,project,null,0)!;
+  expect(hitsElement('box',r,{x:800,y:300},0)).toBe(true);
+  expect(hitsElement('box',r,{x:300,y:300},0)).toBe(false);
+  expect(handleAt(r,{id:'ne',effect:'scale',props:['width','height']})!.x).toBeCloseTo(900);
+  const rotated=elementRegion({...c,effects:[],props:{...c.props,rotation:45}},project,null,0)!;
+  expect(hitsElement('box',rotated,{x:300,y:300},0)).toBe(true);
+  expect(hitsElement('box',rotated,{x:400,y:200},0)).toBe(false);
+ });
+ it('moves anchored scaled boxes by the displayed pointer delta',()=>{
+  const c={...makeClip('shape',{x:300,y:300,width:100,height:100}),effects:[{id:'z',type:'zoomIn' as const,params:{fromScale:2,duration:30}}]};
+  const r=elementRegion(c,project,null,0)!;
+  const patch=moveElement(c,r,{x:20,y:10})!;
+  const next=elementRegion({...c,props:{...c.props,...patch}},project,null,0)!;
+  const h={id:'ne',effect:'scale' as const,props:['width','height']};
+  expect(handleAt(next,h)!.x-handleAt(r,h)!.x).toBeCloseTo(20);
+  expect(handleAt(next,h)!.y-handleAt(r,h)!.y).toBeCloseTo(10);
+ });
+ it('keeps the projected opposite corner fixed after scaled resize',()=>{
+  const c={...makeClip('shape',{x:300,y:300,width:100,height:100}),effects:[{id:'z',type:'zoomIn' as const,params:{fromScale:2,duration:30}}]};
+  const r=elementRegion(c,project,null,0)!;
+  const h={id:'se',effect:'scale' as const,props:['width','height']};
+  const start=handleAt(r,h)!; const target={x:start.x+20,y:start.y+40};
+  const patch=dragEffect(c,h,r,target,start)!;
+  const next=elementRegion({...c,props:{...c.props,...patch}},project,null,0)!;
+  expect(handleAt(next,h)!.x).toBeCloseTo(target.x,3);expect(handleAt(next,h)!.y).toBeCloseTo(target.y,3);
+  const fixed={...h,id:'nw'};
+  expect(handleAt(next,fixed)!.x).toBeCloseTo(handleAt(r,fixed)!.x,3);expect(handleAt(next,fixed)!.y).toBeCloseTo(handleAt(r,fixed)!.y,3);
+ });
+});
+
+describe('projection regressions',()=>{
+ it.each([0.25,1,4])('retains screen tolerance on transformed segments at %s',scale=>{
+  const c={...trendline(),effects:[{id:'z',type:'zoomIn' as const,params:{fromScale:2,duration:30}}]};
+  const r=elementRegion(c,project,null,0)!;const points=Object.values(r.points).map(p=>r.pose!.toComposition(p)!);
+  const [a,b]=points;const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+  const at=(distance:number)=>({x:(a.x+b.x)/2-dy/len*distance/scale,y:(a.y+b.y)/2+dx/len*distance/scale});
+  expect(hitsElement('segment',r,at(5),6,scale)).toBe(true);expect(hitsElement('segment',r,at(7),6,scale)).toBe(false);
+ });
+ it.each(['horizontal','vertical'])('tracks fixed and dragged corners after rotated perspective resize (%s)',axis=>{
+  const c={...makeClip('shape',{x:300,y:300,width:200,height:100,rotation:25}),effects:[{id:'f',type:'flipIn' as const,params:{axis,duration:30,easing:'linear'}}]};
+  const r=elementRegion(c,project,null,15)!;const h={id:'se',effect:'scale' as const,props:['width','height']};
+  const start=handleAt(r,h)!;const target={x:start.x+25,y:start.y+15};const fixed=handleAt(r,{...h,id:'nw'})!;
+  const patch=dragEffect(c,h,r,target,start)!;const next=elementRegion({...c,props:{...c.props,...patch}},project,null,15)!;
+  expect(handleAt(next,h)!.x).toBeCloseTo(target.x,3);expect(handleAt(next,h)!.y).toBeCloseTo(target.y,3);
+  expect(handleAt(next,{...h,id:'nw'})!.x).toBeCloseTo(fixed.x,3);expect(handleAt(next,{...h,id:'nw'})!.y).toBeCloseTo(fixed.y,3);
+ });
+ it('moves each absolute endpoint through its own perspective inverse',()=>{
+  const c={...trendline(),effects:[{id:'f',type:'flipIn' as const,params:{axis:'vertical',duration:30,easing:'linear'}}]};
+  const r=elementRegion(c,project,null,15)!;const patch=moveElement(c,r,{x:20,y:10})!;const next=elementRegion({...c,props:{...c.props,...patch}},project,null,15)!;
+  for(const id of Object.keys(r.points)){const a=r.pose!.toComposition(r.points[id])!,b=next.pose!.toComposition(next.points[id])!;expect(b.x-a.x).toBeCloseTo(20,3);expect(b.y-a.y).toBeCloseTo(10,3);}
+ });
+});

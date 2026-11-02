@@ -13,3 +13,4 @@ export * from './trading/chart';
 export * from './motion/definitions/marker-highlight';
 export * from './motion/definitions/soft-blur-in';
 export * from './motion/definitions/typewriter';
+export * from './element-pose.js';
