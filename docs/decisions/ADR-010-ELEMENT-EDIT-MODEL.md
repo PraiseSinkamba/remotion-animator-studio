@@ -129,3 +129,21 @@ from picking. This supersedes the original rotation exclusion for already-render
 The `edit` field is optional. An element that declares none keeps the current behaviour — the shell
 falls back to the box model — so the contract can be rolled back by dropping the field and the shell's
 branch, and any element can be moved back to the box model by removing its declaration.
+
+## Accepted follow-up — purpose handles and layout placement, 2026-11-02
+
+The owner-approved [position and line design](../superpowers/specs/2026-11-02-position-and-line-handles-design.md)
+supersedes the original guide/position details above. Position props v4 has an explicit left paint
+edge and level-derived vertical bounds, independently of its stable authored x/y pivot. It has
+Target/Stop square grips, Entry/Width circle grips, and no corners. Entry changes entry.y only
+with TP/SL fixed; Width changes width with left fixed; body movement translates all real geometry.
+Horizontal/vertical guides span the actual composition, pick by their stroke, and expose one
+center grip with the same y-only/x-only constraint as body movement. Segments keep two endpoints
+and rectangles keep four corners.
+
+Generic declarations now include composition context, optional layout `placement`, `moveAxis`,
+translated scalar coordinates, scalar `width` handles and grip appearance/label metadata. The
+compositor and overlay consume those declarations without shell kind dispatch. Legacy position
+props migrate after absolute conversion, preserving pivot/levels/extensions and deriving left
+from the old centered width. Project schema and SQLite schema remain unchanged. The normative
+[component contract](../spec/COMPONENT_CONTRACT.md) records the current API.

@@ -312,6 +312,15 @@ Performance regression policy: capture frame evaluation time, SVG node count, DB
 
 ## 9. Release gates
 
+Position/line follow-up (2026-11-02): `node scripts/verify-drawing-handles.mjs` exercises actual
+trusted Chromium purpose-grip/body drags, full-span axis-constrained guides, two-endpoint segment
+picking and rectangle corners at scale .5/1, plus a scaled/rotated position. It saves old position
+props through real app SQLite OPFS, verifies normal migration/reopen and a second props-v4 reopen,
+and compares actual static/posed exported zones, levels and guide paint with preview. Selected-grip
+neighborhood comparisons prove editor controls are absent from export. Observed commands, exact
+errors, screenshots and limits are in [drawing handles verification](../reviews/evidence/drawing-handles-verification.md)
+and its linked result JSON. This adds an SC-03 drawing subset, not the full future creator scenario.
+
 Element repair regression coverage (2026-11-02): actual PreviewPanel/SelectionOverlay tests,
 pure component geometry/pose tests, store lock/history/atomic validation, migration and safe HTML
 tests live beside their owners. `node scripts/verify-element-repair.mjs` adds a real Windows

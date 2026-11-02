@@ -1,0 +1,612 @@
+{
+  "synthetic": true,
+  "scenario": "SC-03 drawing manipulation subset; no market data",
+  "checks": [
+    "Trusted four purpose grips; TP/SL extend beyond old box with visible zones; entry-only R 1.46; width 420 left fixed; body translates origin/left/real points only",
+    "At 1/.5 scale guides pick near endpoints, span 960×540 and have one center grip; body/grip axis locks; segments have two endpoints/no box and body translates both; rectangle retains four corners",
+    "Position rendered bounds match projected geometry under scale .8/rotation 15 within 1px; trusted posed Entry drag writes local entry only",
+    "Actual application SQLite OPFS saves old props3, normal reopen migrates to props4 preserving levels and old left; edited props4 survives second reload",
+    "Actual Remotion static/posed exports contain both zones/three levels/full-span guides; painted preview/export extents agree within 3px; all four grip neighborhoods match clean preview within mean RGB 3 while selected preview differs >5"
+  ],
+  "geometry": [
+    {
+      "phase": "extended-entry-width-body",
+      "box": {
+        "left": 330,
+        "top": 140,
+        "width": 420,
+        "height": 320
+      },
+      "origin": {
+        "x": 490,
+        "y": 290
+      },
+      "corners": [
+        {
+          "x": 330,
+          "y": 140
+        },
+        {
+          "x": 750,
+          "y": 140
+        },
+        {
+          "x": 750,
+          "y": 460
+        },
+        {
+          "x": 330,
+          "y": 460
+        }
+      ],
+      "handles": [
+        {
+          "id": "target",
+          "x": 330,
+          "y": 140
+        },
+        {
+          "id": "stop",
+          "x": 330,
+          "y": 460
+        },
+        {
+          "id": "entry",
+          "x": 330,
+          "y": 330
+        },
+        {
+          "id": "width",
+          "x": 750,
+          "y": 330
+        }
+      ],
+      "dom": {
+        "left": 330,
+        "top": 140,
+        "width": 420,
+        "height": 320
+      },
+      "zones": [
+        {
+          "left": 330,
+          "top": 140,
+          "width": 420,
+          "height": 190
+        },
+        {
+          "left": 330,
+          "top": 330,
+          "width": 420,
+          "height": 130
+        }
+      ],
+      "ratio": "R 1.46",
+      "lines": [
+        {
+          "start": {
+            "x": 330,
+            "y": 330
+          },
+          "end": {
+            "x": 750,
+            "y": 330
+          }
+        },
+        {
+          "start": {
+            "x": 330,
+            "y": 460
+          },
+          "end": {
+            "x": 750,
+            "y": 460
+          }
+        },
+        {
+          "start": {
+            "x": 330,
+            "y": 140
+          },
+          "end": {
+            "x": 750,
+            "y": 140
+          }
+        }
+      ]
+    },
+    {
+      "phase": "scale .8 rotation 15",
+      "box": {
+        "left": 330,
+        "top": 140,
+        "width": 420,
+        "height": 320
+      },
+      "origin": {
+        "x": 490,
+        "y": 290
+      },
+      "corners": [
+        {
+          "x": 397.41977964730177,
+          "y": 140.96006307218914
+        },
+        {
+          "x": 721.9708572804287,
+          "y": 227.92326222663613
+        },
+        {
+          "x": 655.7131817341834,
+          "y": 475.2002737566376
+        },
+        {
+          "x": 331.16210410105646,
+          "y": 388.23707460219066
+        }
+      ],
+      "handles": [
+        {
+          "id": "target",
+          "x": 397.41977964730177,
+          "y": 140.96006307218914
+        },
+        {
+          "id": "stop",
+          "x": 331.16210410105646,
+          "y": 388.23707460219066
+        },
+        {
+          "id": "entry",
+          "x": 358.0792847917186,
+          "y": 287.7807886681275
+        },
+        {
+          "id": "width",
+          "x": 682.6303624248455,
+          "y": 374.74398782257447
+        }
+      ],
+      "dom": {
+        "left": 331.162109375,
+        "top": 140.9600830078125,
+        "width": 390.808837890625,
+        "height": 334.240234375
+      },
+      "zones": [
+        {
+          "left": 358.07928466796875,
+          "top": 140.9600830078125,
+          "width": 363.89166259765625,
+          "height": 233.783935546875
+        },
+        {
+          "left": 331.162109375,
+          "top": 287.7807922363281,
+          "width": 351.46826171875,
+          "height": 187.41952514648438
+        }
+      ],
+      "ratio": "R 1.46",
+      "lines": [
+        {
+          "start": {
+            "x": 358.07928282594673,
+            "y": 287.7807886350587
+          },
+          "end": {
+            "x": 682.6303652952615,
+            "y": 374.7439890853583
+          }
+        },
+        {
+          "start": {
+            "x": 331.16210173418733,
+            "y": 388.23707606603716
+          },
+          "end": {
+            "x": 655.7131842035021,
+            "y": 475.20027651633677
+          }
+        },
+        {
+          "start": {
+            "x": 397.41977826774894,
+            "y": 140.96006085132103
+          },
+          "end": {
+            "x": 721.9708607370637,
+            "y": 227.92326130162064
+          }
+        }
+      ]
+    }
+  ],
+  "rasters": [
+    {
+      "case": "static",
+      "raster": {
+        "reward": {
+          "preview": {
+            "left": 330,
+            "top": 142,
+            "right": 749,
+            "bottom": 327,
+            "count": 70156
+          },
+          "exported": {
+            "left": 330,
+            "top": 142,
+            "right": 749,
+            "bottom": 327,
+            "count": 70156
+          }
+        },
+        "risk": {
+          "preview": {
+            "left": 330,
+            "top": 332,
+            "right": 749,
+            "bottom": 457,
+            "count": 52249
+          },
+          "exported": {
+            "left": 330,
+            "top": 332,
+            "right": 749,
+            "bottom": 457,
+            "count": 52249
+          }
+        },
+        "levels": {
+          "preview": {
+            "left": 330,
+            "top": 140,
+            "right": 749,
+            "bottom": 459,
+            "count": 1944
+          },
+          "exported": {
+            "left": 330,
+            "top": 140,
+            "right": 749,
+            "bottom": 459,
+            "count": 1944
+          }
+        },
+        "horizontal": {
+          "preview": {
+            "left": 0,
+            "top": 79,
+            "right": 959,
+            "bottom": 80,
+            "count": 1912
+          },
+          "exported": {
+            "left": 0,
+            "top": 79,
+            "right": 959,
+            "bottom": 80,
+            "count": 1912
+          }
+        },
+        "vertical": {
+          "preview": {
+            "left": 799,
+            "top": 0,
+            "right": 800,
+            "bottom": 539,
+            "count": 1080
+          },
+          "exported": {
+            "left": 799,
+            "top": 0,
+            "right": 800,
+            "bottom": 539,
+            "count": 1080
+          }
+        }
+      },
+      "levelSamples": [
+        [
+          {
+            "point": {
+              "x": 372,
+              "y": 330
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 456,
+              "y": 330
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 540,
+              "y": 330
+            },
+            "preview": true,
+            "exported": true
+          }
+        ],
+        [
+          {
+            "point": {
+              "x": 372,
+              "y": 460
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 456,
+              "y": 460
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 540,
+              "y": 460
+            },
+            "preview": true,
+            "exported": true
+          }
+        ],
+        [
+          {
+            "point": {
+              "x": 372,
+              "y": 140
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 456,
+              "y": 140
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 540,
+              "y": 140
+            },
+            "preview": true,
+            "exported": true
+          }
+        ]
+      ],
+      "handles": [
+        {
+          "id": "target",
+          "selectionMeanRgbDifference": 97.58847736625515,
+          "cleanExportMeanRgbError": 0
+        },
+        {
+          "id": "stop",
+          "selectionMeanRgbDifference": 100.82716049382717,
+          "cleanExportMeanRgbError": 0
+        },
+        {
+          "id": "entry",
+          "selectionMeanRgbDifference": 100.29629629629629,
+          "cleanExportMeanRgbError": 0
+        },
+        {
+          "id": "width",
+          "selectionMeanRgbDifference": 104.01234567901234,
+          "cleanExportMeanRgbError": 0
+        }
+      ],
+      "toleranceCompositionPx": 3,
+      "gripMeanRgbTolerance": 3
+    },
+    {
+      "case": "posed",
+      "raster": {
+        "reward": {
+          "preview": {
+            "left": 359,
+            "top": 143,
+            "right": 720,
+            "bottom": 372,
+            "count": 49354
+          },
+          "exported": {
+            "left": 359,
+            "top": 143,
+            "right": 720,
+            "bottom": 372,
+            "count": 49348
+          }
+        },
+        "risk": {
+          "preview": {
+            "left": 332,
+            "top": 290,
+            "right": 681,
+            "bottom": 472,
+            "count": 33128
+          },
+          "exported": {
+            "left": 332,
+            "top": 290,
+            "right": 681,
+            "bottom": 472,
+            "count": 33126
+          }
+        },
+        "levels": {
+          "preview": {
+            "left": 332,
+            "top": 141,
+            "right": 720,
+            "bottom": 474,
+            "count": 1467
+          },
+          "exported": {
+            "left": 332,
+            "top": 141,
+            "right": 720,
+            "bottom": 474,
+            "count": 1466
+          }
+        },
+        "horizontal": {
+          "preview": {
+            "left": 0,
+            "top": 79,
+            "right": 959,
+            "bottom": 80,
+            "count": 1912
+          },
+          "exported": {
+            "left": 0,
+            "top": 79,
+            "right": 959,
+            "bottom": 80,
+            "count": 1912
+          }
+        },
+        "vertical": {
+          "preview": {
+            "left": 799,
+            "top": 0,
+            "right": 800,
+            "bottom": 539,
+            "count": 1080
+          },
+          "exported": {
+            "left": 799,
+            "top": 0,
+            "right": 800,
+            "bottom": 539,
+            "count": 1080
+          }
+        }
+      },
+      "levelSamples": [
+        [
+          {
+            "point": {
+              "x": 390.53439107287824,
+              "y": 296.47710868008863
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 455.4446075667412,
+              "y": 313.8697487701486
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 520.3548240606042,
+              "y": 331.2623888602085
+            },
+            "preview": true,
+            "exported": true
+          }
+        ],
+        [
+          {
+            "point": {
+              "x": 363.61720998111883,
+              "y": 396.9333961110671
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 428.5274264749818,
+              "y": 414.32603620112707
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 493.4376429688447,
+              "y": 431.71867629118697
+            },
+            "preview": true,
+            "exported": true
+          }
+        ],
+        [
+          {
+            "point": {
+              "x": 429.87488651468044,
+              "y": 149.65638089635098
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 494.7851030085434,
+              "y": 167.0490209864109
+            },
+            "preview": true,
+            "exported": true
+          },
+          {
+            "point": {
+              "x": 559.6953195024064,
+              "y": 184.44166107647084
+            },
+            "preview": true,
+            "exported": true
+          }
+        ]
+      ],
+      "handles": [
+        {
+          "id": "target",
+          "selectionMeanRgbDifference": 96,
+          "cleanExportMeanRgbError": 0.00823045267489712
+        },
+        {
+          "id": "stop",
+          "selectionMeanRgbDifference": 98.52674897119341,
+          "cleanExportMeanRgbError": 0.04938271604938271
+        },
+        {
+          "id": "entry",
+          "selectionMeanRgbDifference": 100.13991769547324,
+          "cleanExportMeanRgbError": 0.07818930041152264
+        },
+        {
+          "id": "width",
+          "selectionMeanRgbDifference": 105.65432098765432,
+          "cleanExportMeanRgbError": 0.00823045267489712
+        }
+      ],
+      "toleranceCompositionPx": 3,
+      "gripMeanRgbTolerance": 3
+    }
+  ],
+  "storageBackend": "SQLite (OPFS) — stored in this browser",
+  "browser": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.8080.0 Safari/537.36",
+    "isolated": true,
+    "opfs": true
+  },
+  "completedAt": "2026-11-02T16:04:23.995Z"
+}

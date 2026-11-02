@@ -1,5 +1,11 @@
 # Position and line manipulation follow-up
 
+Implementation and observed acceptance evidence (2026-11-02): Task 1 production commit `ac6b4bc`;
+the [durable verification record](../../reviews/evidence/drawing-handles-verification.md) and
+[machine results](../../reviews/evidence/drawing-handles-result.json) document the real browser,
+SQLite migration/reopen, static/posed export and complete still/MP4 gates. The specification below
+remains the binding design; evidence limits are recorded rather than broadening its acceptance.
+
 Owner request: the position tool clips TP/SL outside its old box; use four TradingView-like purpose handles. The owner explicitly clarified: **TP and SL stay fixed when entry/R:R moves**. Body dragging remains whole-tool movement. Horizontal/vertical guides span the composition and have one center handle constrained to the corresponding axis; segments have only two free endpoints and are selectable/draggable along their stroke. Rectangle behavior stays unchanged.
 
 ## Position geometry

@@ -19,11 +19,17 @@ Machine-readable form: `packages/core/src/contract.ts`. The registry implementat
 
 ### Repair contract, 2026-11-02
 
-Definitions own `geometry(props, measured?)`: anchor, local box/origin, named points and
+Definitions own `geometry(props, measured?, composition?)`: anchor, local box/origin, named points and
 intrinsic rotation. `bounds` delegates to the same geometry. Coordinates and uniform/axis
 resize capabilities are explicit metadata, independent of props versions. Registration rejects
 duplicate IDs and invalid grips. Missing edit metadata on content resolves to box fallback;
 audio/background/transitions remain outside canvas selection.
+
+The optional pure composition context is `{width, height}`. Geometry may declare `placement`,
+the actual content layout box, independently of the authored transform origin. The compositor
+places that content at left/top and sets CSS transform-origin to `origin - placement.left/top`;
+definitions without placement retain centered layout. Render adapters receive optional plain
+`geometry` and `composition` context, with no editor state dependency.
 
 `evaluateElementPose(clip, sceneFrame, fps, geometry?)` supplies the existing effect style,
 CSS transform and forward/inverse planar mappings for both video and editor. Picking uses
@@ -119,9 +125,11 @@ export interface ElementHandle {
   /** The handle's name: a corner (`nw`), a side (`n`) or a point (`start`). */
   id: string;
   /** What dragging the handle does. */
-  effect: 'scale' | 'font' | 'wrap' | 'point' | 'level' | 'move';
+  effect: 'scale' | 'font' | 'wrap' | 'point' | 'level' | 'move' | 'width';
   /** The props the handle writes, for the effects that write props. */
   props?: string[];
+  appearance?: 'circle' | 'square';
+  label?: string;
 }
 
 export interface ElementEditModel {
@@ -129,6 +137,8 @@ export interface ElementEditModel {
   coordinates?: 'absolute' | 'fractional';
   resize?: 'axes' | 'uniform' | ((props: Record<string, unknown>) => 'axes' | 'uniform');
   contentSized?: boolean;
+  moveAxis?: 'x' | 'y';
+  translate?: {x?: string[]; y?: string[]};
   pick: ElementPickKind;
   /** The handles the editor draws on the element while it is selected. */
   handles: ElementHandle[];
@@ -144,7 +154,9 @@ executes*. The shell's obligation is therefore:
   shell is unchanged.
 - **Derive the handle's place from the element's own geometry.** A `scale`, `font` or `wrap` handle
   is a corner or a side of the element's region; a `point` or `level` handle is the element's own
-  `props.points[id]`; a `move` handle is the element's own anchor. A handle does not carry a
+  named geometry point (falling back to `props.points[id]`); a `move` handle is the declared
+  anchor. A `width` handle writes its declared scalar relative to the region's fixed left edge.
+  Virtual geometry points are never serialized as stored points. A handle does not carry a
   position of its own, because a line's two ends are not at the corners of its bounding box.
 - **Fall back to the box model** when a definition declares none. The field is optional, so an
   element that declares no `edit` keeps today's behaviour and any element can be moved back by
@@ -246,8 +258,8 @@ independent shape, and the adapter draws straight from them:
 
 | Field | Meaning |
 |---|---|
-| `x`, `y` | The centre of the drawing's own box in composition space. |
-| `width`, `height` | The size of the drawing's own box — or, for a horizontal line, its length, and for a vertical line, its height. |
+| `x`, `y` | The authored transform origin in composition space; rectangle uses its box center, guides use the meaningful axis, and position keeps its pivot independent of paint. |
+| `width`, `height` | Rectangle box size; position width is active and height is compatibility data; guide length fields are inactive compatibility data. |
 | `opacity` | The drawing's own opacity. |
 | `style` | `color`, `lineWidth`, `fillOpacity`, `fontSize`. |
 | `caption` | The creator's own figure, drawn beside the shape. Never a market value. |
@@ -259,10 +271,10 @@ independent shape, and the adapter draws straight from them:
 
 | Kind | Stored as |
 |---|---|
-| `horizontalLine` | `{x, y, width}` — the width is its length. |
-| `verticalLine` | `{x, y, height}` — the height is its length. |
+| `horizontalLine` | `{x, y, width}` — y controls a full-composition-width guide; width is inactive compatibility data. |
+| `verticalLine` | `{x, y, height}` — x controls a full-composition-height guide; height is inactive compatibility data. |
 | `rectangle` | `{x, y, width, height}` — the box is the truth. |
-| `position` | `{x, y, width, height, points: {entry, stop, target}}` — the box stays, the levels are absolute. |
+| `position` | Props v4: `{x, y, left, width, height, points: {entry, stop, target}}`; x/y is the stable authored pivot, left/width determines horizontal paint and level min/max determines vertical paint. Height is inactive compatibility data. |
 | `trendline`, `arrow` | `{points: {…}}` — two absolute points and no box. The region is the bounding box of the two ends. |
 
 The trend line's **ray option is retired**. A trend line has no box to run to the edge of, and the
@@ -274,6 +286,26 @@ carries both across, so nothing the creator wrote is lost. `priceLine` became `h
 `rectangle` — a recorded exception to the rule that a component type is never renamed, because a
 line that keeps the name `priceLine` while holding no price is a false label. The migration
 carries the mapping; see §5.
+
+Position props version 4 adds `left` after legacy fractional-to-absolute conversion using
+`old x - old width/2`. Other drawing props remain version 3 and project schema remains 4.
+Migration retains real absolute points, the authored pivot and nested extensions; sparse props
+use frozen legacy defaults. It is immutable/idempotent and validates supplied values before
+arithmetic. Props versions are respected independently of the enclosing project version.
+
+The position declares exactly four purpose grips: Target and Stop squares at the left levels,
+Entry circle at the left entry, Width circle at the right entry. Entry changes only entry.y;
+target and stop stay fixed and the geometric ratio updates. Width changes width only with left
+fixed. Body movement translates declared scalar fields (`x`, `left`, `y`) and real stored points;
+virtual width controls never become stored points. Level-derived height has a one-pixel minimum.
+Zero risk reads `R — (zero risk)` and coincident levels read `R 0.00`. The inspector exposes
+meaningful width/level/style controls, excluding inactive height and technical pivot coordinates.
+
+Guides declare segment picking over the full composition and one center move grip. Both body
+and grip obey `moveAxis` (`y` for horizontal, `x` for vertical); inactive stored lengths and
+orthogonal-position fields are absent from the inspector. `translate` declares extra scalar
+coordinates for whole-body movement. Trendline/arrow retain two free endpoints and no selection
+rectangle; rectangle retains four scale corners.
 
 A drawing's lifecycle is its own clip's `from` and `durationInFrames`. The drawing carries no
 chart clip, no pane, no anchors and no chart-relative range.
@@ -444,7 +476,7 @@ its shape needs is left exactly as it was.
 | CV-006 | The v3 → v4 migration makes the drawings store the shapes they are — two absolute points and no box for a trend line, an arrow and a high/low line; `{x, y, width}` for a horizontal line; `{x, y, height}` for a vertical line; `{x, y, points: {at}}` and no box for a text label; the box unchanged for a rectangle; the box plus absolute levels for the position tool; the ray dropped — and is non-destructive and idempotent. |
 | EM-001 | A component definition may declare an optional edit model — a pick kind and its handles — and the shell reads that declaration rather than branching on the element's kind. |
 | EM-002 | A handle declares no place: the shell derives a `scale`, `font` or `wrap` handle from the region's corners and sides, a `point` or `level` handle from the element's own named point, and a `move` handle from the element's own anchor. |
-| EM-003 | The 32 scene-object types (30 canvas-capable) and 2 separate non-canvas transition definitions declare their capabilities as follows: 18 box-the-truth elements with four `scale` corners; content elements with supported font corners and east/west wrap grips; Counter has font corners only and NodeTrail has no scaling or wrapping grips; 2 one-anchor elements with one `move` handle; 2 two-endpoint elements with two `point` handles; the position tool with three `level` handles; and the audio and background elements, which are not on the canvas, with none. |
+| EM-003 | The 32 scene-object types (30 canvas-capable) and 2 separate non-canvas transition definitions declare their capabilities as follows: 18 box-the-truth elements with four `scale` corners; content elements with supported font corners and east/west wrap grips; Counter has font corners only and NodeTrail has no scaling or wrapping grips; 2 full-span segment guides with one axis-constrained center `move` grip; 2 two-endpoint elements with two `point` handles; the position tool with three `level` purpose grips and one scalar `width` grip; and the audio and background elements, which are not on the canvas, with none. |
 | EM-004 | The canvas picks by shape: a box anywhere inside it, a segment within 6 screen pixels of the stroke, a point within 8 screen pixels — the tolerances in screen pixels, so the same pointer hits the same element at every zoom. |
 | EM-005 | The pick order is unchanged (tracks top-down, later clip on top within a track), and the selected element's own control points take precedence over its body. |
 | EM-006 | One selection overlay draws the declared control points in one style; the separate drawing point overlay is gone, and a line is drawn with no rectangle. |

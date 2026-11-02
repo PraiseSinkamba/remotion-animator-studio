@@ -99,9 +99,9 @@ declaration and never names an element kind for selection, editing or picking.
   | 1 — the box is the truth | `shape` `image` `video` `gif` `html` `wave` `synthGrid` `ridge` `commitGraph` `particles` `sunMoon` `skyCycle` `rectangle` `blob` `cursor` `neonSun` `isoCity` `candlestickChart` | `box` | four corners, `scale` |
   | 2 — the content is the truth | `text` `emoji` `remocnMarkerHighlight` `remocnSoftBlurIn` `remocnTypewriter` | `box` | four corners, `font`; east/west `wrap` where supported |
   | Content capability exceptions | `counter`; `nodeTrail` | `box` | counter: font corners only; NodeTrail: no scale/wrap grips, inspector label font only |
-  | 3 — one anchor | `horizontalLine` `verticalLine` | `point` | one handle, `move` |
+  | 3 — full-span guides | `horizontalLine` `verticalLine` | `segment` | one center `move` grip; horizontal y-only, vertical x-only |
   | 4 — two endpoints | `trendline` `arrow` | `segment` | two handles, `point` |
-  | 5 — a box with levels | `position` | `box` | three handles, `level` |
+  | 5 — level-derived paint box | `position` | `box` | Target/Stop left square `level` grips, Entry left circle `level` grip, Width right circle `width` grip |
   | 6 — not on the canvas | `audio` `background` | — | none |
 
   A `scale` handle writes the props the element's size lives in: `width` and `height` for most, `size` for `blob`, `cursor` and `neonSun`, `tileSize` for `isoCity`, and `width` and `height` for `particles`, `sunMoon` and `skyCycle`. Within the content group emoji writes `size` for both corner and east/west side handles. Counter has font corners only; NodeTrail has a movable measured path region and inspector label-font control, with no scaling or wrapping grips. IsoCity corners change `tileSize` uniformly; `gridSize` remains topology. Scalar-sized objects resize uniformly.
@@ -121,12 +121,35 @@ retain prior state/history and report an actionable notice. Local content measur
 sizes only. HTML preview/export use the same safe static subset with authored source preserved.
 See the [component contract](COMPONENT_CONTRACT.md#repair-contract-2026-11-02).
 
+The position follow-up (2026-11-02) derives the paint box from `left`, `width` and the minimum/
+maximum absolute entry, target and stop y values, with a one-pixel collapsed minimum. The
+authored x/y transform origin remains fixed during level and width edits. Entry dragging MUST
+change entry.y and geometric R:R only, keeping target and stop fixed; Width MUST change width
+only, keeping left and all levels fixed. Body dragging MUST translate x/y, left and real stored
+points together. The position MUST expose exactly four purpose grips and no corner grips.
+Zero risk displays `R — (zero risk)`; all coincident levels display `R 0.00`.
+
+Horizontal/vertical guides MUST span the current composition width/height, including non-default
+project sizes. Their bodies and single center grips MUST obey the same axis constraint. Legacy
+length fields remain inactive compatibility data. Guides and two-endpoint segments have no
+selection rectangle; trendline/arrow bodies translate both endpoints. Rectangle corners remain
+unchanged. Position inspector controls MUST NOT present legacy height or the transform pivot as
+body-position controls; guides MUST NOT expose inactive length or orthogonal-position controls.
+
 ### CV — Document conversion (CV-005, CV-006)
 
 The curve vocabulary is CV-001 … CV-004, in §5. CV-005 and CV-006 are the conversions of a document that holds drawings.
 
 - **CV-005:** A document that holds chart-anchored drawings MUST be migrated to independent drawings, with the old element types mapped to the new ones and the price kept as a caption. The migration MUST be non-destructive and idempotent, and it MUST place a migrated drawing using the chart's plot area and the chart's full-series price range — an approximation taken at the last frame, because the old position depended on the price scale at a frame and a static migration cannot reproduce that.
 - **CV-006:** A v3 document MUST be migrated to v4, non-destructively and idempotently, so that the drawings store the shapes they are. A trend line, an arrow and a high/low line MUST store **two absolute points and no box**. A horizontal line MUST store `{x, y, width}` — the width is its length — and a vertical line `{x, y, height}`. A text label MUST store `{x, y, points: {at}}` and no box. The rectangle MUST keep its box. The position tool MUST keep its box and its three levels, now absolute. The trend line's ray option MUST be dropped.
+
+The later position component-props migration is version **4**, while the project schema remains
+4 and other drawings remain props version 3. After legacy fractional-to-absolute conversion it
+adds `left = old x - old width / 2`, retaining origin, levels and nested extensions. Sparse old
+props use frozen old defaults. Migration MUST be immutable and idempotent, respect props versions
+independently of project version, and reject invalid supplied values. Stored height and guide
+lengths are compatibility data under the follow-up geometry, superseding their original CV-006
+paint interpretation without rewriting that historical conversion.
 
 ## 4. SMT and MTF workflows
 
