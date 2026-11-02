@@ -519,19 +519,31 @@ export const PreviewPanel: React.FC = () => {
     const { scale } = canvasMetrics(rect);
     const dx = (e.clientX - drag.current.startX) / scale;
     const dy = (e.clientY - drag.current.startY) / scale;
-    if (!drag.current.moved) {
-      if (dx === 0 && dy === 0) return;
-      drag.current.moved = true;
-      commit(); // one undo entry per drag, taken before the first move
+    const state = useStore.getState();
+    // Eligibility is live; geometry remains the immutable pointer-down snapshot.
+    const eligible = drag.current.origins.filter(({clipId}) => {
+      const live = findClip(state.project, clipId);
+      return live && isClipActive(live, state.currentFrame);
+    });
+    if (eligible.length === 0) {
+      drag.current = null;
+      wrapperRef.current.style.cursor = 'default';
+      return;
     }
     const patches: Array<{clipId: string; patch: Record<string, unknown>}> = [];
-    for (const o of drag.current.origins) {
-      // The element moves as a whole: a line is its points, and they move
-      // together.
+    for (const o of eligible) {
       const region = o.region ?? elementRegion(o.clip, project);
       if (!region) continue;
       const patch = moveElement(o.clip, region, { x: dx, y: dy });
-      if (patch) patches.push({clipId: o.clipId, patch});
+      const live = findClip(state.project, o.clipId);
+      if (patch && live && Object.entries(patch).some(([key,value]) => JSON.stringify(live.props[key]) !== JSON.stringify(value))) {
+        patches.push({clipId: o.clipId, patch});
+      }
+    }
+    if (patches.length === 0) return;
+    if (!drag.current.moved) {
+      drag.current.moved = true;
+      commit(); // one undo entry, only after a changed authored patch exists
     }
     updateClipsProps(patches);
   };

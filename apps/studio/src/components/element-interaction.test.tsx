@@ -122,3 +122,45 @@ describe('preview measurement replacement and grouped movement',()=>{
   } finally {act(()=>useStore.setState({updateClipsProps:update}));}
  });
 });
+
+describe('live body gesture eligibility and finalization',()=>{
+ it.each(['seek','hide'] as const)('finalizes last moved state when %s invalidates the target',kind=>{
+  const ui=setup();const stage=ui.container.querySelector('.preview-stage')!;
+  fireEvent.pointerDown(stage,{button:0,clientX:300,clientY:300});
+  fireEvent.pointerMove(stage,{clientX:350,clientY:320});
+  expect(useStore.getState().project.tracks[0].clips[0].props.x).toBe(350);
+  act(()=>{if(kind==='seek')useStore.getState().setCurrentFrame(30);else useStore.getState().setClipHidden(clip.id,true);});
+  const history=useStore.getState().history.length;
+  fireEvent.pointerMove(stage,{clientX:450,clientY:420});
+  expect(useStore.getState().project.tracks[0].clips[0].props.x).toBe(350);
+  act(()=>{if(kind==='seek')useStore.getState().setCurrentFrame(0);else useStore.getState().setClipHidden(clip.id,false);});
+  fireEvent.pointerMove(stage,{clientX:500,clientY:420});
+  expect(useStore.getState().project.tracks[0].clips[0].props.x).toBe(350);
+  // Visibility toggles have their own history; invalid movement creates none.
+  expect(useStore.getState().history.length).toBe(history+(kind==='hide'?1:0));
+ });
+ it('creates no history for a body move below authored coordinate precision',()=>{
+  const ui=setup(4);const stage=ui.container.querySelector('.preview-stage')!;
+  fireEvent.pointerDown(stage,{button:0,clientX:1200,clientY:1200});
+  fireEvent.pointerMove(stage,{clientX:1200.00001,clientY:1200});
+  fireEvent.pointerUp(stage,{clientX:1200.00001,clientY:1200});
+  expect(useStore.getState().history).toHaveLength(0);
+  expect(useStore.getState().project.tracks[0].clips[0].props.x).toBe(300);
+ });
+ it.each(['body','handle'] as const)('preserves changed %s gestures on cancel and capture loss',target=>{
+  for(const completion of ['pointerCancel','lostPointerCapture'] as const){
+   const ui=setup();const stage=ui.container.querySelector('.preview-stage')!;
+   const el=target==='body'?stage:ui.container.querySelector('.size-3')!;
+   const start=target==='body'?300:250;
+   fireEvent.pointerDown(el,{button:0,clientX:start,clientY:start});
+   fireEvent.pointerMove(el,{clientX:start+20,clientY:start+20});
+   const props=useStore.getState().project.tracks[0].clips[0].props;
+   expect(useStore.getState().history).toHaveLength(1);
+   fireEvent[completion](el);
+   fireEvent.pointerMove(el,{clientX:start+80,clientY:start+80});
+   expect(useStore.getState().project.tracks[0].clips[0].props).toBe(props);
+   expect(useStore.getState().history).toHaveLength(1);
+   cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();
+  }
+ });
+});
