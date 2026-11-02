@@ -24,3 +24,30 @@ describe('perspective plane semantics',()=>{
   expect(evaluateElementPose(c,10,30).toComposition({x:100,y:200})).toEqual({x:200,y:400});
  });
 });
+
+describe('perspective camera visibility', () => {
+ const cameraClip: Clip = {...clip, props:{x:300,y:300,width:20000,height:100}, effects:[{id:'f',type:'flipIn',params:{axis:'vertical',duration:30,easing:'linear'}}]};
+ it('rejects behind-camera forward and inverse points', () => {
+  const pose = evaluateElementPose(cameraClip,25,30);
+  expect(pose.toComposition({x:-9700,y:300})).toBeNull();
+  expect(pose.toAuthored({x:1745,y:300})).toBeNull();
+ });
+ it('clips a crossing segment and polygon to their visible half-plane', () => {
+  const pose = evaluateElementPose(cameraClip,25,30);
+  const segment = pose.projectVisible([{x:-9700,y:300},{x:10300,y:300}],false);
+  expect(segment).toHaveLength(2);
+  expect(segment[0].x).toBeLessThan(-1000000);
+  expect(segment[1].x).toBeGreaterThan(300);
+  const polygon = pose.projectVisible([{x:-9700,y:250},{x:10300,y:250},{x:10300,y:350},{x:-9700,y:350}],true);
+  expect(polygon).toHaveLength(4);
+  expect(polygon.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
+ });
+});
+
+it('removes a wholly behind-camera polygon and segment', () => {
+ const c: Clip = {...clip,effects:[{id:'f',type:'flipIn',params:{axis:'vertical',duration:30,easing:'linear'}}]};
+ const pose = evaluateElementPose(c,25,30);
+ const hidden = [{x:-10000,y:100},{x:-9000,y:100},{x:-9000,y:200}];
+ expect(pose.projectVisible(hidden,true)).toEqual([]);
+ expect(pose.projectVisible(hidden.slice(0,2),false)).toEqual([]);
+});

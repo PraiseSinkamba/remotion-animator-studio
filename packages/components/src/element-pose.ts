@@ -9,6 +9,8 @@ export interface ElementPose {
   invertible: boolean;
   toComposition(point: PosePoint): PosePoint | null;
   toAuthored(point: PosePoint): PosePoint | null;
+  /** Clip a convex polygon (closed) or a single segment (open) before dividing. */
+  projectVisible(points: readonly PosePoint[], closed: boolean): PosePoint[];
 }
 
 /** Project the authored plane in the same right-to-left order as CSS transforms.
@@ -64,17 +66,56 @@ export function evaluateElementPose(
   const divide = (point: number[]): PosePoint | null =>
     Math.abs(point[2]) < 1e-9 || !point.every(Number.isFinite)
       ? null : { x: point[0] / point[2], y: point[1] / point[2] };
+  const visible = (point: number[]) => point[2] > 0 && point.every(Number.isFinite);
+  const toComposition = (point: PosePoint): PosePoint | null => {
+    const projected = project(point.x, point.y);
+    return visible(projected) ? divide(projected) : null;
+  };
+  // The camera plane itself projects to infinity. A tiny positive homogeneous
+  // guard bounds overlay coordinates while retaining the visible ray/polygon.
+  const nearW = 1e-7;
+  const projectVisible = (points: readonly PosePoint[], closed: boolean): PosePoint[] => {
+    if (!invertible || points.length === 0) return [];
+    const vertices = points.map(point => project(point.x, point.y));
+    if (vertices.some(point => !point.every(Number.isFinite))) return [];
+    const clipped: number[][] = [];
+    const intersect = (a: number[], b: number[]) => {
+      const t = (nearW - a[2]) / (b[2] - a[2]);
+      return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), nearW];
+    };
+    if (!closed) {
+      if (vertices.length !== 2) return [];
+      const [a, b] = vertices;
+      if (a[2] < nearW && b[2] < nearW) return [];
+      clipped.push(a[2] >= nearW ? a : intersect(a, b));
+      clipped.push(b[2] >= nearW ? b : intersect(a, b));
+    } else {
+      let previous = vertices[vertices.length - 1];
+      for (const current of vertices) {
+        if ((previous[2] >= nearW) !== (current[2] >= nearW)) {
+          clipped.push(intersect(previous, current));
+        }
+        if (current[2] >= nearW) clipped.push(current);
+        previous = current;
+      }
+    }
+    return clipped.map(divide).filter((point): point is PosePoint => point !== null);
+  };
   return {
     style,
     invertible,
     transform: `translate(${style.translateX}px, ${style.translateY}px) scale(${style.scale}) rotate(${style.rotate}deg)` +
       (style.rotateX !== 0 || style.rotateY !== 0
         ? ` perspective(1200px) rotateX(${style.rotateX}deg) rotateY(${style.rotateY}deg)` : ''),
-    toComposition: point => divide(project(point.x, point.y)),
-    toAuthored: point => invertible ? divide([
+    toComposition,
+    projectVisible,
+    toAuthored: point => {
+      const authored = invertible ? divide([
       inverse[0] * point.x + inverse[1] * point.y + inverse[2],
       inverse[3] * point.x + inverse[4] * point.y + inverse[5],
       inverse[6] * point.x + inverse[7] * point.y + inverse[8],
-    ]) : null,
+      ]) : null;
+      return authored && toComposition(authored) ? authored : null;
+    },
   };
 }

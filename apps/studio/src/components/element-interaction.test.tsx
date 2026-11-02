@@ -224,3 +224,17 @@ describe('gesture frame stability',()=>{
   expect(useStore.getState().history).toHaveLength(1);
  });
 });
+
+describe('camera-clipped selection overlay', () => {
+ it('draws a five-vertex clipped polygon and only visible grips', () => {
+  const ui = setup();
+  const c: Clip = {...clip,from:0,durationInFrames:90,props:{...getComponent('shape')!.defaults,x:300,y:300,width:20000,height:20000,rotation:45},effects:[{id:'f',type:'flipIn',params:{axis:'vertical',duration:30,easing:'linear'}}]};
+  act(() => useStore.setState({project:{...project,tracks:[{id:'t',name:'t',clips:[c]}]},currentFrame:15}));
+  const polygon = ui.container.querySelector('polygon');
+  expect(polygon).not.toBeNull();
+  expect(polygon!.getAttribute('points')!.split(' ')).toHaveLength(5);
+  expect(ui.container.querySelectorAll('.size-3')).toHaveLength(3);
+  const picks = pickableClips(useStore.getState().project,undefined,15);
+  expect(hitTest(picks,300,300)?.id).toBe(c.id);
+ });
+});

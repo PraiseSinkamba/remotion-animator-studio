@@ -156,12 +156,12 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box>; onManipul
              * rectangle around it is exactly what this design removes.
              */
             const corners=projectedCorners(region).map(stagePoint);
-            const box = corners.length===4 ? {
+            const box = corners.length >= 3 ? {
               left:Math.min(...corners.map(p=>p.left)),top:Math.min(...corners.map(p=>p.top)),
               width:Math.max(...corners.map(p=>p.left))-Math.min(...corners.map(p=>p.left)),
               height:Math.max(...corners.map(p=>p.top))-Math.min(...corners.map(p=>p.top)),
             }:null;
-            const oriented=corners.length===4 && (Math.abs(corners[0].top-corners[1].top)>0.01 || Math.abs(corners[1].left-corners[2].left)>0.01);
+            const oriented = corners.length >= 3 && (corners.length !== 4 || Math.abs(corners[0].top-corners[1].top)>0.01 || Math.abs(corners[1].left-corners[2].left)>0.01);
 
             /** The handles the element declares, placed where they belong. */
             const handles = edit.handles

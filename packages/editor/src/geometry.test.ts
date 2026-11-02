@@ -490,3 +490,22 @@ describe('projection regressions',()=>{
   for(const id of Object.keys(r.points)){const a=r.pose!.toComposition(r.points[id])!,b=next.pose!.toComposition(next.points[id])!;expect(b.x-a.x).toBeCloseTo(20,3);expect(b.y-a.y).toBeCloseTo(10,3);}
  });
 });
+
+describe('camera-plane picking and overlay', () => {
+ const effects: Clip['effects'] = [{id:'f',type:'flipIn',params:{axis:'vertical',duration:30,easing:'linear'}}];
+ it('does not pick the hidden part of a large box or show its hidden grips', () => {
+  const c = {...makeClip('shape',{x:300,y:300,width:20000,height:100}),effects};
+  const region = elementRegion(c,project,null,15)!;
+  expect(hitsElement('box',region,{x:1800,y:300},0)).toBe(false);
+  expect(hitsElement('box',region,{x:300,y:300},0)).toBe(true);
+  const hiddenPoint = {...region,pick:'point' as const,anchor:{x:-9700,y:300}};
+  expect(hitsElement('point',hiddenPoint,{x:1745.2705446681691,y:300},8)).toBe(false);
+  expect(handleAt(region,{id:'nw',effect:'scale',props:['width','height']})).toBeNull();
+ });
+ it('picks the visible ray of a crossing segment without joining its hidden endpoint', () => {
+  const c = {...makeClip('trendline',{points:{start:{x:-10000,y:0},end:{x:10000,y:0}}}),effects};
+  const region = elementRegion(c,project,null,15)!;
+  expect(hitsElement('segment',region,{x:-500,y:0},6)).toBe(true);
+  expect(hitsElement('segment',region,{x:1745,y:0},6)).toBe(false);
+ });
+});

@@ -109,8 +109,13 @@ export const pickableClips = (
     // its stroke and a point by its point — not by a rectangle around them.
     const region = elementRegion(clip, project, measured?.get(clip.id) ?? null, sceneFrame ?? clip.from);
     if (!region || region.pose?.invertible===false) continue;
-    const corners=projectedCorners(region);
-    const projectedBox=corners.length===4?{left:Math.min(...corners.map(p=>p.x)),top:Math.min(...corners.map(p=>p.y)),width:Math.max(...corners.map(p=>p.x))-Math.min(...corners.map(p=>p.x)),height:Math.max(...corners.map(p=>p.y))-Math.min(...corners.map(p=>p.y))}:null;
+    const corners = projectedCorners(region);
+    const projectedBox = corners.length >= 3 ? {
+      left: Math.min(...corners.map(point => point.x)),
+      top: Math.min(...corners.map(point => point.y)),
+      width: Math.max(...corners.map(point => point.x)) - Math.min(...corners.map(point => point.x)),
+      height: Math.max(...corners.map(point => point.y)) - Math.min(...corners.map(point => point.y)),
+    } : null;
     const box = projectedBox ?? (region.box
       ? { left: region.box.left, top: region.box.top, width: region.box.width, height: region.box.height }
       : { left: region.anchor.x, top: region.anchor.y, width: 0, height: 0 });

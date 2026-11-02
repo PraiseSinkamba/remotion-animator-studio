@@ -231,7 +231,8 @@ export const elementRegion = (clip:Clip,project:Project,measured?:Box|null,scene
 
 export const projectedCorners = (region:Region):Point[] => {
   if (!region.box || region.pose?.invertible===false) return [];
-  return ['nw','ne','se','sw'].map(id=>cornerOf(region.box!,id)!).map(p=>region.pose?region.pose.toComposition(p):p).filter((p):p is Point=>p!==null);
+  const corners = ['nw', 'ne', 'se', 'sw'].map(id => cornerOf(region.box!, id)!);
+  return region.pose ? region.pose.projectVisible(corners, true) : corners;
 };
 
 /**
@@ -255,10 +256,13 @@ export const hitsElement = (
       const authored=region.pose.toAuthored(point);
       return authored ? hitsElement(pick,{...region,pose:undefined},authored,tolerancePx,scale):false;
     }
-    const anchor=region.pose.toComposition(region.anchor);
-    const points=Object.fromEntries(Object.entries(region.points).map(([id,p])=>[id,region.pose!.toComposition(p)]));
-    if (!anchor || Object.values(points).some(p=>!p)) return false;
-    return hitsElement(pick,{...region,pose:undefined,anchor,points:points as Record<string,Point>},point,tolerancePx,scale);
+    const tolerance = tolerancePx / (scale > 0 ? scale : 1);
+    if (pick === 'segment') {
+      const ends = region.pose.projectVisible(Object.values(region.points), false);
+      return ends.length === 2 && distanceToSegment(point, ends[0], ends[1]) <= tolerance;
+    }
+    const anchor = region.pose.toComposition(region.anchor);
+    return anchor !== null && distance(point, anchor) <= tolerance;
   }
   const tolerance = tolerancePx / (scale > 0 ? scale : 1);
   if (pick === 'box') {
