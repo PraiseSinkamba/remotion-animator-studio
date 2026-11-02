@@ -39,12 +39,18 @@ function fail(message: string): never {
   throw new Error(message);
 }
 
-const migrateClip = (raw: unknown, index: number): Clip => {
+const migrateClip = (raw: unknown, index: number, version: number): Clip => {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     fail(`Invalid project file: track clip ${index} is not an object.`);
   }
   const clip = raw as Record<string, unknown>;
+  if (version >= CURRENT_PROJECT_SCHEMA_VERSION) {
+    for (const field of ['name', 'from', 'durationInFrames', 'props', 'effects']) {
+      if (clip[field] === undefined) fail(`Invalid project file: clip ${index} has no ${field}.`);
+    }
+  }
 
+  if(clip.name !== undefined && typeof clip.name !== 'string') fail(`Clip at index ${index} has invalid name`);
   if(typeof clip.id !== 'string' || !clip.id) fail(`Invalid clip ID at clip ${index}`);
   for(const field of ['from','durationInFrames']) if(clip[field] !== undefined && (typeof clip[field] !== 'number' || !Number.isFinite(clip[field]))) fail(`Clip "${clip.id}" has invalid ${field}`);
   if(clip.props !== undefined && (typeof clip.props !== 'object' || clip.props===null || Array.isArray(clip.props))) fail(`Clip "${clip.id}" has invalid props`);
@@ -78,17 +84,24 @@ const migrateClip = (raw: unknown, index: number): Clip => {
   };
 };
 
-const migrateTrack = (raw: unknown, index: number): Track => {
+const migrateTrack = (raw: unknown, index: number, version: number): Track => {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     fail(`Invalid project file: track ${index} is not an object.`);
   }
   const track = raw as Record<string, unknown>;
+  if (track.id === undefined) {
+    if (version >= CURRENT_PROJECT_SCHEMA_VERSION) fail(`Invalid project file: track ${index} has no id.`);
+  } else if (typeof track.id !== 'string' || track.id.length === 0) {
+    fail(`Invalid project file: track ${index} has invalid id.`);
+  }
+  if (version >= CURRENT_PROJECT_SCHEMA_VERSION && track.name === undefined) fail(`Invalid project file: track ${index} has no name.`);
+  if (track.name !== undefined && typeof track.name !== 'string') fail(`Invalid project file: track ${index} has invalid name.`);
   if (!Array.isArray(track.clips)) fail(`Invalid project file: track ${index} has no clips array.`);
   return {
     ...(track as unknown as Track),
     id: typeof track.id === 'string' ? track.id : `t-${index}`,
     name: typeof track.name === 'string' ? track.name : `Track ${index + 1}`,
-    clips: (track.clips as unknown[]).map((clip, clipIndex) => migrateClip(clip, clipIndex)),
+    clips: (track.clips as unknown[]).map((clip, clipIndex) => migrateClip(clip, clipIndex, version)),
   };
 };
 
@@ -870,6 +883,10 @@ export const migrateProject = (raw: unknown): Project => {
   const width = scalars.value.width;
   const height = scalars.value.height;
   const durationInFrames = scalars.value.durationInFrames;
+  for (const field of ['name', 'backgroundColor']) {
+    if (version >= CURRENT_PROJECT_SCHEMA_VERSION && doc[field] === undefined) fail(`Invalid project file: missing ${field}.`);
+    if (doc[field] !== undefined && typeof doc[field] !== 'string') fail(`Invalid project file: ${field} must be a string.`);
+  }
   const name = typeof doc.name === 'string' ? doc.name : 'Untitled';
   const backgroundColor =
     typeof doc.backgroundColor === 'string' ? doc.backgroundColor : '#0d0d14';
@@ -885,7 +902,7 @@ export const migrateProject = (raw: unknown): Project => {
     if(typeof series!=='object'||series===null||!('bars' in series)||!Array.isArray(series.bars)||!('id' in series)) return series;
     return {...series,bars:series.bars.map((bar:unknown,index:number)=>typeof bar==='object'&&bar!==null&&!('id' in bar)?{...bar,id:`${series.id}:${index}`}:bar)};
   })};
-  const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index));
+  const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index, version));
 
   const v2 = version < 2 ? migrateV1ToV2(doc, tracks) : { doc, tracks };
   const v3 = version < 3 ? migrateV2ToV3(v2.doc, v2.tracks) : v2;

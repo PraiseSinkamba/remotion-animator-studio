@@ -803,3 +803,14 @@ it('rejects an entire props batch when one unlocked member is invalid', () => {
   expect(useStore.getState().history).toBe(before.history);
   expect(useStore.getState().notice).toContain(second.id);
 });
+
+it('rejects chart enum and timing mutations without changing project or history',()=>{
+ useStore.setState({project:emptyProject(),history:[],future:[],notice:null});
+ useStore.getState().addClip('candlestickChart','t-empty',0);
+ const before=useStore.getState();const clip=before.project.tracks[0].clips[0];
+ for(const patch of [{revealMode:'unsupported'},{framesPerBar:0},{framesPerBar:-1}]) {
+  useStore.getState().updateClipProps(clip.id,patch);
+  expect(useStore.getState().project).toBe(before.project);expect(useStore.getState().history).toBe(before.history);
+  expect(useStore.getState().notice).toMatch(/revealMode|framesPerBar/);
+ }
+});

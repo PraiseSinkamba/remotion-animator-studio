@@ -855,3 +855,38 @@ it('upgrades old drawing props independently of the current project version',()=
  expect(result.tracks[0].clips[0].props.points).toEqual({start:{x:50,y:50},end:{x:150,y:150}});
  expect(result.tracks[0].clips[0].propsVersion).toBe(3);expect(doc).toEqual(before);expect(migrateProject(result)).toEqual(result);
 });
+
+it('rejects current missing or malformed track identities and supplied malformed names',()=>{
+ for(const id of [undefined,42,'']) {
+  const doc=legacyProject();doc.schemaVersion=4;Object.assign(doc.tracks[0],{id});
+  expect(()=>migrateProject(doc)).toThrow(/track.*id/i);
+ }
+ for(const field of ['name','backgroundColor']) {
+  const doc=legacyProject();Object.assign(doc,{[field]:42});expect(()=>migrateProject(doc)).toThrow(new RegExp(field));
+ }
+ const trackDoc=legacyProject();Object.assign(trackDoc.tracks[0],{name:42});expect(()=>migrateProject(trackDoc)).toThrow(/name/);
+ const clipDoc=legacyProject();Object.assign(clipDoc.tracks[0].clips[0],{name:42});expect(()=>migrateProject(clipDoc)).toThrow(/name/);
+});
+
+it('rejects unsupported chart enums and nonpositive timing on load',()=>{
+ for(const patch of [{revealMode:'unsupported'},{framesPerBar:0},{framesPerBar:-1}]) {
+  const doc=legacyProject();doc.schemaVersion=4;Object.assign(doc.tracks[0].clips[0],{element:'candlestickChart',props:patch});
+  expect(()=>migrateProject(doc)).toThrow(/revealMode|framesPerBar/);
+ }
+});
+
+it('rejects supplied malformed structural clip values for current and legacy inputs',()=>{
+ for(const schemaVersion of [1,4]) for(const patch of [{props:42},{effects:{}},{from:'wrong'},{durationInFrames:'wrong'}]) {
+  const doc=legacyProject();doc.schemaVersion=schemaVersion;Object.assign(doc.tracks[0].clips[0],patch);
+  expect(()=>migrateProject(doc)).toThrow(/props|effects|from|durationInFrames/);
+ }
+});
+
+it('rejects missing required current fields while preserving permitted legacy defaults',()=>{
+ for(const field of ['name','from','durationInFrames','props','effects']) {
+  const doc=legacyProject();doc.schemaVersion=4;Object.assign(doc.tracks[0].clips[0],{[field]:undefined});
+  expect(()=>migrateProject(doc)).toThrow(new RegExp(field));
+ }
+ const doc=legacyProject();Object.assign(doc.tracks[0],{id:undefined,name:undefined});
+ expect(migrateProject(doc).tracks[0]).toMatchObject({id:'t-0',name:'Track 1'});
+});

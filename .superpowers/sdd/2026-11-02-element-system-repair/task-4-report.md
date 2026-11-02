@@ -45,3 +45,15 @@ Static HTML deliberately supports a narrow formatting subset; arbitrary CSS/layo
 - `node node_modules/vitest/vitest.mjs run` — exit 0; **35 files, 561 tests passed**, 35.28 seconds, final source including independent old-props migration.
 - `node C:/Users/4004/AppData/Local/node/corepack/v1/pnpm/10.28.2/bin/pnpm.cjs typecheck` — exit 0; **6 successful / 6 total**, 5 cached, 26.092 seconds.
 - `git diff --check` — exit 0, no whitespace errors (only Windows LF/CRLF informational warnings).
+
+## Review fix round 1 (base bd956ae)
+
+Addressed both Important findings in task-4-review.md. Migration now receives the source schema version through track/clip conversion. Current documents require track identity/name, clip name/timing/props/effects, and project name/backgroundColor before normalization. Supplied wrong IDs/names/structural types reject in both current and legacy documents; only absent supported legacy fields retain existing defaults. Clip props/effects and timing type guards already rejected wrong supplied values; added explicit current/legacy regressions to prove this. Chart scalar validation now uses its declared params, rejects unsupported revealMode, and applies a positive framesPerBar domain constraint without imposing inspector maximums.
+
+RED command: `node node_modules/vitest/vitest.mjs run packages/components/src/project-migrate.test.ts packages/editor/src/store.test.ts` — exit 1; **3 failed / 84 passed**, 2 failing files, 5.10 seconds. Failures were current malformed/missing track IDs being accepted, unsupported chart load values accepted, and unsupported chart mutation changing the project.
+
+GREEN command: `node node_modules/vitest/vitest.mjs run packages/components/src/project-migrate.test.ts packages/core/src/component-props.test.ts packages/components/src/base/props-validation.test.ts packages/components/src/trading/candlestick-chart.test.tsx packages/editor/src/store.test.ts` — exit 0; **5 files / 173 tests passed**, 11.14 seconds. Includes added supplied malformed props/effects/from/duration checks under schemas 1 and 4, current missing required-field rejection and permitted legacy missing track identity/default-name compatibility. Earlier focused run before those last two tests also passed 171 tests.
+
+Affected typechecks: `node C:/Users/4004/AppData/Local/node/corepack/v1/pnpm/10.28.2/bin/pnpm.cjs --filter @chart-studio/components --filter @chart-studio/editor --filter @chart-studio/video --filter @chart-studio/studio typecheck` — exit 0; all four workspace projects reported Done, including video script syntax checks.
+
+Self-review: read final migration/chart diff; checked version propagation and legacy defaults, atomic notice behavior, absence of broad inspector range enforcement and new dependency/schema changes. `git diff --check` exited 0 (only LF/CRLF informational warnings). No full suite/build/browser/render rerun in this fix round; Task5 owns the final integration gates. Files: project-migrate.ts/test, candlestick-chart definition, store.test.ts and existing task report. No new scratch report created.

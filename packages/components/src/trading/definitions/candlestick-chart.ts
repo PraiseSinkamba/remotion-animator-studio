@@ -233,8 +233,11 @@ export const candlestickChartDefinition: VideoComponentDefinition = {
 };
 
 candlestickChartDefinition.validateProps = (raw) => {
- const result=createPropsValidator(candlestickChartDefinition.defaults)(raw);
+ const result=createPropsValidator(candlestickChartDefinition.defaults, candlestickChartDefinition.params)(raw);
  if(!result.ok) return result;
+ if(typeof result.value.framesPerBar !== 'number' || result.value.framesPerBar <= 0) {
+   return {ok:false,issues:[{path:'framesPerBar',message:'Must be a positive number'}]};
+ }
  const bars=validateChartBars(result.value.bars);
  if(!bars.ok) return {ok:false,issues:bars.issues.map(issue=>({...issue,path:`bars.${issue.path}`}))};
  if(result.value.seriesId!==undefined || result.value.panes!==undefined || result.value.clock!==undefined) {
