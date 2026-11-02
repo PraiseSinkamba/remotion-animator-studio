@@ -27,9 +27,7 @@ const KIND_OPTIONS: Record<DrawingKind, DrawingOption[]> = {
   horizontalLine: [],
   verticalLine: [],
   trendline: [],
-  highLowLine: [],
   rectangle: [],
-  textLabel: [{ key: 'text', label: 'Text', kind: 'text' }],
   arrow: [],
   position: [
     { key: 'direction', label: 'Direction', kind: 'select', options: ['long', 'short'] },

@@ -305,6 +305,85 @@ const renameLegacyElements = (doc: Record<string, unknown>): Record<string, unkn
 };
 
 /**
+ * Converts the two drawing kinds that were retired.
+ *
+ * A high and low line becomes a trend line — it was a line between two
+ * points — and a text label becomes a text, because the product has a text
+ * element and the label's own text is carried across.
+ *
+ * The pass runs before the clips are read, because a clip whose kind the
+ * registry no longer knows would otherwise be rejected before the conversion
+ * could reach it. The trend line's points keep their fractions here: the
+ * version 3 → 4 step is the one that turns them into places.
+ */
+const convertRetiredDrawings = (doc: Record<string, unknown>): Record<string, unknown> => {
+  const tracks = doc.tracks;
+  if (!Array.isArray(tracks)) return doc;
+  return {
+    ...doc,
+    tracks: tracks.map((track) => {
+      const raw = track as Record<string, unknown>;
+      if (!Array.isArray(raw.clips)) return track;
+      return {
+        ...raw,
+        clips: raw.clips.map((clip) => {
+          const rawClip = clip as Record<string, unknown>;
+          const element = rawClip.element;
+          if (element !== 'highLowLine' && element !== 'textLabel') return clip;
+          const props = { ...((rawClip.props as Record<string, unknown>) ?? {}) };
+          const points = props.points as Record<string, { x: number; y: number }> | undefined;
+          const box = {
+            x: typeof props.x === 'number' ? props.x : 0,
+            y: typeof props.y === 'number' ? props.y : 0,
+            width: typeof props.width === 'number' ? props.width : 0,
+            height: typeof props.height === 'number' ? props.height : 0,
+          };
+          /** A fraction of the drawing's box, as a place in the composition. */
+          const absolute = (point: { x: number; y: number } | undefined) =>
+            point
+              ? {
+                  x: box.x - box.width / 2 + point.x * box.width,
+                  y: box.y - box.height / 2 + point.y * box.height,
+                }
+              : undefined;
+
+          if (element === 'highLowLine') {
+            if (!points?.top || !points?.bottom) return clip;
+            // The points keep their fractions and the box stays: the version
+            // 3 → 4 step is the one that turns the fractions into places and
+            // drops the box the line never used.
+            props.points = { start: points.top, end: points.bottom };
+            return {
+            ...rawClip,
+            element: 'trendline',
+            props,
+            propsVersion: propsVersionOf('trendline'),
+            };
+          }
+
+          // A text label becomes a text, at the place the label was.
+          const at = absolute(points?.at);
+          const label = props.label as { text?: string } | undefined;
+          delete props.width;
+          delete props.height;
+          delete props.points;
+          delete props.label;
+          props.x = at ? at.x : box.x;
+          props.y = at ? at.y : box.y;
+          props.text = typeof label?.text === 'string' ? label.text : '';
+          return {
+            ...rawClip,
+            element: 'text',
+            props,
+            propsVersion: propsVersionOf('text'),
+          };
+        }),
+      };
+    }),
+  };
+};
+
+/**
  * The points a version 2 drawing carried, as 0..1 fractions of its own box.
  *
  * The table is the migration's own: the definitions' defaults are absolute
@@ -315,9 +394,7 @@ const LEGACY_DRAWING_POINTS: Record<DrawingKind, Record<string, { x: number; y: 
   horizontalLine: {},
   verticalLine: { at: { x: 0.5, y: 0.5 } },
   trendline: { start: { x: 0.25, y: 0.75 }, end: { x: 0.75, y: 0.25 } },
-  highLowLine: { top: { x: 0.5, y: 0.25 }, bottom: { x: 0.5, y: 0.75 } },
   rectangle: {},
-  textLabel: { at: { x: 0.5, y: 0.5 } },
   arrow: { from: { x: 0.25, y: 0.75 }, to: { x: 0.75, y: 0.25 } },
   position: { entry: { x: 0, y: 0.5 }, stop: { x: 0, y: 0.75 }, target: { x: 0, y: 0.25 } },
 };
@@ -494,32 +571,9 @@ const migrateDrawingClip = (
       points = { at: { x: fractionX(x), y: 0.5 } };
       break;
     }
-    case 'highLowLine': {
-      const high = anchors.high;
-      const low = anchors.low;
-      if (!high || !low) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
-      const highX = 'barId' in high ? slotX(high.barId) : null;
-      const lowX = 'barId' in low ? slotX(low.barId) : null;
-      const highPrice = candlePrice(high);
-      const lowPrice = candlePrice(low);
-      if (highX === null || lowX === null || highPrice === null || lowPrice === null) {
-        return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
-      }
-      points = {
-        top: { x: fractionX(highX), y: fractionY(priceY(highPrice)) },
-        bottom: { x: fractionX(lowX), y: fractionY(priceY(lowPrice)) },
-      };
-      break;
-    }
     case 'trendline':
-    case 'arrow':
-    case 'textLabel': {
-      const keys =
-        kind === 'trendline'
-          ? ['start', 'end']
-          : kind === 'arrow'
-            ? ['from', 'to']
-            : ['at'];
+    case 'arrow': {
+      const keys = kind === 'trendline' ? ['start', 'end'] : ['from', 'to'];
       for (const key of keys) {
         const anchor = anchors[key];
         if (!anchor) return { ...clip, props: fallbackProps(kind, props), propsVersion: 2 };
@@ -634,13 +688,19 @@ const migrateV2ToV3 = (
  * A drawing that does not carry them is left exactly as it was: nobody drew
  * them, so nobody invents them.
  */
+/**
+ * The props version a converted clip carries.
+ *
+ * A converted clip is written against the props its new component declares,
+ * so the migrator does not reject it as newer than the component supports.
+ */
+const propsVersionOf = (element: ElementType): number => getComponent(element)?.propsVersion ?? 1;
+
 const DRAWING_POINT_KEYS: Record<DrawingKind, string[]> = {
   horizontalLine: [],
   verticalLine: [],
   trendline: ['start', 'end'],
-  highLowLine: ['top', 'bottom'],
   rectangle: [],
-  textLabel: ['at'],
   arrow: ['from', 'to'],
   position: ['entry', 'stop', 'target'],
 };
@@ -657,7 +717,10 @@ const DRAWING_POINT_KEYS: Record<DrawingKind, string[]> = {
  * points its shape needs is left exactly as it was.
  */
 const migrateDrawingToV4 = (clip: Clip): Clip => {
-  const kind = clip.element as DrawingKind;
+  // The kind is read as a string: a version 3 document may still carry the
+  // two kinds this conversion retires, and the conversion is what carries
+  // them across.
+  const kind = String(clip.element);
   const props = { ...(clip.props as Record<string, unknown>) };
   const points = props.points as Record<string, { x: number; y: number }> | undefined;
 
@@ -683,7 +746,7 @@ const migrateDrawingToV4 = (clip: Clip): Clip => {
     return { x: left + point.x * box.width, y: top + point.y * box.height };
   };
 
-  const needed = DRAWING_POINT_KEYS[kind];
+  const needed = DRAWING_POINT_KEYS[kind as DrawingKind] ?? [];
   const next: Record<string, unknown> = { ...props };
   const set = (key: string, value: number | undefined): void => {
     if (value === undefined) delete next[key];
@@ -714,17 +777,6 @@ const migrateDrawingToV4 = (clip: Clip): Clip => {
       // The box is the truth: it does not change.
       delete next.points;
       break;
-    case 'textLabel': {
-      const at = absolute(points?.at);
-      if (!at) return clip;
-      // The label keeps only its point.
-      set('x', at.x);
-      set('y', at.y);
-      delete next.width;
-      delete next.height;
-      next.points = { at };
-      break;
-    }
     case 'position': {
       const entry = absolute(points?.entry);
       const stop = absolute(points?.stop);
@@ -821,6 +873,7 @@ export const migrateProject = (raw: unknown): Project => {
   // document opens with its price lines as horizontal lines and its price
   // zones as rectangles.
   if (version < 3) doc = renameLegacyElements(doc);
+  doc = convertRetiredDrawings(doc);
 
   const tracks = (doc.tracks as unknown[]).map((track, index) => migrateTrack(track, index));
 

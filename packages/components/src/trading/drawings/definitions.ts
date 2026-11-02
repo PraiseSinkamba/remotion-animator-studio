@@ -27,11 +27,9 @@ import {
 } from '@chart-studio/core';
 import {
   ArrowAdapter,
-  HighLowLineAdapter,
   HorizontalLineAdapter,
   PositionAdapter,
   RectangleAdapter,
-  TextLabelAdapter,
   TrendlineAdapter,
   VerticalLineAdapter,
   type DrawingAdapterProps,
@@ -97,12 +95,6 @@ const rectangleShape: DrawingShape = (props) => ({
   height: num(props.height, 180),
 });
 
-const labelShape: DrawingShape = (props) => ({
-  x: num(props.x, 960),
-  y: num(props.y, 540),
-  width: LABEL_BOX.width,
-  height: LABEL_BOX.height,
-});
 
 const positionShape: DrawingShape = (props) => ({
   x: num(props.x, 960),
@@ -263,25 +255,6 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
     },
   ),
   drawingDefinition(
-    'highLowLine',
-    'High/Low Line',
-    '↕️',
-    'A vertical segment between two points.',
-    baseDefaults({ points: { top: { x: 960, y: 460 }, bottom: { x: 960, y: 620 } } }),
-    endpointShape,
-    pointBounds,
-    [OPACITY_PARAM],
-    HighLowLineAdapter,
-    // Two endpoints: the high and the low.
-    {
-      pick: 'segment',
-      handles: [
-        { id: 'top', effect: 'point' },
-        { id: 'bottom', effect: 'point' },
-      ],
-    },
-  ),
-  drawingDefinition(
     'rectangle',
     'Rectangle',
     '🟦',
@@ -300,22 +273,6 @@ export const drawingDefinitions: VideoComponentDefinition[] = [
         props: ['width', 'height'],
       })),
     },
-  ),
-  drawingDefinition(
-    'textLabel',
-    'Text Label',
-    '🔤',
-    'A text label at a point.',
-    baseDefaults({ x: 960, y: 540, points: { at: { x: 960, y: 540 } }, label: { text: 'Label' } }),
-    labelShape,
-    (props) => {
-      const box = labelShape(props);
-      return box ? { x: box.x, y: box.y, width: box.width, height: box.height } : componentBounds(props);
-    },
-    [X_PARAM, Y_PARAM, OPACITY_PARAM],
-    TextLabelAdapter,
-    // One anchor: the label is dragged by its own anchor.
-    { pick: 'point', handles: [{ id: 'anchor', effect: 'move' }] },
   ),
   drawingDefinition(
     'arrow',

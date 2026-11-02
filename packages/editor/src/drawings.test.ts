@@ -15,14 +15,12 @@ describe('isDrawingKind', () => {
 });
 
 describe('the drawing tools', () => {
-  it('offers the eight independent kinds', () => {
+  it('offers the six independent kinds', () => {
     expect(DRAWING_TOOLS.map((tool) => tool.kind)).toEqual([
       'horizontalLine',
       'verticalLine',
-      'textLabel',
       'position',
       'rectangle',
-      'highLowLine',
       'trendline',
       'arrow',
     ]);
@@ -33,10 +31,8 @@ describe('the drawing tools', () => {
     expect(clicks).toEqual({
       horizontalLine: 1,
       verticalLine: 1,
-      textLabel: 1,
       position: 1,
       rectangle: 1,
-      highLowLine: 2,
       trendline: 2,
       arrow: 2,
     });
@@ -44,8 +40,8 @@ describe('the drawing tools', () => {
 
   it('gives every kind with a shape of its own a default size', () => {
     for (const tool of DRAWING_TOOLS) {
-      if (tool.kind === 'trendline' || tool.kind === 'arrow' || tool.kind === 'highLowLine') {
-        // These three are placed by their points: they have no box.
+      if (tool.kind === 'trendline' || tool.kind === 'arrow') {
+        // These two are placed by their points: they have no box.
         expect(tool.width).toBeUndefined();
         expect(tool.height).toBeUndefined();
         continue;
@@ -71,13 +67,6 @@ describe('drawingDraftFromClicks', () => {
     expect(draft.y).toBe(300);
     expect(draft.height).toBe(320);
     expect(draft.width).toBeUndefined();
-  });
-
-  it('places a text label at the click', () => {
-    const draft = drawingDraftFromClicks('textLabel', [{ x: 400, y: 300 }]);
-    expect(draft.x).toBe(400);
-    expect(draft.y).toBe(300);
-    expect(draft.points).toEqual({ at: { x: 400, y: 300 } });
   });
 
   it('gives the position tool its own box and its three levels', () => {
@@ -118,18 +107,5 @@ describe('drawingDraftFromClicks', () => {
       to: { x: 300, y: 100 },
     });
     expect(draft.x).toBeUndefined();
-  });
-
-  it('makes a high and low line a vertical segment', () => {
-    const draft = drawingDraftFromClicks('highLowLine', [
-      { x: 500, y: 100 },
-      { x: 520, y: 300 },
-    ]);
-    expect(draft.points).toEqual({
-      top: { x: 500, y: 100 },
-      bottom: { x: 500, y: 300 },
-    });
-    expect(draft.x).toBeUndefined();
-    expect(draft.height).toBeUndefined();
   });
 });

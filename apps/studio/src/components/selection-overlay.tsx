@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getComponent } from '@chart-studio/components';
-import { dragEffect, elementRegion, handleAt, type Box, type Point } from '@chart-studio/editor';
+import { dragEffect, elementRegion, handleAt, type Box, type Point, type Region } from '@chart-studio/editor';
 import { findClip, useStore } from '@chart-studio/editor';
+import type { Clip, ElementHandle } from '@chart-studio/core';
 
 /**
  * Editor-only selection overlay drawn over the preview Player.
@@ -27,11 +28,20 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
 
   const layerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  /**
+   * The gesture in progress.
+   *
+   * The element's geometry is captured **when the drag starts**, not read
+   * live: the first move already moves the element, so a live geometry would
+   * apply the same delta again on the next move — and the element would run
+   * away from the pointer.
+   */
   const drag = useRef<{
     startX: number;
     startY: number;
-    handleId: string;
-    clipId: string;
+    handle: ElementHandle;
+    clip: Clip;
+    region: Region;
   } | null>(null);
 
   // The Player letterboxes the composition inside the stage; the overlay has
@@ -91,28 +101,31 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
     top: offsetY + point.y * scale,
   });
 
-  const onHandlePointerDown = (e: React.PointerEvent, handleId: string, clipId: string) => {
+  const onHandlePointerDown = (
+    e: React.PointerEvent,
+    handle: ElementHandle,
+    clip: Clip,
+    region: Region,
+  ) => {
     // Keep the stage's move-drag from starting under the handle.
     e.stopPropagation();
     e.preventDefault();
     commit();
-    drag.current = { startX: e.clientX, startY: e.clientY, handleId, clipId };
+    drag.current = { startX: e.clientX, startY: e.clientY, handle, clip, region };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
   const onHandlePointerMove = (e: React.PointerEvent) => {
     const current = drag.current;
     if (!current) return;
-    const entry = selected.find((item) => item.clip.id === current.clipId);
-    if (!entry || !entry.edit || !entry.region) return;
-    const handle = entry.edit.handles.find((item) => item.id === current.handleId);
-    if (!handle) return;
     const pointer = compositionPoint(e.clientX, e.clientY);
     const start = compositionPoint(current.startX, current.startY);
     if (!pointer || !start) return;
-    // The handle acts on the element it belongs to, even in a multi-selection.
-    const patch = dragEffect(entry.clip, handle, entry.region, pointer, start);
-    if (patch) updateClipProps(entry.clip.id, patch);
+    // The handle acts on the element it belongs to, even in a multi-selection,
+    // and on the geometry it had when the drag started — reading it live
+    // would apply the same delta twice and the element would run away.
+    const patch = dragEffect(current.clip, current.handle, current.region, pointer, start);
+    if (patch) updateClipProps(current.clip.id, patch);
   };
 
   const onHandlePointerUp = () => {
@@ -180,7 +193,7 @@ export const SelectionOverlay: React.FC<{ measured?: Map<string, Box> }> = ({ me
                     key={`${clip.id}-${handle.id}`}
                     className="pointer-events-auto absolute size-3 rounded-sm border border-primary-foreground bg-primary"
                     style={{ left, top, transform: 'translate(-50%, -50%)' }}
-                    onPointerDown={(e) => onHandlePointerDown(e, handle.id, clip.id)}
+                    onPointerDown={(e) => onHandlePointerDown(e, handle, clip, region)}
                     onPointerMove={onHandlePointerMove}
                     onPointerUp={onHandlePointerUp}
                     onPointerCancel={onHandlePointerUp}

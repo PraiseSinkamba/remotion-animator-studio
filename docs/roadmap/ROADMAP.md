@@ -37,7 +37,7 @@ the plan that executed it is `docs/superpowers/plans/2026-10-28-chart-studio-pla
 migration, the storage port and its backends, and three adapted Remocn components. **R2 is half
 landed** — the persistence side is complete; the source-import side has not started. **R2.5 has
 landed**: the chart element model, project schema version 2 and the datasource seam are in the
-tree, together with the path authoring tool, the eight drawing tools, the pane hold and zoom
+tree, together with the path authoring tool, the six drawing tools, the pane hold and zoom
 track, the boundary transitions and the export provenance record. **R3 has started** — the drawing
 objects now exist as independent clips: a drawing carries its own geometry, its own frame range, its
 own track and its own caption, and it reads no chart, no pane and no market value — and the element
@@ -175,12 +175,12 @@ explicit market clock, and a component contract that can resolve a market anchor
   relation between panes is declared on the chart that holds those panes.
 - [x] Register every new element type and name it in the library tab mapping, so a registered type
   that no tab names does not disappear from the library.
-  — landed: the eight drawing kinds are registered and named in the library tab mapping of
+  — landed: the six drawing kinds are registered and named in the library tab mapping of
   `packages/ui/src/components/library/catalog.tsx`; the Drawings group was later split out of
   Chart into a group of its own.
 
 The following also landed with this slice, beyond the items listed above: the path authoring
-tool and its eight drawing tools (`packages/editor/src/drawings.ts`,
+tool and its six drawing tools (`packages/editor/src/drawings.ts`,
 `packages/components/src/trading/drawings/`), the pane hold and zoom track
 (`packages/core/src/time.ts`), the boundary transition slot and its crossfade and wipe
 (`packages/core/src/schemas.ts`, `packages/components/src/base/transitions.ts`), and the export
@@ -226,7 +226,7 @@ own style, and they read no chart, no pane and no market value.
 - [x] Implement high/low and horizontal line, vertical line, trendline, rectangle, position, arrow and text tools as typed objects.
   — landed: eight independent tools, each an ordinary clip with its own geometry, points, style and
   caption. The vocabulary is TradingView's — `horizontalLine`, `verticalLine`, `trendline`,
-  `highLowLine`, `rectangle`, `textLabel`, `arrow`, `position` — and the drawing holds no market
+  `rectangle`, `arrow`, `position` — and the drawing holds no market
   value at all.
 - [x] Place a drawing with no chart selected: a click or a library drop gives it its own frame
   range and its own track, and it renders with no chart in the project.

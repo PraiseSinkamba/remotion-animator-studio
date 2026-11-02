@@ -202,7 +202,7 @@ the same frame always evaluates to the same thing — whatever order the frames 
 
 **The drawings no longer evaluate.** A drawing is pure geometry: its own shape, its own points, its
 own style and its own caption. It reads no chart, no pane, no series and no market value, so it
-needs no evaluation step and the eight drawing definitions declare none. Their props *are* the
+needs no evaluation step and the six drawing definitions declare none. Their props *are* the
 independent shape, and the adapter draws straight from them:
 
 | Field | Meaning |
@@ -223,15 +223,15 @@ independent shape, and the adapter draws straight from them:
 | `horizontalLine` | `{x, y, width}` — the width is its length. |
 | `verticalLine` | `{x, y, height}` — the height is its length. |
 | `rectangle` | `{x, y, width, height}` — the box is the truth. |
-| `textLabel` | `{x, y, points: {at}}` — a point and no box. |
 | `position` | `{x, y, width, height, points: {entry, stop, target}}` — the box stays, the levels are absolute. |
-| `trendline`, `arrow`, `highLowLine` | `{points: {…}}` — two absolute points and no box. The region is the bounding box of the two ends. |
+| `trendline`, `arrow` | `{points: {…}}` — two absolute points and no box. The region is the bounding box of the two ends. |
 
 The trend line's **ray option is retired**. A trend line has no box to run to the edge of, and the
 migration drops the prop; validation rejects a document that still carries it.
 
-The drawing kinds are `horizontalLine`, `verticalLine`, `trendline`, `highLowLine`, `rectangle`,
-`textLabel`, `arrow` and `position`. `priceLine` became `horizontalLine` and `priceZone` became
+The drawing kinds are `horizontalLine`, `verticalLine`, `trendline`, `rectangle`, `arrow` and
+`position`. A high and low line became a trend line and a text label became a text; the migration
+carries both across, so nothing the creator wrote is lost. `priceLine` became `horizontalLine` and `priceZone` became
 `rectangle` — a recorded exception to the rule that a component type is never renamed, because a
 line that keeps the name `priceLine` while holding no price is a false label. The migration
 carries the mapping; see §5.

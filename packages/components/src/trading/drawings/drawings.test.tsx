@@ -87,33 +87,6 @@ describe('the drawing tools', () => {
     expect(rect?.getAttribute('height')).toBe('180');
   });
 
-  it('renders a high and low line as a vertical segment', () => {
-    const { container } = draw('highLowLine', {
-      points: { top: { x: 960, y: 460 }, bottom: { x: 960, y: 620 } },
-    });
-
-    const line = container.querySelector('[data-testid="drawing-high-low-line"] line');
-    expect(line?.getAttribute('x1')).toBe('8');
-    expect(line?.getAttribute('x2')).toBe('8');
-    expect(line?.getAttribute('y1')).toBe('8');
-    expect(line?.getAttribute('y2')).toBe('168');
-  });
-
-  it('renders a text label at its point', () => {
-    const { container } = draw('textLabel', {
-      x: 960,
-      y: 540,
-      points: { at: { x: 960, y: 540 } },
-      label: { text: 'Hello' },
-    });
-
-    const label = container.querySelector('[data-testid="drawing-text-label"] text');
-    expect(label?.textContent).toBe('Hello');
-    // The label's baseline starts on its point.
-    expect(label?.getAttribute('x')).toBe('100');
-    expect(label?.getAttribute('y')).toBe('20');
-  });
-
   it('draws the caption beside the shape and claims no market value', () => {
     const { container } = draw('horizontalLine', { caption: '4200' });
 

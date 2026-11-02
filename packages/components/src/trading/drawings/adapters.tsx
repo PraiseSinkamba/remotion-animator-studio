@@ -296,8 +296,11 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
   const dx = x2 - x1;
   const dy = y2 - y1;
   const length = Math.hypot(dx, dy) || 1;
-  // The head is a fixed-size triangle on the line's direction.
-  const head = 10;
+  // The head is a triangle on the line's direction. It is drawn at the size a
+  // head reads at — a smaller one is a dot on a line, and the drawing stops
+  // looking like an arrow.
+  const head = Math.min(22, Math.max(12, length * 0.22));
+  const half = head * 0.42;
   const ux = dx / length;
   const uy = dy / length;
   const baseX = x2 - ux * head;
@@ -313,8 +316,11 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
     >
       <line x1={x1} y1={y1} x2={baseX} y2={baseY} stroke={color} strokeWidth={widthOf(style)} />
       <polygon
-        points={`${x2},${y2} ${baseX - uy * 4},${baseY + ux * 4} ${baseX + uy * 4},${baseY - ux * 4}`}
+        points={`${x2},${y2} ${baseX - uy * half},${baseY + ux * half} ${baseX + uy * half},${baseY - ux * half}`}
         fill={color}
+        stroke={color}
+        strokeWidth={1}
+        strokeLinejoin="round"
       />
       <Caption text={caption} style={style} x={4} y={12} />
     </svg>
@@ -328,6 +334,11 @@ export const ArrowAdapter: React.FC<DrawingAdapterProps> = ({ style, caption, po
  * geometric fact about the drawing. It never states a profit and never
  * implies that a broker filled the position (OB-006).
  */
+/** The reward zone: what the target is worth. */
+const REWARD_FILL = '#26a69a';
+/** The risk zone: what the stop costs. */
+const RISK_FILL = '#ef5350';
+
 export const PositionAdapter: React.FC<DrawingAdapterProps> = ({
   width,
   height,
@@ -359,6 +370,25 @@ export const PositionAdapter: React.FC<DrawingAdapterProps> = ({
   const risk = Math.abs(e.y - s.y);
   const ratio = risk > 0 ? reward / risk : 0;
 
+  // The two zones: what the target is worth above the entry, and what the
+  // stop costs below it. A position reads as a position because of them.
+  const rewardTop = Math.min(e.y, t.y);
+  const rewardBottom = Math.max(e.y, t.y);
+  const riskTop = Math.min(e.y, s.y);
+  const riskBottom = Math.max(e.y, s.y);
+  const zone = (top: number, bottom: number, fill: string, name: string) => (
+    <rect
+      key={name}
+      data-testid={`drawing-position-zone-${name}`}
+      x={0}
+      y={top}
+      width={width}
+      height={Math.max(0, bottom - top)}
+      fill={fill}
+      opacity={0.28}
+    />
+  );
+
   return (
     <svg
       data-testid="drawing-position"
@@ -366,6 +396,8 @@ export const PositionAdapter: React.FC<DrawingAdapterProps> = ({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
     >
+      {zone(rewardTop, rewardBottom, REWARD_FILL, 'reward')}
+      {zone(riskTop, riskBottom, RISK_FILL, 'risk')}
       {level(e.y, 'entry')}
       {level(s.y, 'stop')}
       {level(t.y, 'target')}

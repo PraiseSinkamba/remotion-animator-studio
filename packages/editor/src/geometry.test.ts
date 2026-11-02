@@ -171,18 +171,6 @@ describe('dragEffect', () => {
     expect(points.end).toEqual({ x: 1040, y: 495 });
   });
 
-  it('keeps a high low line on one vertical', () => {
-    const clip = makeClip('highLowLine', {
-      points: { top: { x: 960, y: 495 }, bottom: { x: 960, y: 585 } },
-    });
-    const region = regionOf(clip);
-    const patch = dragEffect(clip, { id: 'top', effect: 'point' }, region, { x: 1200, y: 500 }, { x: 960, y: 495 });
-    const points = patch!.points as Record<string, { x: number; y: number }>;
-    expect(points.top.x).toBeCloseTo(960);
-    expect(points.top.y).toBeCloseTo(500);
-    expect(points.bottom).toEqual({ x: 960, y: 585 });
-  });
-
   it('moves one level of a position tool', () => {
     const clip = makeClip('position', {
       x: 960,
@@ -226,11 +214,10 @@ describe('the edit declarations', () => {
   const gridElements = ['isoCity'];
   const textElements = ['text', 'counter', 'nodeTrail', 'remocnMarkerHighlight', 'remocnSoftBlurIn', 'remocnTypewriter'];
   const emojiElements = ['emoji'];
-  const pointElements = ['horizontalLine', 'verticalLine', 'textLabel'];
+  const pointElements = ['horizontalLine', 'verticalLine'];
   const segmentElements: [string, string[]][] = [
     ['trendline', ['start', 'end']],
     ['arrow', ['from', 'to']],
-    ['highLowLine', ['top', 'bottom']],
   ];
   const levelElements = ['position'];
   const notOnCanvas = ['audio', 'background'];

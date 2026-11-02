@@ -369,15 +369,8 @@ describe('migrateProject — the v2 to v3 conversion', () => {
     expect(clip.element).toBe('rectangle');
   });
 
-  it("keeps the other six drawing kinds' names", () => {
-    const kinds: ElementType[] = [
-      'highLowLine',
-      'verticalLine',
-      'trendline',
-      'textLabel',
-      'arrow',
-      'position',
-    ];
+  it("keeps the other four drawing kinds' names", () => {
+    const kinds: ElementType[] = ['verticalLine', 'trendline', 'arrow', 'position'];
     const doc = v2Document(
       kinds.map((kind) =>
         drawingClip(kind, {
@@ -598,7 +591,9 @@ describe('migrateProject — the v2 to v3 conversion', () => {
 
 describe('migrateProject — the v3 to v4 conversion', () => {
   /** A version 3 document with one drawing of its own. */
-  const v3Document = (element: ElementType, props: Record<string, unknown>): TestDoc => ({
+  // The element is a string: a version 3 document may still carry the two
+  // kinds this migration converts.
+  const v3Document = (element: string, props: Record<string, unknown>): TestDoc => ({
     name: 'V3',
     width: 1920,
     height: 1080,
@@ -614,7 +609,7 @@ describe('migrateProject — the v3 to v4 conversion', () => {
           {
             id: 'c-drawing',
             name: 'Drawing',
-            element,
+            element: element as ElementType,
             from: 0,
             durationInFrames: 90,
             props,
@@ -697,7 +692,7 @@ describe('migrateProject — the v3 to v4 conversion', () => {
     expect(clip.props.points).toBeUndefined();
   });
 
-  it('keeps a label’s point and drops its box', () => {
+  it('turns a text label into a text and keeps what it said', () => {
     const clip = migratedDrawing(
       v3Document('textLabel', {
         x: 960,
@@ -709,12 +704,31 @@ describe('migrateProject — the v3 to v4 conversion', () => {
       }),
     );
 
-    expect(clip.props.points).toEqual({ at: { x: 960, y: 540 } });
+    expect(clip.element).toBe('text');
+    expect(clip.props.text).toBe('Hi');
     expect(clip.props.x).toBe(960);
     expect(clip.props.y).toBe(540);
     expect(clip.props.width).toBeUndefined();
     expect(clip.props.height).toBeUndefined();
-    expect(clip.props.label).toEqual({ text: 'Hi' });
+    expect(clip.props.points).toBeUndefined();
+    expect(clip.props.label).toBeUndefined();
+  });
+
+  it('turns a high and low line into a trend line and keeps its two points', () => {
+    const clip = migratedDrawing(
+      v3Document('highLowLine', {
+        x: 960,
+        y: 540,
+        width: 24,
+        height: 160,
+        points: { top: { x: 0.5, y: 0 }, bottom: { x: 0.5, y: 1 } },
+      }),
+    );
+
+    expect(clip.element).toBe('trendline');
+    expect(clip.props.points).toEqual({ start: { x: 960, y: 460 }, end: { x: 960, y: 620 } });
+    expect(clip.props.x).toBeUndefined();
+    expect(clip.props.y).toBeUndefined();
   });
 
   it('keeps the position tool’s box and makes its levels places', () => {

@@ -3,6 +3,7 @@ import { ChevronsLeft, Pause, Play, SkipBack, SkipForward, Volume2, VolumeX } fr
 import React, { useEffect, useRef, useState } from 'react';
 import {
   DRAWING_TOOLS,
+  defaultDrawingDraft,
   drawingDraftFromClicks,
   isDrawingKind,
   playerRef,
@@ -628,16 +629,16 @@ export const PreviewPanel: React.FC = () => {
         ? s.project.tracks.find((track) => track.clips.some((clip) => clip.id === chart.id))?.id
         : undefined;
 
-      if (clicks > 1) {
-        // The drop is the first point; the creator finishes with clicks.
-        drawingPicks.current = [{ x: point.x, y: point.y }];
-        s.setDrawingTool(kind);
-        s.setNotice(drawingPendingNotice(kind, clicks - 1));
-        return;
-      }
-      drawingPicks.current = []; // a one-click drawing leaves no clicks pending
-      const draft = drawingDraftFromClicks(kind, [{ x: point.x, y: point.y }]);
+      // A tool that takes two clicks cannot be completed by one drop: the drop
+      // places the shape with its own proportions and the creator drags its
+      // ends into place.
+      drawingPicks.current = [];
+      const draft =
+        clicks > 1
+          ? defaultDrawingDraft(kind, { x: point.x, y: point.y })
+          : drawingDraftFromClicks(kind, [{ x: point.x, y: point.y }]);
       useStore.getState().addDrawing(kind, { ...draft, trackId });
+      s.setDrawingTool(null);
       s.setNotice(null);
       return;
     }

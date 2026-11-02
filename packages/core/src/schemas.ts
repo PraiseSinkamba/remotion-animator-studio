@@ -44,11 +44,9 @@ export type ElementType =
   | 'remocnTypewriter'
   /** Independent drawing tools (Chart Studio). */
   | 'horizontalLine'
-  | 'highLowLine'
   | 'verticalLine'
   | 'trendline'
   | 'rectangle'
-  | 'textLabel'
   | 'arrow'
   | 'position'
   /** Transition components: they render at a clip boundary, not as a clip. */

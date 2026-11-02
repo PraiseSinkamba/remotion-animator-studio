@@ -98,8 +98,8 @@ declaration and never names an element kind for selection, editing or picking.
   |---|---|---|---|
   | 1 — the box is the truth | `shape` `image` `video` `gif` `html` `wave` `synthGrid` `ridge` `commitGraph` `particles` `sunMoon` `skyCycle` `rectangle` `blob` `cursor` `neonSun` `isoCity` `candlestickChart` | `box` | four corners, `scale` |
   | 2 — the content is the truth | `text` `counter` `emoji` `nodeTrail` `remocnMarkerHighlight` `remocnSoftBlurIn` `remocnTypewriter` | `box` | four corners, `font`; four sides, `wrap` |
-  | 3 — one anchor | `horizontalLine` `verticalLine` `textLabel` | `point` | one handle, `move` |
-  | 4 — two endpoints | `trendline` `arrow` `highLowLine` | `segment` | two handles, `point` |
+  | 3 — one anchor | `horizontalLine` `verticalLine` | `point` | one handle, `move` |
+  | 4 — two endpoints | `trendline` `arrow` | `segment` | two handles, `point` |
   | 5 — a box with levels | `position` | `box` | three handles, `level` |
   | 6 — not on the canvas | `audio` `background` | — | none |
 

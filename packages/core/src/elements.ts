@@ -177,9 +177,7 @@ export type DrawingKind =
   | 'horizontalLine'
   | 'verticalLine'
   | 'trendline'
-  | 'highLowLine'
   | 'rectangle'
-  | 'textLabel'
   | 'arrow'
   | 'position';
 
@@ -188,9 +186,7 @@ export const INDEPENDENT_DRAWING_KINDS: readonly DrawingKind[] = [
   'horizontalLine',
   'verticalLine',
   'trendline',
-  'highLowLine',
   'rectangle',
-  'textLabel',
   'arrow',
   'position',
 ];
@@ -272,9 +268,7 @@ export interface DrawingPropsByKind {
   horizontalLine: HorizontalLineProps;
   verticalLine: VerticalLineProps;
   trendline: EndpointDrawingProps;
-  highLowLine: EndpointDrawingProps;
   rectangle: RectangleProps;
-  textLabel: TextLabelProps;
   arrow: EndpointDrawingProps;
   position: PositionProps;
 }

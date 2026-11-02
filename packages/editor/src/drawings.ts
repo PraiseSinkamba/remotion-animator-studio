@@ -7,6 +7,7 @@
  *
  * A drawing's points are absolute: they are places in the composition.
  */
+import { getComponent } from '@chart-studio/components';
 import type { DrawingKind, DrawingPoint, DrawingStyle } from '@chart-studio/core';
 
 /** One of the drawing tools, and how many clicks it takes to place it. */
@@ -25,11 +26,9 @@ export interface DrawingTool {
 export const DRAWING_TOOLS: DrawingTool[] = [
   { kind: 'horizontalLine', label: 'Horizontal Line', icon: '─', clicks: 1, width: 480 },
   { kind: 'verticalLine', label: 'Vertical Line', icon: '│', clicks: 1, height: 320 },
-  { kind: 'textLabel', label: 'Text Label', icon: 'T', clicks: 1, width: 200, height: 40 },
   { kind: 'position', label: 'Position', icon: '⇅', clicks: 1, width: 320, height: 240 },
   { kind: 'rectangle', label: 'Rectangle', icon: '▬', clicks: 1, width: 320, height: 180 },
   // The three tools below are placed by their own points: they have no box.
-  { kind: 'highLowLine', label: 'High/Low Line', icon: '↕', clicks: 2 },
   { kind: 'trendline', label: 'Trendline', icon: '╱', clicks: 2 },
   { kind: 'arrow', label: 'Arrow', icon: '→', clicks: 2 },
 ];
@@ -95,9 +94,6 @@ export const drawingDraftFromClicks = (
     case 'verticalLine':
       // The rule's own x, the centre of its span and its length.
       return { x: first.x, y: first.y, height: tool?.height ?? 320 };
-    case 'textLabel':
-      // The label is its point.
-      return { x: first.x, y: first.y, points: { at: { x: first.x, y: first.y } } };
     case 'position': {
       // The tool's own box, and the three levels inside it.
       const width = tool?.width ?? 320;
@@ -123,15 +119,6 @@ export const drawingDraftFromClicks = (
         width: tool?.width ?? 320,
         height: tool?.height ?? 180,
       };
-    case 'highLowLine':
-      // A high/low line is a vertical segment: the first click sets its x,
-      // the two clicks set its top and its bottom.
-      return {
-        points: {
-          top: { x: first.x, y: Math.min(first.y, second.y) },
-          bottom: { x: first.x, y: Math.max(first.y, second.y) },
-        },
-      };
     case 'trendline':
       return {
         points: {
@@ -147,4 +134,45 @@ export const drawingDraftFromClicks = (
         },
       };
   }
+};
+
+/**
+ * The draft a drop makes.
+ *
+ * A tool that takes two clicks cannot be completed by one drop, so the drop
+ * places the shape with its own default proportions at the pointer and the
+ * creator drags its ends into place — which is what every drawing tool does.
+ */
+export const defaultDrawingDraft = (
+  kind: DrawingKind,
+  at: { x: number; y: number },
+): DrawingDraft => {
+  const defaults = (getComponent(kind)?.defaults ?? {}) as Record<string, unknown>;
+  const points = defaults.points as Record<string, DrawingPoint> | undefined;
+
+  // Where the shape is centred. A shape with an anchor is centred on it; a
+  // shape made of points has no anchor, so its points are its centre.
+  let centreX = Number(defaults.x ?? 0);
+  let centreY = Number(defaults.y ?? 0);
+  if (defaults.x === undefined && defaults.y === undefined && points) {
+    const keys = Object.keys(points);
+    centreX = keys.reduce((sum, key) => sum + points[key].x, 0) / keys.length;
+    centreY = keys.reduce((sum, key) => sum + points[key].y, 0) / keys.length;
+  }
+  const dx = at.x - centreX;
+  const dy = at.y - centreY;
+
+  const moved = points
+    ? Object.fromEntries(
+        Object.entries(points).map(([key, point]) => [key, { x: point.x + dx, y: point.y + dy }]),
+      )
+    : undefined;
+
+  return {
+    x: at.x,
+    y: at.y,
+    ...(typeof defaults.width === 'number' ? { width: defaults.width } : {}),
+    ...(typeof defaults.height === 'number' ? { height: defaults.height } : {}),
+    ...(moved ? { points: moved } : {}),
+  };
 };

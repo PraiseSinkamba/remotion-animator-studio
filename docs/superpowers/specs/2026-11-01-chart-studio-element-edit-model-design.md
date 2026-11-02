@@ -132,12 +132,12 @@ height are measurements.
 
 ### Group 3 — one anchor
 
-`horizontalLine` `verticalLine` `textLabel`
+`horizontalLine` `verticalLine`
 
 The element is a point. Dragging it moves the element. A horizontal line keeps its length; a vertical
 line keeps its length. A text label carries its text.
 
-### Group 4 — two endpoints: `trendline` `arrow` `highLowLine`
+### Group 4 — two endpoints: `trendline` `arrow`
 
 The line **is** its two ends. There is no rectangle around it.
 
@@ -240,10 +240,10 @@ what a drag means, because the handles are now per-element.
 
 | Drawing | Now (v3) | After (v4) |
 |---|---|---|
-| `trendline` `arrow` `highLowLine` | `{x, y, width, height, points:{start,end} as fractions}` | `{points:{start:{x,y}, end:{x,y}}}` — absolute, no box |
+| `trendline` `arrow` | `{x, y, width, height, points:{start,end} as fractions}` | `{points:{start:{x,y}, end:{x,y}}}` — absolute, no box |
 | `horizontalLine` | `{x, y, width, height}` | `{x, y, width}` — the width is its length |
 | `verticalLine` | `{x, y, width, height}` | `{x, y, height}` |
-| `textLabel` | `{x, y, width, height, points:{at}, label}` | `{x, y, points:{at}, label}` |
+| `textLabel` | `{x, y, width, height, points:{at}, label}` | becomes a `text`, carrying what it said |
 | `rectangle` | `{x, y, width, height}` | unchanged |
 | `position` | `{x, y, width, height, points:{entry,stop,target} as fractions}` | the same, with the points absolute |
 
@@ -265,10 +265,10 @@ Two consequences, both simplifications:
 
 | Drawing | Migration |
 |---|---|
-| `trendline` `arrow` `highLowLine` | the box's centre and the fractional points become absolute points; `x`, `y`, `width`, `height` are dropped |
+| `trendline` `arrow` | the box's centre and the fractional points become absolute points; `x`, `y`, `width`, `height` are dropped |
 | `horizontalLine` | the box's centre becomes `x`/`y`; `width` stays as the length; `height` is dropped |
 | `verticalLine` | the same, with `height` as the length |
-| `textLabel` | the fractional point becomes absolute; the box is dropped |
+| `textLabel` | becomes a `text`; its point becomes the text's place and its text is carried across |
 | `position` | the three fractional points become absolute; the box stays |
 | everything else | untouched |
 
